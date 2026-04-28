@@ -17,6 +17,9 @@ Usage:
 
     # Test ami_setup.sh on a raw Ubuntu instance (no AMI needed):
     uv run python ec2/start_ec2.py --name test-ami-setup --raw
+
+    # Test an unmerged branch on the instance (must be pushed to origin):
+    uv run python ec2/start_ec2.py --name emily-feature-test --napari --raw --branch my-feature
 """
 
 import argparse
@@ -169,6 +172,12 @@ def main() -> None:
              "(for testing setup without building an AMI)",
     )
     parser.add_argument(
+        "--branch",
+        default="main",
+        help="Git branch to clone on the instance (default: main). "
+             "Must exist on origin — validated before launch.",
+    )
+    parser.add_argument(
         "--s3",
         metavar="S3_URI",
         help="S3 path to sync to the local NVMe after mount "
@@ -238,14 +247,25 @@ def main() -> None:
     if not args.instance_type:
         args.instance_type = NAPARI_DEFAULT_INSTANCE_TYPE if args.napari else ANALYTICS_INSTANCE_TYPE
 
-    # Detect current git branch so the instance clones the right code
+    # Validate the branch exists on origin before launch — silent failures
+    # inside cloud-init waste 10+ minutes of EC2 time before the user finds out.
+    git_branch = args.branch
     try:
-        git_branch = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            text=True,
-        ).strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        git_branch = "main"
+        subprocess.check_call(
+            ["git", "ls-remote", "--exit-code", "origin", f"refs/heads/{git_branch}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print("ERROR: git is not installed", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.CalledProcessError:
+        print(
+            f"ERROR: branch '{git_branch}' not found on origin. "
+            f"Push the branch first or pass --branch <existing>.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     mount_snippet = MOUNT_VOLUME_NAPARI_SNIPPET if args.napari else MOUNT_VOLUME_SNIPPET
 
