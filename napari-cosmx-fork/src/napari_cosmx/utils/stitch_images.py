@@ -53,6 +53,14 @@ def main(args_list=None):
     parser.add_argument("--dotzarr",
         help="\nOptional: Add .zarr extension on multiscale pyramids.",
         action='store_true')
+    parser.add_argument("--channel-name",
+        help="Override the kit's channel-to-marker mapping. Repeatable.\n"
+             "Format: CH=MARKER, where CH is one of B, G, Y, R, U.\n"
+             "Example: --channel-name B=AT8 --channel-name G=6E10\n"
+             "Used when the MorphologyKit metadata in the TIFFs is wrong or\n"
+             "inconsistent across studies for the same actual panel.",
+        action='append',
+        default=[])
     args = parser.parse_args(args=args_list)
 
     # Check output directory
@@ -151,6 +159,19 @@ def main(args_list=None):
                     markers = [mkit[c] for c in channels]
                 except:
                     pass # channel names left as default
+
+                # Apply --channel-name overrides. The kit's MorphologyReagents
+                # metadata is sometimes wrong (e.g. mislabeling 6E10 as CD68/CD3
+                # or AT8 as Histone) and even inconsistent across studies, so
+                # callers can pin the true panel.
+                if args.channel_name:
+                    overrides = {}
+                    for pair in args.channel_name:
+                        ch, sep, name = pair.partition("=")
+                        if not sep or ch not in channels:
+                            sys.exit(f"Invalid --channel-name {pair!r}: expected CH=MARKER with CH in {channels}")
+                        overrides[ch] = name
+                    markers = [overrides.get(c, m) for c, m in zip(channels, markers)]
         
     fov_height = im_shape[0]
     fov_width = im_shape[1]

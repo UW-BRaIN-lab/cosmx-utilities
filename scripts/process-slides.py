@@ -167,6 +167,7 @@ def launch_fargate_task(
     memory: str | None = None,
     spot: bool = False,
     segmentation_version: str | None = None,
+    channel_names: list[str] | None = None,
 ) -> str | None:
     """Launch a Fargate task for a single slide. Returns task ID or None for whatif.
 
@@ -177,6 +178,8 @@ def launch_fargate_task(
     command = ["uv", "run", "python", "/app/scripts/process-slide.py"]
     if segmentation_version:
         command += ["--segmentation-version", segmentation_version]
+    for pair in channel_names or []:
+        command += ["--channel-name", pair]
     command += [slide.bucket, slide.base_path]
 
     cluster = env("ECS_CLUSTER")
@@ -230,13 +233,20 @@ def launch_fargate_task(
     return task_id
 
 
-def process_slide_local(slide: Slide, whatif: bool, segmentation_version: str | None = None) -> None:
+def process_slide_local(
+    slide: Slide,
+    whatif: bool,
+    segmentation_version: str | None = None,
+    channel_names: list[str] | None = None,
+) -> None:
     """Run process-slide.py locally for a single slide."""
     cmd = ["uv", "run", "python", "scripts/process-slide.py"]
     if whatif:
         cmd.append("--whatif")
     if segmentation_version:
         cmd += ["--segmentation-version", segmentation_version]
+    for pair in channel_names or []:
+        cmd += ["--channel-name", pair]
     cmd += [slide.bucket, slide.base_path]
 
     if whatif:
@@ -298,6 +308,15 @@ def main() -> None:
         help="Override segmentation version subdirectory (e.g. Segmentation_uuid_003). "
              "When omitted, auto-detects the highest version from manifest JSONs.",
     )
+    parser.add_argument(
+        "--channel-name",
+        action="append",
+        default=[],
+        help="Override the kit's channel-to-marker mapping for stitching. "
+             "Repeatable. Format: CH=MARKER (CH in B/G/Y/R/U). "
+             "Example: --channel-name B=AT8 --channel-name G=6E10. "
+             "Use when MorphologyKit metadata in the TIFFs is wrong.",
+    )
     args = parser.parse_args()
 
     if not args.local:
@@ -340,7 +359,7 @@ def main() -> None:
             mem_gb = int(memory) // 1024
             label = f"{vcpu} vCPU / {mem_gb} GB"
             print(f"  {label}:")
-            task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=cpu, memory=memory, spot=args.spot, segmentation_version=args.segmentation_version)
+            task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=cpu, memory=memory, spot=args.spot, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
             if task_id:
                 task_ids.append((label, task_id))
                 print(f"    Task: {task_id}")
@@ -360,13 +379,13 @@ def main() -> None:
         if args.local:
             for slide in slides:
                 print(f"Processing: {slide.atomx_run} / {slide.slide_name}")
-                process_slide_local(slide, whatif=args.whatif, segmentation_version=args.segmentation_version)
+                process_slide_local(slide, whatif=args.whatif, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
                 print()
         else:
             task_ids = []
             for slide in slides:
                 print(f"Launching: {slide.atomx_run} / {slide.slide_name}")
-                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=args.cpu, memory=args.memory, spot=args.spot, segmentation_version=args.segmentation_version)
+                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=args.cpu, memory=args.memory, spot=args.spot, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
                 if task_id:
                     task_ids.append((slide, task_id))
                     print(f"  Task: {task_id}")
