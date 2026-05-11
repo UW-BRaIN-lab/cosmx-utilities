@@ -569,7 +569,11 @@ def download_slide(ctx: SlideContext, celllabels_subdirs: str, dryrun: bool = Fa
 # ── Step 2: Stitch images ──────────────────────────────────────────────────
 
 
-def stitch_images(ctx: SlideContext, celllabels_subdirs: str) -> None:
+def stitch_images(
+    ctx: SlideContext,
+    celllabels_subdirs: str,
+    channel_names: list[str] | None = None,
+) -> None:
     cmd = [
         "uv", "run", "stitch-images",
         "-i", str(ctx.work_dir / "CellStatsDir"),
@@ -578,6 +582,8 @@ def stitch_images(ctx: SlideContext, celllabels_subdirs: str) -> None:
     ]
     if celllabels_subdirs:
         cmd += ["--celllabels-subdir", celllabels_subdirs]
+    for pair in channel_names or []:
+        cmd += ["--channel-name", pair]
     run(cmd)
 
 
@@ -651,6 +657,7 @@ def process_slide(
     *,
     whatif: bool = False,
     seg_version_override: str = "",
+    channel_names: list[str] | None = None,
 ) -> None:
     bench = Benchmark(ctx=ctx, whatif=whatif)
 
@@ -704,7 +711,7 @@ def process_slide(
         else:
             bench.start("stitch")
             log(f"[{now_iso()}] Stitching images ...")
-            stitch_images(ctx, celllabels_subdirs)
+            stitch_images(ctx, celllabels_subdirs, channel_names=channel_names)
             bench.end("stitch")
             log(f"[{now_iso()}] Stitch complete ({bench._duration_seconds('stitch')}s)")
 
@@ -761,10 +768,23 @@ def main() -> None:
         default="",
         help="Override segmentation version subdirectory (e.g. Segmentation_uuid_003)",
     )
+    parser.add_argument(
+        "--channel-name",
+        action="append",
+        default=[],
+        help="Override the kit's channel-to-marker mapping. Repeatable. "
+             "Format: CH=MARKER (CH in B/G/Y/R/U). "
+             "Example: --channel-name B=AT8 --channel-name G=6E10",
+    )
     args = parser.parse_args()
 
     ctx = SlideContext(bucket=args.s3_bucket, slide_base_path=args.slide_base_path)
-    process_slide(ctx, whatif=args.whatif, seg_version_override=args.segmentation_version)
+    process_slide(
+        ctx,
+        whatif=args.whatif,
+        seg_version_override=args.segmentation_version,
+        channel_names=args.channel_name,
+    )
 
 
 if __name__ == "__main__":
