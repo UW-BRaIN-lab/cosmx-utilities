@@ -38,22 +38,34 @@ class SlideContext:
     """All path components derived from the S3 bucket + slide base path."""
 
     bucket: str
-    slide_base_path: str  # Study/Experiment/AtoMxRun/DecodedFiles/SlideName/ScanId
+    slide_base_path: str  # Study/[Experiment/]AtoMxRun/DecodedFiles/SlideName/ScanId
     work_dir: Path = Path("/tmp/slide")
 
     def __post_init__(self) -> None:
         parts = self.slide_base_path.rstrip("/").split("/")
-        # .../Study/Experiment/AtoMxRun/DecodedFiles/SlideName/ScanId
+        # Two supported layouts:
+        #   5-level: Study/AtoMxRun/DecodedFiles/SlideName/ScanId            (typical)
+        #   6-level: Study/Experiment/AtoMxRun/DecodedFiles/SlideName/ScanId (when
+        #            grouping multiple resegmentations of the same scans under a
+        #            shared experiment wrapper for comparison)
         self.slide_name = parts[-2]
         self.scan_id = parts[-1]
         self.atomx_run = parts[-4]
-        self.experiment = parts[-5]
-        self.study = parts[-6]
-        self.experiment_prefix = f"{self.study}/{self.experiment}"
-        self.output_prefix = (
-            f"napari-stitched/{self.study}/{self.experiment}"
-            f"/{self.atomx_run}/{self.slide_name}"
-        )
+        self.study = parts[0]
+        if len(parts) >= 6:
+            self.experiment = parts[-5]
+            self.experiment_prefix = f"{self.study}/{self.experiment}"
+            self.output_prefix = (
+                f"napari-stitched/{self.study}/{self.experiment}"
+                f"/{self.atomx_run}/{self.slide_name}"
+            )
+        else:
+            self.experiment = ""
+            self.experiment_prefix = self.study
+            self.output_prefix = (
+                f"napari-stitched/{self.study}"
+                f"/{self.atomx_run}/{self.slide_name}"
+            )
 
     def s3(self, suffix: str = "") -> str:
         return f"s3://{self.bucket}/{self.slide_base_path}/{suffix}"

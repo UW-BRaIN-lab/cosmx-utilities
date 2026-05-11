@@ -62,11 +62,17 @@ class Slide:
 
     @property
     def output_prefix(self) -> str:
-        """The S3 prefix where process-slide.py uploads results."""
+        """The S3 prefix where process-slide.py uploads results.
+
+        Mirrors SlideContext.output_prefix in process-slide.py — must stay in sync
+        so discovery's --skip check looks at the same path the worker uploads to.
+        """
         parts = self.base_path.rstrip("/").split("/")
-        study = parts[0]        # CosMx-GBM
-        experiment = parts[1]   # CosMx-GBM-segmentation-test-1.9.26
-        return f"napari-stitched/{study}/{experiment}/{self.atomx_run}/{self.slide_name}"
+        study = parts[0]
+        if len(parts) >= 6:
+            experiment = parts[1]
+            return f"napari-stitched/{study}/{experiment}/{self.atomx_run}/{self.slide_name}"
+        return f"napari-stitched/{study}/{self.atomx_run}/{self.slide_name}"
 
     def __str__(self) -> str:
         return f"s3://{self.bucket}/{self.base_path}"
