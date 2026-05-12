@@ -630,23 +630,19 @@ def upload_results(ctx: SlideContext) -> None:
     )
 
 
-def _write_status_marker(ctx: SlideContext, success: bool) -> None:
-    """Write a zero-byte _SUCCESS or _FAILED marker to the S3 output prefix.
+def _write_success_marker(ctx: SlideContext) -> None:
+    """Write a zero-byte _SUCCESS marker to the S3 output prefix.
 
-    Removes the opposite marker first so only one exists at a time.
+    The bucket policy on keene-cosmx-data denies s3:DeleteObject to everything
+    except the DELETER role, so we can't toggle a separate _FAILED marker —
+    PutObject is the only mutation available. Absence of _SUCCESS means the
+    slide isn't done (failed, in-flight, or never run); the ECS task history
+    is the authoritative source for the "why" of any failure.
     """
-    s3 = _get_s3()
-    marker = "_SUCCESS" if success else "_FAILED"
-    stale = "_FAILED" if success else "_SUCCESS"
-
-    # Remove the opposite marker if it exists from a previous run
-    s3.delete_object(Bucket=ctx.bucket, Key=f"{ctx.output_prefix}/{stale}")
-
-    # Write zero-byte marker
-    marker_path = ctx.work_dir / marker
+    marker_path = ctx.work_dir / "_SUCCESS"
     marker_path.touch()
-    s3.upload_file(str(marker_path), ctx.bucket, f"{ctx.output_prefix}/{marker}")
-    log(f"  Status marker: s3://{ctx.bucket}/{ctx.output_prefix}/{marker}")
+    _get_s3().upload_file(str(marker_path), ctx.bucket, f"{ctx.output_prefix}/_SUCCESS")
+    log(f"  Status marker: s3://{ctx.bucket}/{ctx.output_prefix}/_SUCCESS")
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
@@ -739,13 +735,11 @@ def process_slide(
     except Exception:
         log(f"\n=== FAILED at step: {bench.failed_step or 'unknown'} ===")
         bench.write_and_upload()
-        if not whatif:
-            _write_status_marker(ctx, success=False)
         raise
 
     bench.write_and_upload()
     if not whatif:
-        _write_status_marker(ctx, success=True)
+        _write_success_marker(ctx)
 
     download_start, _ = bench._timings["download"]
     _, upload_end = bench._timings["upload"]
