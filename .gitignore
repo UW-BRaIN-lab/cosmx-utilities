@@ -206,3 +206,8 @@ cosmx-utilities-lab-meeting.pptx
 *.png
 histograms/
 sankey/
+
+# Pipeline runtime artifacts
+pipeline/manifest.csv
+pipeline/logs/
+pipeline/containers/*.sif
