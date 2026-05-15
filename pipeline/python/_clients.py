@@ -40,10 +40,19 @@ def make_source_client():
 
 
 def make_kopah_client(endpoint_url: str, access_key: str, secret_key: str):
+    # request_checksum_calculation / response_checksum_validation set to
+    # "when_required" disable boto3 1.36+'s default-on x-amz-checksum-* headers
+    # for uploads. Ceph RGW (which Kopah runs on) rejects those headers during
+    # multipart UploadPart with XAmzContentSHA256Mismatch.
     return boto3.client(
         "s3",
         endpoint_url=endpoint_url,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
+        config=Config(
+            signature_version="s3v4",
+            s3={"addressing_style": "path"},
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        ),
     )
