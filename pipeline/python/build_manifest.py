@@ -30,8 +30,9 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Iterator
 
-import boto3
 from dotenv import load_dotenv
+
+from _clients import make_source_client
 
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
@@ -167,7 +168,7 @@ def main() -> None:
         )
         sys.exit(1)
 
-    s3 = boto3.client("s3")
+    s3 = make_source_client()
     rows = list(discover_slides(s3, args.source_bucket, args.source_prefix))
     if not rows:
         print("ERROR: no slides found.", file=sys.stderr)

@@ -43,10 +43,10 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-import boto3
-from botocore.client import Config
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+
+from _clients import make_kopah_client, make_source_client
 
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
@@ -67,37 +67,6 @@ def _env(key: str) -> str:
         print(f"ERROR: missing required env var {key}", file=sys.stderr)
         sys.exit(1)
     return value
-
-
-def make_kopah_client(endpoint_url: str, access_key: str, secret_key: str):
-    return boto3.client(
-        "s3",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
-    )
-
-
-def make_source_client():
-    """AWS S3 client, with credentials resolved in priority order:
-
-    1. AWS_SOURCE_ACCESS_KEY_ID + AWS_SOURCE_SECRET_ACCESS_KEY (explicit)
-    2. AWS_SOURCE_PROFILE (named profile from ~/.aws/credentials)
-    3. boto3's default credential chain
-    """
-    access_key = os.environ.get("AWS_SOURCE_ACCESS_KEY_ID")
-    secret_key = os.environ.get("AWS_SOURCE_SECRET_ACCESS_KEY")
-    if access_key and secret_key:
-        return boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
-    profile = os.environ.get("AWS_SOURCE_PROFILE")
-    if profile:
-        return boto3.Session(profile_name=profile).client("s3")
-    return boto3.client("s3")
 
 
 def head_size(s3, bucket: str, key: str) -> int | None:
