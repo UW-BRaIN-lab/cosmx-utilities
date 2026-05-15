@@ -22,25 +22,11 @@ import os
 import sys
 from pathlib import Path
 
-import boto3
 from dotenv import load_dotenv
 
+from _clients import make_source_client
+
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
-
-
-def make_source_client():
-    access_key = os.environ.get("AWS_SOURCE_ACCESS_KEY_ID")
-    secret_key = os.environ.get("AWS_SOURCE_SECRET_ACCESS_KEY")
-    if access_key and secret_key:
-        return boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
-    profile = os.environ.get("AWS_SOURCE_PROFILE")
-    if profile:
-        return boto3.Session(profile_name=profile).client("s3")
-    return boto3.client("s3")
 
 
 def find_seurat_key(s3, bucket: str, batch_prefix: str, slide_id: str) -> str | None:
