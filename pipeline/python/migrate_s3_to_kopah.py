@@ -8,9 +8,10 @@ For each slide in the manifest, copies:
   - <slide>-polygons.csv.gz
   - optionally <slide>_tx_file.csv.gz (1-2 GB per slide; skipped unless --include-transcripts)
 
-The Seurat .RDS files are deliberately NOT migrated. They are read once by the
-clinical-annotation extraction job (which streams them from AWS source directly),
-then no longer needed. Flat files + AnnData are the working format from there on.
+The Seurat .RDS files are deliberately NOT migrated — the clinical annotations
+we originally thought were Seurat-only (Case / Block / Region) turned out to be
+present in the flat-file metadata too, so the .RDS files are unused by this
+pipeline. Flat files + AnnData are the working format throughout.
 
 Two boto3 clients in one process:
   - source: AWS S3 — credentials from AWS_SOURCE_ACCESS_KEY_ID/_SECRET (or

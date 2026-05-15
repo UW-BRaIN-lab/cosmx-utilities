@@ -2,20 +2,27 @@
 """Convert one slide's CosMx flat files into an AnnData (.h5ad) file.
 
 Reads the per-slide expression matrix, per-cell metadata, FOV positions, and
-(optionally) a clinical-annotation sidecar (from extract_clinical_annotations.R)
-plus a manifest row (from build_manifest.py), and writes a single per-slide
-.h5ad with:
+(optionally) a manifest row (from build_manifest.py), and writes a single
+per-slide .h5ad with:
   - X: raw integer counts (sparse, cells x panel probes)
-  - obs: per-cell metadata + clinical annotations + slide-level fields
+  - obs: per-cell metadata, slide-prefixed FOV, and manifest fields
   - var: probe name + probe_type (gene / negprobe / falsecode)
   - uns: slide_id, run_uuid, instrument_id, FOV positions, ...
+
+The per-FOV `cell_ID` and per-slide `fov` columns from the flat files are not
+unique across slides. We follow the Bruker CosMx Scratch Space vignette and
+replace them with slide-prefixed forms so per-slide AnnDatas can be safely
+concatenated for cross-slide work:
+  - obs index `cell` = "<slide_id>_F<fov>_C<cell_ID>"
+  - obs column `FOV` = "<slide_id>_F<fov>"
+The raw integer `fov` is preserved for within-slide filtering; the raw
+`cell_ID` is dropped (it lives in the obs index name).
 
 Stage 1 of the analysis pipeline. Run once per slide.
 
 Usage:
     uv run python pipeline/python/flatfiles_to_anndata.py \\
         --flatfiles-dir /path/to/<slide>_flat \\
-        --clinical /path/to/<slide>_clinical.csv \\
         --manifest pipeline/manifest.csv \\
         --slide-id 7134A77439A6 \\
         --output /path/to/<slide>.h5ad
@@ -47,8 +54,6 @@ MANIFEST_FIELDS = (
     "export_batch",
 )
 
-CLINICAL_FIELDS = ("case", "block", "region", "cell_segmentation_set")
-
 
 def classify_probe(name: str) -> str:
     if name.startswith(NEGPROBE_PREFIXES):
@@ -75,8 +80,6 @@ def main() -> None:
                    help="Directory containing <slide>_exprMat_file.csv.gz etc.")
     p.add_argument("--slide-id", required=True,
                    help="Slide identifier matching the flat-file filename prefix")
-    p.add_argument("--clinical", type=Path,
-                   help="Per-slide clinical annotation CSV (optional)")
     p.add_argument("--manifest", type=Path,
                    help="Pipeline manifest CSV (optional)")
     p.add_argument("--output", type=Path, required=True, help="Path to write .h5ad")
@@ -115,14 +118,14 @@ def main() -> None:
     merged = (merged.sort_values("_row_idx")
                     .drop(columns=["_row_idx", "_merge"]))
 
-    if args.clinical and args.clinical.exists():
-        print(f"Reading clinical annotations from {args.clinical}")
-        clinical = pd.read_csv(args.clinical)
-        clinical["cell_ID"] = clinical["cell_ID"].astype(str)
-        keep_cols = ["cell_ID"] + [c for c in CLINICAL_FIELDS if c in clinical.columns]
-        merged = merged.merge(clinical[keep_cols], on="cell_ID", how="left")
-    elif args.clinical:
-        print(f"WARN: clinical file not found: {args.clinical}", file=sys.stderr)
+    # Slide-prefixed cell + FOV identifiers (unique across slides).
+    merged["cell"] = (
+        slide_id + "_F" + merged["fov"].astype(str) + "_C" + merged["cell_ID"].astype(str)
+    )
+    merged["FOV"] = slide_id + "_F" + merged["fov"].astype(str)
+    # Drop the redundant per-FOV cell_ID and the duplicate cell_id column (if
+    # present); `fov` (integer, per-slide) is preserved for within-slide work.
+    merged = merged.drop(columns=["cell_ID", "cell_id"], errors="ignore")
 
     merged["slide_id"] = slide_id
     uns: dict = {"slide_id": slide_id}
@@ -145,8 +148,8 @@ def main() -> None:
     elif args.manifest:
         print(f"WARN: manifest file not found: {args.manifest}", file=sys.stderr)
 
-    obs = merged.set_index("cell_ID")
-    obs.index.name = "cell_ID"
+    obs = merged.set_index("cell")
+    assert obs.index.is_unique, "obs index not unique after slide-prefix construction"
 
     var = pd.DataFrame(
         {"probe_type": [classify_probe(g) for g in gene_names]},

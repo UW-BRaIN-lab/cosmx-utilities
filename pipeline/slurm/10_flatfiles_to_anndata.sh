@@ -66,13 +66,6 @@ for f in "${SLIDE_ID}_exprMat_file.csv.gz" \
     s5cmd cp "${S3_FLAT}${f}" "$WORK/flat/"
 done
 
-# Pull the clinical sidecar produced by stage 0b (optional — the Python script
-# handles the missing case with a WARN).
-s5cmd cp \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/clinical/${SLIDE_ID}_clinical.csv" \
-    "$WORK/${SLIDE_ID}_clinical.csv" \
-    || echo "WARN: no clinical sidecar yet for $SLIDE_ID"
-
 OUTPUT_H5AD="$WORK/${SLIDE_ID}.h5ad"
 
 # TODO: build pipeline/containers/scalesc.def and set APPTAINER_SCALESC.
@@ -83,7 +76,6 @@ apptainer exec \
     python "${PIPELINE_DIR}/python/flatfiles_to_anndata.py" \
         --flatfiles-dir "$WORK/flat" \
         --slide-id "$SLIDE_ID" \
-        --clinical "$WORK/${SLIDE_ID}_clinical.csv" \
         --manifest "$MANIFEST" \
         --output "$OUTPUT_H5AD"
 
