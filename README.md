@@ -144,6 +144,56 @@ docker build --target headless -t cosmx-utilities:headless .
 docker build --target gui -t cosmx-utilities:gui .
 ```
 
+## Viewing processed slides on your own server
+
+If you've received a processed CosMx dataset and want to run Napari locally instead of on the AWS-provisioned EC2 instance, the stitched output is self-contained — there are no AWS dependencies at view time.
+
+**1. Copy the processed data from S3.**
+
+Each slide directory contains `images/` (zarr pyramid), `_metadata.csv`, and `targets.hdf5`. Budget ~50–100 GB per slide; a full study can run several hundred GB. SSD storage is strongly recommended — spinning disks make tile loading painful.
+
+```bash
+aws s3 sync s3://<bucket>/napari-stitched/<study>/<experiment>/ /path/to/local/stitched/
+# or, if rclone is configured:
+rclone sync :s3:<bucket>/napari-stitched/<study>/<experiment>/ /path/to/local/stitched/ \
+    --transfers 32 --checkers 16 --progress
+```
+
+You'll need AWS credentials with read access to the data bucket — ask the data owner.
+
+**2. Install system dependencies (Linux headless server).**
+
+PyQt6 needs Qt platform libraries that aren't installed by default on bare servers. On Ubuntu/Debian:
+
+```bash
+sudo apt install -y libxcb-cursor0 libxkbcommon-x11-0 libegl1 libgl1 libdbus-1-3 \
+    libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+    libxcb-shape0 libxcb-xinerama0 libxcb-xkb1
+```
+
+Napari needs a graphical session. If your server is headless, use VNC, X-forwarding, or NICE DCV. A discrete GPU isn't required — software OpenGL (Mesa) works, just slower on large mosaics.
+
+**3. Clone this repo and install with the GUI extra.**
+
+The `napari-cosmx-fork` is a uv workspace member of this repo, and the top-level wrapper adds dependencies (dask, polars, matplotlib) that the Napari load path uses. Don't install the fork standalone.
+
+```bash
+# Install uv if needed: https://docs.astral.sh/uv/getting-started/installation/
+git clone https://github.com/keene-lab/cosmx-utilities.git
+cd cosmx-utilities
+uv sync --extra gui
+```
+
+`uv` will provision a Python 3.10 interpreter automatically — the fork pins `>=3.8,<3.11`, so a system `python3.12` won't satisfy it directly.
+
+**4. Launch Napari.**
+
+```bash
+uv run napari /path/to/local/stitched
+```
+
+**Resource notes.** Loading a stitched slide pulls the zarr pyramid and `targets.hdf5` into memory lazily, but interactive panning at high zoom is RAM-hungry. Plan for at least 64 GB free RAM; 128 GB is comfortable for the typical CosMx slide.
+
 ## Infrastructure setup
 
 Fargate task definitions, IAM roles, and networking configuration are documented in [`fargate/FARGATE-SETUP.md`](./fargate/FARGATE-SETUP.md). Infrastructure IDs are stored in `fargate/.env` (gitignored) — copy `fargate/.env.example` to get started.
