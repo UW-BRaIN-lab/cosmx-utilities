@@ -53,9 +53,9 @@ flowchart TD
     subgraph hyak["Future direction: Hyak GPU"]
         direction TB
         etl["Reshape expression data for cell typing and batch correction"]:::futureAction
-        scalesc["ScaleSC"]:::futureAction
+        rsc["rapids-singlecell (dask-cuda, multi-GPU)"]:::futureAction
         scvi["scvi-tools"]:::futureAction
-        etl --> scalesc
+        etl --> rsc
         etl --> scvi
     end
 
@@ -64,7 +64,7 @@ flowchart TD
     s3raw -- per slide (parallel) --> stitch
     meta --> s3out
     s3raw -- per slide (slurm job) --> etl
-    scalesc -.-> s3out
+    rsc -.-> s3out
     scvi -.-> s3out
     s3out --> launch
     dcv --> napari
@@ -200,6 +200,6 @@ Fargate task definitions, IAM roles, and networking configuration are documented
 
 ## Future directions
 
-We will adapt our pipeline for the University of Washington's Hyak HPC cluster ([Klone](https://hyak.uw.edu/docs/)), leveraging GPU resources to reshape per-slide expression data for cell typing and batch correction using GPU-enabled libraries such as [ScaleSC](https://github.com/interactivereport/ScaleSC) and [scvi-tools](https://scvi-tools.org). Workflow will include converting Docker containers to [Apptainer](https://apptainer.org/docs/user/main/) images, using [Slurm](https://slurm.schedmd.com/overview.html) for batch scheduling, and providing interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
+We will adapt our pipeline for the University of Washington's Hyak HPC cluster ([Klone](https://hyak.uw.edu/docs/)), leveraging GPU resources to reshape per-slide expression data for cell typing and batch correction using GPU-enabled libraries such as [rapids-singlecell](https://rapids-singlecell.readthedocs.io/) (distributed across the 2x L40S GPUs on the `gpu-l40s` partition via [dask-cuda](https://docs.rapids.ai/api/dask-cuda/stable/)) and [scvi-tools](https://scvi-tools.org). Workflow will include converting Docker containers to [Apptainer](https://apptainer.org/docs/user/main/) images, using [Slurm](https://slurm.schedmd.com/overview.html) for batch scheduling, and providing interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
 
 Pipeline tools, Fargate infrastructure templates, and napari-cosmx-fork are publicly available in this repository and on [GHCR](https://github.com/keene-lab/cosmx-utilities/pkgs/container/cosmx-utilities).
