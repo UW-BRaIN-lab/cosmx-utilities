@@ -5,10 +5,16 @@ From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 #
 # Used by every stage that runs Python, both CPU (e.g. stage 1
 # flatfiles_to_anndata.py on the `compute` partition) and GPU
-# (e.g. stage 3 ScaleSC/Harmony on `gpu-l40s`).
+# (e.g. stage 3 rapids-singlecell + Harmony on `gpu-l40s`).
+#
+# On 2x L40S (no NVLink, ~46GB VRAM each) we use dask-cuda's
+# LocalCUDACluster to spread work across both GPUs. rapids-singlecell
+# drives the GPU primitives; ScaleSC's single-GPU chunking is
+# unnecessary at this scale (see containers/README.md for rationale).
 #
 # Build (klone login node has Apptainer + fakeroot):
-#     apptainer build --fakeroot scalesc.sif pipeline/containers/scalesc.def
+#     apptainer build --fakeroot rapids-singlecell.sif \
+#         pipeline/containers/rapids-singlecell.def
 #
 # See pipeline/containers/README.md for the full build + install flow.
 
@@ -51,23 +57,20 @@ From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
         "scikit-learn>=1.3" \
         "tqdm>=4.66"
 
-    # GPU stack. rapids-singlecell brings cudf-cu12, rmm-cu12, cuml-cu12,
-    # and cupy-cuda12x via the [rapids12] extra. Pulled from NVIDIA's PyPI
-    # index for the *-cu12 wheels.
+    # GPU stack. The [rapids12] extra pulls cudf-cu12, rmm-cu12, cuml-cu12,
+    # and cupy-cuda12x from NVIDIA's PyPI index for the *-cu12 wheels.
+    # dask-cuda adds LocalCUDACluster — the scheduler that spreads
+    # work across the two L40S GPUs on the gpu-l40s partition.
     /opt/venv/bin/pip install \
         --extra-index-url=https://pypi.nvidia.com \
-        "rapids-singlecell[rapids12]>=0.10"
+        "rapids-singlecell[rapids12]>=0.15" \
+        "dask-cuda>=24.10"
 
     # Harmony: GPU path is rsc.tl.harmony_integrate from rapids-singlecell.
     # harmonypy is a CPU fallback for debugging / small subsets.
     /opt/venv/bin/pip install "harmonypy>=0.0.9"
 
-    # ScaleSC has no PyPI release; pin to a commit once a working revision
-    # is identified. See pipeline/containers/README.md for upgrade notes.
-    /opt/venv/bin/pip install \
-        "git+https://github.com/interactivereport/ScaleSC.git@main"
-
-    /opt/venv/bin/python -c "import scanpy, anndata, rapids_singlecell, scalesc; print('imports ok')"
+    /opt/venv/bin/python -c "import scanpy, anndata, rapids_singlecell, dask_cuda; print('imports ok')"
 
 %environment
     export PATH=/opt/venv/bin:$PATH
@@ -80,5 +83,5 @@ From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 %labels
     org.opencontainers.image.source https://github.com/keene-lab/cosmx-utilities
-    org.opencontainers.image.description CosMx GBM pipeline runtime — scanpy, rapids-singlecell, ScaleSC, Harmony
-    pipeline.stage scalesc
+    org.opencontainers.image.description CosMx GBM pipeline runtime — scanpy, rapids-singlecell, dask-cuda, Harmony
+    pipeline.stage rapids-singlecell

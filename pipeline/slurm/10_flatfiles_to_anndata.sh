@@ -8,7 +8,7 @@
 # Required env (from pipeline/.env):
 #   KOPAH_ENDPOINT_URL, KOPAH_BUCKET, KOPAH_PREFIX,
 #   KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY,
-#   APPTAINER_SCALESC (path to Python+scanpy container image)
+#   APPTAINER_RSC (path to Python+scanpy+rapids-singlecell container image)
 
 #SBATCH --job-name=cosmx-flatfiles-to-anndata
 #SBATCH --account=glioblastoma
@@ -68,11 +68,10 @@ done
 
 OUTPUT_H5AD="$WORK/${SLIDE_ID}.h5ad"
 
-# TODO: build pipeline/containers/scalesc.def and set APPTAINER_SCALESC.
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
-    "$APPTAINER_SCALESC" \
+    "$APPTAINER_RSC" \
     python "${PIPELINE_DIR}/python/flatfiles_to_anndata.py" \
         --flatfiles-dir "$WORK/flat" \
         --slide-id "$SLIDE_ID" \
