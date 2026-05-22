@@ -75,7 +75,18 @@ From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
     # harmonypy is a CPU fallback for debugging / small subsets.
     /opt/venv/bin/pip install "harmonypy>=0.0.9"
 
-    /opt/venv/bin/python -c "import scanpy, anndata, rapids_singlecell, dask_cuda; print('imports ok')"
+    # Build-time import check: actually load the CPU-side packages, but only
+    # verify the GPU-side packages are pip-installed without importing them.
+    # Importing rapids_singlecell or dask_cuda triggers RMM/CUDA init, which
+    # fails on the Klone login node (no GPU driver). The smoke test exercises
+    # the real GPU imports inside a gpu-l40s allocation.
+    /opt/venv/bin/python -c "
+import scanpy, anndata
+import importlib.util
+for mod in ['rapids_singlecell', 'dask_cuda', 'cupy', 'rmm']:
+    assert importlib.util.find_spec(mod) is not None, f'{mod} not installed'
+print('imports ok')
+"
 
 %environment
     export PATH=/opt/venv/bin:$PATH
