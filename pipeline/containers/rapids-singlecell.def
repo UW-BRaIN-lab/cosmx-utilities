@@ -61,9 +61,14 @@ From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
     # and cupy-cuda12x from NVIDIA's PyPI index for the *-cu12 wheels.
     # dask-cuda adds LocalCUDACluster — the scheduler that spreads
     # work across the two L40S GPUs on the gpu-l40s partition.
+    #
+    # rapids-singlecell is pinned to <0.13.2 because 0.13.2+ dropped
+    # Python 3.10 support (requires >=3.11), and Ubuntu 22.04's default
+    # python3 is 3.10. Bump the Python base (e.g. via deadsnakes PPA)
+    # before raising this ceiling.
     /opt/venv/bin/pip install \
         --extra-index-url=https://pypi.nvidia.com \
-        "rapids-singlecell[rapids12]>=0.15" \
+        "rapids-singlecell[rapids12]>=0.13,<0.13.2" \
         "dask-cuda>=24.10"
 
     # Harmony: GPU path is rsc.tl.harmony_integrate from rapids-singlecell.
