@@ -20,7 +20,7 @@ import pandas as pd
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-GENES = ["PSAP", "SCG5", "ITM2C", "GRIA1", "GRIA3", "GRM5"]
+GENES = ["PSAP", "SCG5", "ITM2C"]
 
 SLIDE_1_EXPR = (
     "s3://keene-cosmx-data/CosMx-GBM/"
@@ -34,7 +34,7 @@ SLIDE_1_META = (
     "Contralateraluninvolved41026_11_04_2026_12_58_38_777/"
     "flatFiles/7522A77582A6/7522A77582A6_metadata_file.csv.gz"
 )
-SLIDE_1_LABEL = "Contralateral uninvolved"
+SLIDE_1_LABEL = "GBM"
 
 SLIDE_2_EXPR = (
     "s3://keene-cosmx-data/CosMx-GBM/"
@@ -48,19 +48,28 @@ SLIDE_2_META = (
     "Normalbrain41026_11_04_2026_12_56_01_784/"
     "flatFiles/7674A1A4A6A7/7674A1A4A6A7_metadata_file.csv.gz"
 )
-SLIDE_2_LABEL = "Normal brain"
+SLIDE_2_LABEL = "Normal"
 SLIDE_2_FOVS = set(range(1, 49)) | set(range(199, 201)) | set(range(148, 198))
 
 CELL_TYPE_COLUMN = "RNA_RNA_Cell.Typing.InSituType.Allen.Brain_1_clusters"
 
 NEURONAL_TYPES = [
-    "Inhibitory.neuron.A",
-    "Inhibitory.neuron.B",
-    "Inhibitory.neuron.C",
     "L2.3.neuron",
     "L4.neuron",
     "L6.neuron",
+    "Inhibitory.neuron.A",
+    "Inhibitory.neuron.B",
+    "Inhibitory.neuron.C",
 ]
+
+CELL_TYPE_DISPLAY_NAMES = {
+    "Inhibitory.neuron.A": "Inh A\n(PVALB+)",
+    "Inhibitory.neuron.B": "Inh B\n(CCK+)",
+    "Inhibitory.neuron.C": "Inh C\n(SST+)",
+    "L2.3.neuron": "L2/3",
+    "L4.neuron": "L4",
+    "L6.neuron": "L5/6",
+}
 
 OUTPUT_PATH = "dotplot-gene-expression.png"
 
@@ -155,7 +164,8 @@ def main():
     )
 
     if args.neurons_only:
-        shared_types = [ct for ct in shared_types if ct in NEURONAL_TYPES]
+        shared_set = set(shared_types)
+        shared_types = [ct for ct in NEURONAL_TYPES if ct in shared_set]
         print(f"Filtering to neuronal types: {shared_types}")
 
     stats1 = stats1[stats1["cell_type"].isin(shared_types)]
@@ -165,45 +175,61 @@ def main():
     n_types = len(shared_types)
     n_genes = len(GENES)
 
-    # Shared color scale across both panels
+    # Shared color scale
     vmin = 0
     vmax = max(stats1["mean_expression"].max(), stats2["mean_expression"].max())
-    cmap = plt.cm.Reds
+    cmap = plt.cm.RdYlBu_r
 
-    fig, axes = plt.subplots(
-        1, 2,
-        figsize=(n_types * 0.9 + 4, n_genes * 0.8 + 2),
-        sharey=True,
-    )
+    # Grouped x positions: each cell type holds two adjacent dots (GBM, Normal)
+    WITHIN_GROUP_OFFSET = 0.28
+    GROUP_SPACING = 0.7
+    slide_entries = [(stats2, SLIDE_2_LABEL), (stats1, SLIDE_1_LABEL)]
 
-    for ax, stats, label in [
-        (axes[0], stats1, SLIDE_1_LABEL),
-        (axes[1], stats2, SLIDE_2_LABEL),
-    ]:
-        for i, gene in enumerate(GENES):
-            for j, ct in enumerate(shared_types):
+    fig, ax = plt.subplots(figsize=(n_types * GROUP_SPACING + 3.5, n_genes * 0.8 + 2.5))
+
+    tick_positions = []
+    tick_slide_labels = []
+    group_centers = []
+
+    for j, ct in enumerate(shared_types):
+        group_center = j * GROUP_SPACING
+        group_centers.append(group_center)
+        for k, (stats, slide_label) in enumerate(slide_entries):
+            x = group_center + (WITHIN_GROUP_OFFSET / 2) * (1 if k == 1 else -1)
+            tick_positions.append(x)
+            tick_slide_labels.append(slide_label)
+            for i, gene in enumerate(GENES):
                 row = stats[(stats["gene"] == gene) & (stats["cell_type"] == ct)]
                 if row.empty:
                     continue
                 pct = row["pct_expressed"].values[0]
                 expr = row["mean_expression"].values[0]
-                # Dot size proportional to percent expressed
-                size = pct * 200  # scale factor
+                size = pct * 200
                 color = cmap(mcolors.Normalize(vmin=vmin, vmax=vmax)(expr))
-                ax.scatter(j, i, s=size, c=[color], edgecolors="grey", linewidths=0.5)
+                ax.scatter(x, i, s=size, c=[color], edgecolors="grey", linewidths=0.5)
 
-        ax.set_xticks(range(n_types))
-        ax.set_xticklabels(shared_types, rotation=90, ha="center", fontsize=8)
-        ax.set_title(label, fontsize=10, pad=10)
-        ax.set_xlim(-0.5, n_types - 0.5)
-        ax.set_ylim(-0.5, n_genes - 0.5)
-        ax.invert_yaxis()
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_slide_labels, rotation=90, ha="center", fontsize=8)
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position("top")
+    ax.set_yticks(range(n_genes))
+    ax.set_yticklabels(GENES, fontsize=9)
+    ax.set_xlim(-GROUP_SPACING / 2, (n_types - 1) * GROUP_SPACING + GROUP_SPACING / 2)
+    ax.set_ylim(-0.5, n_genes - 0.5)
+    ax.invert_yaxis()
 
-    axes[0].set_yticks(range(n_genes))
-    axes[0].set_yticklabels(GENES, fontsize=9)
+    # Cell-type group labels placed below the plot
+    display_labels = [CELL_TYPE_DISPLAY_NAMES.get(ct, ct) for ct in shared_types]
+    for center, label in zip(group_centers, display_labels):
+        ax.annotate(
+            label,
+            xy=(center, 0), xycoords=("data", "axes fraction"),
+            xytext=(0, -15), textcoords="offset points",
+            ha="center", va="top", fontsize=8,
+        )
+    fig.subplots_adjust(top=0.82, bottom=0.18, right=0.82)
 
     # ── Legends ────────────────────────────────────────────────────────────
-    fig.subplots_adjust(right=0.82)
 
     # Color bar for mean expression
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=mcolors.Normalize(vmin=vmin, vmax=vmax))
