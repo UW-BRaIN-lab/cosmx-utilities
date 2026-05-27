@@ -1,0 +1,18 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowVanGelderAccountToAssume",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::VANGELDER_AWS_ACCOUNT_ID:root"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "VANGELDER_EXTERNAL_ID"
+        }
+      }
+    }
+  ]
+}
