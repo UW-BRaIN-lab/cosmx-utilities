@@ -93,6 +93,12 @@ print('imports ok')
     export PYTHONNOUSERSITE=1
     export NVIDIA_VISIBLE_DEVICES=all
     export NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    # CuPy auto-detects the CUDA root from the driver version, which fails
+    # ("Failed to auto-detect CUDA root directory") on Hyak's gpu-l40s nodes
+    # because their driver (580.x / CUDA 13.0) is newer than the installed
+    # cupy knows about. Pin the root to the bundled 12.4 toolkit so JIT
+    # kernel compilation works. cupy still uses its own bundled NVRTC 12.9.
+    export CUDA_PATH=/usr/local/cuda
 
 %runscript
     exec "$@"
