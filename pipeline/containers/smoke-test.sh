@@ -70,7 +70,8 @@ print('  rapids_singlecell loaded:', rsc.__version__)
 "
 else
     echo "==> Tier 2: SKIPPED — no GPU visible. For GPU coverage, run inside"
-    echo "    'salloc --account=glioblastoma --partition=gpu-l40s --gpus=2 ...'"
+    echo "    'salloc --account=glioblastoma --partition=gpu-l40s \\'"
+    echo "        --nodes=1 --gpus-per-node=2 --cpus-per-task=8 --mem=32G ...'"
 fi
 
 if (( GPU_COUNT >= 2 )); then
@@ -116,7 +117,10 @@ PYEOF
     rm -f "$TIER3_PY"
 else
     if (( GPU_COUNT == 1 )); then
-        echo "==> Tier 3: SKIPPED — only 1 GPU visible. Multi-GPU path needs --gpus=2."
+        echo "==> Tier 3: SKIPPED — only 1 GPU visible. LocalCUDACluster is"
+        echo "    single-node, so request both cards on ONE node:"
+        echo "    salloc ... --nodes=1 --gpus-per-node=2  (plain --gpus=2 can"
+        echo "    split 1+1 across two nodes, leaving this node with one GPU)."
     else
         echo "==> Tier 3: SKIPPED — no GPUs visible."
     fi
