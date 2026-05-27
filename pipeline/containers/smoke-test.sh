@@ -84,11 +84,16 @@ if (( GPU_COUNT >= 2 )); then
     cat > "$TIER3_PY" <<'PYEOF'
 from dask_cuda import LocalCUDACluster
 from dask.distributed import Client
-import cupy as cp
+import os
 
 
-def _device_id():
-    return cp.cuda.runtime.getDevice()
+def _assigned_gpu():
+    # dask-cuda pins each worker to one physical GPU by setting its
+    # CUDA_VISIBLE_DEVICES to a rotated list whose FIRST entry is the
+    # worker's dedicated card. Inside the worker that card is always local
+    # ordinal 0, so cp.cuda.runtime.getDevice() can't distinguish workers —
+    # the first CUDA_VISIBLE_DEVICES entry is the real physical identity.
+    return os.environ.get("CUDA_VISIBLE_DEVICES", "")
 
 
 def main():
@@ -96,10 +101,12 @@ def main():
         workers = client.scheduler_info()["workers"]
         print(f"  workers up: {len(workers)}")
         assert len(workers) >= 2, f"expected >=2 dask-cuda workers, got {len(workers)}"
-        seen = set(client.run(_device_id).values())
-        print(f"  distinct CUDA device IDs across workers: {sorted(seen)}")
-        assert len(seen) >= 2, f"workers landed on the same GPU: {seen}"
-    print("  PASS — dask-cuda spans all visible GPUs")
+        vis = client.run(_assigned_gpu)
+        for addr, v in sorted(vis.items()):
+            print(f"    {addr}: CUDA_VISIBLE_DEVICES={v!r}")
+        assigned = [v.split(",")[0] for v in vis.values()]
+        assert len(set(assigned)) >= 2, f"workers share a physical GPU: {vis}"
+    print("  PASS — dask-cuda spans distinct physical GPUs")
 
 
 if __name__ == "__main__":
