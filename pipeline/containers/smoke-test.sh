@@ -36,14 +36,19 @@ if [[ ! -f "$APPTAINER_RSC" ]]; then
     exit 1
 fi
 
-echo "==> Tier 1: Python imports inside $APPTAINER_RSC"
+echo "==> Tier 1: Python imports inside $APPTAINER_RSC (no --nv, runs anywhere)"
+# Only import the CPU-side packages here. Importing rapids_singlecell /
+# dask_cuda triggers cuDF/cuML GPU validation, which fails without --nv
+# (and on driverless hosts). Their real imports are covered by Tier 2/3.
 apptainer exec "$APPTAINER_RSC" python -c "
-import anndata, pandas, scanpy, rapids_singlecell, dask_cuda
+import anndata, pandas, scanpy
+import importlib.util
 print('  anndata          ', anndata.__version__)
 print('  pandas           ', pandas.__version__)
 print('  scanpy           ', scanpy.__version__)
-print('  rapids_singlecell', rapids_singlecell.__version__)
-print('  dask_cuda        ', dask_cuda.__version__)
+for mod in ['rapids_singlecell', 'dask_cuda', 'cupy', 'rmm']:
+    assert importlib.util.find_spec(mod) is not None, f'{mod} not installed'
+print('  GPU packages installed: rapids_singlecell, dask_cuda, cupy, rmm')
 "
 
 GPU_COUNT=0
