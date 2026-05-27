@@ -1,0 +1,30 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListBucketScopedToCosMxRetinaStudy",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::keene-cosmx-data",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "napari-stitched/CosMx-retina",
+            "napari-stitched/CosMx-retina/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "GetObjectsUnderCosMxRetinaStudy",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::keene-cosmx-data/napari-stitched/CosMx-retina/*"
+    }
+  ]
+}
