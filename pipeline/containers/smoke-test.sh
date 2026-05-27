@@ -75,24 +75,38 @@ fi
 
 if (( GPU_COUNT >= 2 )); then
     echo "==> Tier 3: $GPU_COUNT GPUs visible — verifying dask-cuda multi-GPU cluster"
-    apptainer exec --nv "$APPTAINER_RSC" python - <<'PYEOF'
+    # LocalCUDACluster spawns workers via multiprocessing 'spawn' (required for
+    # CUDA — a forked process can't inherit a CUDA context). Spawned workers
+    # re-import __main__, so the driver must be a REAL FILE (not a stdin
+    # heredoc, which makes workers fail re-importing '<stdin>') and the cluster
+    # must be created under an `if __name__ == "__main__"` guard.
+    TIER3_PY="$(mktemp "${TMPDIR:-/tmp}/dask_cuda_check_XXXXXX.py")"
+    cat > "$TIER3_PY" <<'PYEOF'
 from dask_cuda import LocalCUDACluster
 from dask.distributed import Client
+import cupy as cp
 
-with LocalCUDACluster() as cluster, Client(cluster) as client:
-    workers = client.scheduler_info()["workers"]
-    print(f"  workers up: {len(workers)}")
-    assert len(workers) >= 2, f"expected >=2 dask-cuda workers, got {len(workers)}"
-    devices = sorted(w["name"] for w in workers.values())
-    print(f"  device names: {devices}")
-    import cupy as cp
-    def device_id():
-        return cp.cuda.runtime.getDevice()
-    seen = set(client.run(device_id).values())
-    print(f"  distinct CUDA device IDs across workers: {sorted(seen)}")
-    assert len(seen) >= 2, f"workers landed on the same GPU: {seen}"
-print("  PASS — dask-cuda spans all visible GPUs")
+
+def _device_id():
+    return cp.cuda.runtime.getDevice()
+
+
+def main():
+    with LocalCUDACluster() as cluster, Client(cluster) as client:
+        workers = client.scheduler_info()["workers"]
+        print(f"  workers up: {len(workers)}")
+        assert len(workers) >= 2, f"expected >=2 dask-cuda workers, got {len(workers)}"
+        seen = set(client.run(_device_id).values())
+        print(f"  distinct CUDA device IDs across workers: {sorted(seen)}")
+        assert len(seen) >= 2, f"workers landed on the same GPU: {seen}"
+    print("  PASS — dask-cuda spans all visible GPUs")
+
+
+if __name__ == "__main__":
+    main()
 PYEOF
+    apptainer exec --nv --bind "$TIER3_PY:$TIER3_PY" "$APPTAINER_RSC" python "$TIER3_PY"
+    rm -f "$TIER3_PY"
 else
     if (( GPU_COUNT == 1 )); then
         echo "==> Tier 3: SKIPPED — only 1 GPU visible. Multi-GPU path needs --gpus=2."
