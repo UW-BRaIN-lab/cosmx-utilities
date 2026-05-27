@@ -15,8 +15,9 @@ Runtime for stages 1–6 of the pipeline:
   AnnData, distributed across 2x L40S via dask-cuda.
 - **Stage 6** (`gpu-l40s`): GPU embedding on the full cohort.
 
-Base: `nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04`, Python 3.10 in
-`/opt/venv` (on `PATH` via `%environment`).
+Base: `nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04` (devel, not runtime —
+CuPy's NVRTC JIT needs the CUDA headers). Python 3.10 venv at `/opt/venv`
+(on `PATH` via `%environment`), built with `uv` from a pinned lock file.
 
 ### Why rapids-singlecell, not ScaleSC
 
@@ -31,9 +32,12 @@ either way — ScaleSC was only adding scale-out logic we no longer need.
 
 ### Build
 
-On any Linux host with Apptainer + fakeroot. Klone login nodes work,
-but build outside `$HOME` — home is 10 GB and Apptainer's default
-layer cache + tmpdir will overflow it.
+On any Linux host with Apptainer + fakeroot. Klone login nodes work.
+**Build from the repo root** — the recipe's `%files` section copies
+`pipeline/containers/rapids-singlecell.lock` using a path relative to the
+build's working directory, so the CWD must be `~/cosmx-utilities`. Keep
+the cache + tmpdir on `/gscratch` (home is only 10 GB and Apptainer's
+layer cache will overflow it); the output SIF can go there too.
 
 ```bash
 ssh klone.hyak.uw.edu
@@ -44,16 +48,34 @@ mkdir -p /gscratch/scrubbed/$USER/{apptainer-cache,apptainer-tmp,containers}
 export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
 export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
 
-cd /gscratch/scrubbed/$USER
-apptainer build --fakeroot containers/rapids-singlecell.sif \
-    ~/cosmx-utilities/pipeline/containers/rapids-singlecell.def
+cd ~/cosmx-utilities                 # build context = repo root (for %files)
+apptainer build --fakeroot \
+    /gscratch/scrubbed/$USER/containers/rapids-singlecell.sif \
+    pipeline/containers/rapids-singlecell.def
 ```
 
-Expect ~10–20 minutes and a SIF in the 6–10 GB range, dominated by the
-CUDA + cuDNN runtime and the RAPIDS wheels.
+Do **not** build from `/gscratch/scrubbed/$USER` with a path to the `.def`
+elsewhere — `%files` would look for the lock under the wrong directory and
+the build fails.
+
+Expect a SIF in the ~11–15 GB range, dominated by the CUDA + cuDNN
+**devel** base (needed for CuPy's NVRTC headers) and the RAPIDS wheels.
+The build installs with `uv pip sync` against `rapids-singlecell.lock`, so
+it reproduces the exact validated version set rather than re-resolving.
 
 If `--fakeroot` is not available, build on any Linux box with Apptainer
 installed (e.g. a local VM) and `scp` the SIF to klone.
+
+### Dependencies and the lock file
+
+`rapids-singlecell.lock` is a full `pip freeze` of a validated build,
+including transitive pins (cupy, cudf, cuml, rmm). The `.def` installs it
+with `uv pip sync ... --index-strategy unsafe-best-match` (RAPIDS wheels
+are split across PyPI and `pypi.nvidia.com`). To intentionally bump
+versions: edit/regenerate the lock, rebuild, and re-run the smoke test —
+then commit the new lock alongside. Pinning the whole tree is deliberate:
+an unpinned cupy silently jumped 13.x → 14.1.0 between builds and broke
+GPU kernel compilation.
 
 ### Install
 
