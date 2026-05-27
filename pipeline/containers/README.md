@@ -104,9 +104,12 @@ module load apptainer
 # Imports only — runs anywhere, including the login node:
 bash pipeline/containers/smoke-test.sh
 
-# Imports + GPU + multi-GPU + end-to-end — submit inside a 2-GPU allocation:
+# Imports + GPU + multi-GPU + end-to-end — submit inside a 2-GPU allocation.
+# Use --nodes=1 --gpus-per-node=2 (NOT plain --gpus=2): the latter can place
+# 1 GPU each on two nodes, and dask-cuda's LocalCUDACluster is single-node, so
+# Tier 3 would only see one GPU.
 salloc --account=glioblastoma --partition=gpu-l40s \
-    --time=30:00 --cpus-per-task=8 --mem=32G --gpus=2
+    --nodes=1 --gpus-per-node=2 --cpus-per-task=8 --mem=32G --time=45:00
 set -a; source pipeline/.env; set +a
 bash pipeline/containers/smoke-test.sh
 ```
