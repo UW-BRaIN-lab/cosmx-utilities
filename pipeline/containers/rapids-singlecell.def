@@ -107,6 +107,6 @@ print('imports ok')
     exec "$@"
 
 %labels
-    org.opencontainers.image.source https://github.com/keene-lab/cosmx-utilities
+    org.opencontainers.image.source https://github.com/UW-BRaIN-lab/cosmx-utilities
     org.opencontainers.image.description CosMx GBM pipeline runtime — scanpy, rapids-singlecell, dask-cuda, Harmony
     pipeline.stage rapids-singlecell

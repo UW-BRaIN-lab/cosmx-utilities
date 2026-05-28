@@ -128,7 +128,7 @@ cp /root/.local/bin/uvx /usr/local/bin/uvx
 # ── Clone repo and install Python environments ──────────────────────────
 REPO_DIR="/opt/cosmx-utilities"
 GIT_BRANCH="${GIT_BRANCH:-main}"
-git clone -b "$GIT_BRANCH" https://github.com/keene-lab/cosmx-utilities.git "$REPO_DIR"
+git clone -b "$GIT_BRANCH" https://github.com/UW-BRaIN-lab/cosmx-utilities.git "$REPO_DIR"
 chown -R ubuntu:ubuntu "$REPO_DIR"
 
 # Main workspace (napari-cosmx-fork + pipeline tools) — requires Python <3.11
