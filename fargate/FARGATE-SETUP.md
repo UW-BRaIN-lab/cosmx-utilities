@@ -84,12 +84,12 @@ Before registering these task definitions:
 3. **Docker Images**:
    ```bash
    # Build and push headless image (for process-slide tasks)
-   docker build --target headless -t ghcr.io/keene-lab/cosmx-utilities:headless-latest .
-   docker push ghcr.io/keene-lab/cosmx-utilities:headless-latest
+   docker build --target headless -t ghcr.io/uw-brain-lab/cosmx-utilities:headless-latest .
+   docker push ghcr.io/uw-brain-lab/cosmx-utilities:headless-latest
 
    # Build and push metadata-generator image (lightweight DuckDB-based)
-   docker build --target metadata-generator -t ghcr.io/keene-lab/cosmx-utilities:metadata-generator-latest .
-   docker push ghcr.io/keene-lab/cosmx-utilities:metadata-generator-latest
+   docker build --target metadata-generator -t ghcr.io/uw-brain-lab/cosmx-utilities:metadata-generator-latest .
+   docker push ghcr.io/uw-brain-lab/cosmx-utilities:metadata-generator-latest
    ```
 
 ## Configuration

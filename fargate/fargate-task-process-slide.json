@@ -12,7 +12,7 @@
   "containerDefinitions": [
     {
       "name": "process-slide",
-      "image": "ghcr.io/keene-lab/cosmx-utilities:headless-latest",
+      "image": "ghcr.io/uw-brain-lab/cosmx-utilities:headless-latest",
       "essential": true,
       "command": [
         "uv", "run", "python",
