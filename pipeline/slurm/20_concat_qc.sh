@@ -15,17 +15,22 @@
 #                  CPU-only step).
 
 #SBATCH --job-name=cosmx-concat-qc
-#SBATCH --account=glioblastoma
-#SBATCH --partition=compute
+# glioblastoma has no dedicated CPU node → ckpt (free, preemptible). --requeue
+# restarts on preemption; the stage is idempotent (re-writes its outputs).
+#SBATCH --account=glioblastoma-ckpt
+#SBATCH --partition=ckpt
+#SBATCH --qos=ckpt
+#SBATCH --requeue
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=300G
 #SBATCH --time=04:00:00
 #SBATCH --output=pipeline/logs/concat_qc_%j.out
 #SBATCH --error=pipeline/logs/concat_qc_%j.err
 
-# --mem targets a high-memory node: concatenating ~8M cells holds the whole cohort
-# in RAM. If this won't schedule on `compute`, reduce the cohort or move to a
-# hugemem node / add a --constraint for your allocation's large-memory hardware.
+# --mem is generous: concatenating the all-probe cohort holds it in RAM. ckpt
+# pools cluster-wide nodes including large-memory ones, so 300G is schedulable
+# (it may queue for a big node). Lower it if the cohort is small and you want a
+# faster start.
 
 set -euo pipefail
 
