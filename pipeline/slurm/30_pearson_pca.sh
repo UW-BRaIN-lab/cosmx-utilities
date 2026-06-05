@@ -20,16 +20,18 @@
 #SBATCH --partition=ckpt
 #SBATCH --qos=ckpt
 #SBATCH --requeue
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=256G
 #SBATCH --time=04:00:00
 #SBATCH --output=pipeline/logs/pearson_pca_%j.out
 #SBATCH --error=pipeline/logs/pearson_pca_%j.err
 
-# scPearsonPCA receives only the HVG subset (~2000 genes) as a dgCMatrix plus a
-# working copy, and the genes x genes SVD is tiny — so this is far lighter than
-# the all-gene stage 3a. 128G is ample for the cohort. --cpus-per-task feeds
-# --ncores for the block-wise embedding projection.
+# scPearsonPCA's genes x genes SVD is tiny, but the block-wise embedding
+# projection runs under parallel::mclapply, which forks one worker per core.
+# Fork is copy-on-write, but R's GC touches object headers, so each fork ends up
+# duplicating the multi-GB sparse counts — at 2.3M cells x 2000 HVGs, 16 forks
+# OOM-killed a 128G node. Keep --cpus-per-task modest (it feeds --ncores) and
+# give generous --mem; drop --cpus-per-task to 1 if a larger cohort still OOMs.
 
 set -euo pipefail
 
