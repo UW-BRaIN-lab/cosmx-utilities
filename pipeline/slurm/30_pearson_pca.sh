@@ -33,7 +33,14 @@
 
 set -euo pipefail
 
-PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Slurm copies the batch script to a spool dir, so "$0" no longer points into the
+# repo. Derive the repo from SLURM_SUBMIT_DIR (where sbatch was invoked — submit
+# from the repo root); fall back to "$0" for direct, non-Slurm execution.
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+    PIPELINE_DIR="${SLURM_SUBMIT_DIR}/pipeline"
+else
+    PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+fi
 
 set -a
 # shellcheck disable=SC1091
