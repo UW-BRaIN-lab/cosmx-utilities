@@ -14,18 +14,22 @@
 #   APPTAINER_SCPEARSON (path to the scpearsonpca.sif R container).
 
 #SBATCH --job-name=cosmx-pearson-pca
-#SBATCH --account=glioblastoma
-#SBATCH --partition=compute
+# glioblastoma has no dedicated CPU node → ckpt (free, preemptible). --requeue
+# restarts on preemption; the stage is idempotent (re-writes embedding.h5).
+#SBATCH --account=glioblastoma-ckpt
+#SBATCH --partition=ckpt
+#SBATCH --qos=ckpt
+#SBATCH --requeue
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=350G
-#SBATCH --time=08:00:00
+#SBATCH --mem=128G
+#SBATCH --time=04:00:00
 #SBATCH --output=pipeline/logs/pearson_pca_%j.out
 #SBATCH --error=pipeline/logs/pearson_pca_%j.err
 
-# --mem targets a high-memory node: scPearsonPCA holds the genes x cells counts and
-# one working copy as dgCMatrix (~tens of GB at 8M cells). The genes x genes SVD
-# itself is small. --cpus-per-task feeds --ncores for the block-wise embedding
-# projection. Adjust --mem/--constraint to your allocation's large-memory nodes.
+# scPearsonPCA receives only the HVG subset (~2000 genes) as a dgCMatrix plus a
+# working copy, and the genes x genes SVD is tiny — so this is far lighter than
+# the all-gene stage 3a. 128G is ample for the cohort. --cpus-per-task feeds
+# --ncores for the block-wise embedding projection.
 
 set -euo pipefail
 

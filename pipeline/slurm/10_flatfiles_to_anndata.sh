@@ -11,8 +11,13 @@
 #   APPTAINER_RSC (path to Python+scanpy+rapids-singlecell container image)
 
 #SBATCH --job-name=cosmx-flatfiles-to-anndata
-#SBATCH --account=glioblastoma
-#SBATCH --partition=compute
+# glioblastoma has no dedicated CPU node, so CPU stages run on the free,
+# preemptible ckpt partition (account glioblastoma-ckpt, qos ckpt). --requeue
+# lets a preempted task restart; this stage is idempotent (re-uploads per slide).
+#SBATCH --account=glioblastoma-ckpt
+#SBATCH --partition=ckpt
+#SBATCH --qos=ckpt
+#SBATCH --requeue
 #SBATCH --array=1-57
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
