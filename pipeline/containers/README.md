@@ -11,10 +11,14 @@ Runtime for the Python stages of the pipeline:
 - **Stage 1** (`compute` partition): scanpy / anndata / pandas / boto3 →
   per-slide flat files → `.h5ad`. GPU not used but the same SIF works.
 - **Stage 3a** (`compute` partition): concatenate per-slide `.h5ad`,
-  per-cell QC, emit the scPearsonPCA input. CPU-only (anndata/scipy).
+  per-cell QC, restrict to the study cohort (`pipeline/cohort_wenyu.csv`,
+  matching `(Case, Block)` to drop the extraneous tissue co-mounted on each
+  slide), emit the scPearsonPCA input. CPU-only (anndata/scipy).
 - **Stage 3c** (`gpu-l40s` partition): neighbor graph + Leiden + UMAP on
-  the Pearson-PCA embedding. Runs on a **single** L40S — it operates on the
-  small cells × ~50 embedding, so no dask-cuda cluster is needed here.
+  the Pearson-PCA embedding, plus UMAP QC plots colored by `Case` / `Region` /
+  `leiden` for reviewing the patient-level batch correction. Runs on a
+  **single** L40S — it operates on the small cells × ~50 embedding, so no
+  dask-cuda cluster is needed here.
 
 The actual Pearson-residual PCA (stage 3b) does **not** run in this
 container — see `scpearsonpca.sif` below for why.
