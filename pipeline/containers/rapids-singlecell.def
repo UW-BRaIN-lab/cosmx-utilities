@@ -1,12 +1,20 @@
 Bootstrap: docker
-From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
+From: nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
 
-# NOTE: -devel-, not -runtime-. CuPy JIT-compiles kernels at runtime via
-# NVRTC, which needs the CUDA toolkit *headers* (cuda_runtime.h etc.). The
-# -runtime- image omits headers, and cupy 14+ no longer bundles them in its
-# wheel, so GPU kernel compilation fails with "Failed to find CUDA headers".
-# The -devel- image ships headers at /usr/local/cuda/include (where the
-# CUDA_PATH in %environment points). Costs ~2-3GB more SIF; fine on scrubbed.
+# NOTE: -devel-, not -runtime-. CuPy JIT-compiles kernels at runtime via NVRTC,
+# which needs the CUDA toolkit *headers* (cuda_runtime.h, cuda_fp8.h, etc.). The
+# -runtime- image omits headers, and cupy 14+ no longer bundles them, so kernel
+# compilation fails with "Failed to find CUDA headers".
+#
+# The toolkit version must MATCH cupy's expectations. cupy 14.1.0 (and the
+# pinned nvidia-*-cu12==12.9.x pip libs) reference the MX-FP8 type
+# __nv_fp8_e8m0, which only exists in cuda_fp8.h from CUDA >= 12.8. The old 12.4
+# toolkit lacked it, so simple kernels JIT'd fine but complex ones (the cuVS
+# neighbors / UMAP kernels in stage 3c) failed with: incomplete type
+# "__nv_fp8_e8m0" is not allowed. Hence a 12.9 -devel base, aligned with the
+# 12.9.86 pip NVRTC. (If this exact tag 404s on pull, 12.9.0 or 12.8.1
+# -cudnn-devel-ubuntu22.04 also provide the e8m0 type.) ~2-3GB more SIF; fine
+# on scrubbed.
 #
 # Apptainer runtime for the CosMx GBM analysis pipeline on Hyak.
 #
@@ -98,9 +106,10 @@ print('imports ok')
     export NVIDIA_DRIVER_CAPABILITIES=compute,utility
     # CuPy otherwise auto-detects the CUDA root from the driver version, which
     # fails ("Failed to auto-detect CUDA root directory") on Hyak's gpu-l40s
-    # nodes because their driver (580.x / CUDA 13.0) is newer than cupy knows
-    # about. Pin the root to the -devel- image's 12.4 toolkit, whose headers
-    # at /usr/local/cuda/include are what NVRTC needs for JIT compilation.
+    # nodes because their driver (580.x / CUDA 13.0) is newer than cupy probes
+    # for. Pin the root to the -devel image's 12.9 toolkit, whose headers at
+    # /usr/local/cuda/include match cupy 14.1's NVRTC + MX-FP8 (__nv_fp8_e8m0)
+    # use; an older toolkit breaks complex-kernel JIT (see header NOTE above).
     export CUDA_PATH=/usr/local/cuda
 
 %runscript
