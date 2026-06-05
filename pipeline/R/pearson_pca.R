@@ -82,10 +82,20 @@ tc <- f[["total_counts"]][]
 names(tc) <- cell_id
 
 batch <- f[["batch"]][]
-genefreq_mat <- f[["genefreq/matrix"]][, ]   # genes_hvg x batches
+genefreq_mat <- f[["genefreq/matrix"]][, ]
 genefreq_batches <- f[["genefreq/batch"]][]
 f$close_all()
 
+# h5py wrote genefreq as (n_genes x n_batch) in C order, but hdf5r reads 2D
+# datasets with reversed dimension order, so it arrives as n_batch x n_genes.
+# Orient back to genes x batches (n_genes != n_batch disambiguates).
+if (nrow(genefreq_mat) == length(genefreq_batches) &&
+    ncol(genefreq_mat) == length(genes)) {
+  genefreq_mat <- t(genefreq_mat)
+}
+stopifnot("genefreq matrix shape does not match genes x batches" =
+            nrow(genefreq_mat) == length(genes) &&
+            ncol(genefreq_mat) == length(genefreq_batches))
 dimnames(genefreq_mat) <- list(genes, genefreq_batches)
 
 obs <- data.table::data.table(cell_ID = cell_id, batch = batch)

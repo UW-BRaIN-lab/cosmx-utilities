@@ -100,6 +100,10 @@ def load_embedding(path: Path) -> tuple[np.ndarray, np.ndarray]:
         emb = f["embedding"][:].astype(np.float32)
         cell_id = f["cell_id"][:]
     cell_id = np.array([c.decode() if isinstance(c, bytes) else c for c in cell_id])
+    # hdf5r (which wrote this) stores R matrices with reversed dim order vs h5py,
+    # so the embedding may arrive as (n_pcs, n_cells); orient to (n_cells, n_pcs).
+    if emb.shape[0] != len(cell_id) and emb.shape[1] == len(cell_id):
+        emb = np.ascontiguousarray(emb.T)
     return emb, cell_id
 
 
