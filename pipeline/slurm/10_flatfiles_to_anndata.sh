@@ -27,6 +27,17 @@
 
 set -euo pipefail
 
+# Compute nodes don't expose apptainer/s5cmd on PATH by default. Initialise Lmod
+# (a batch shell isn't a login shell, so the module function may be undefined),
+# load apptainer, and add ~/bin where the s5cmd binary lives — compute nodes do
+# not share the login node's /usr/bin/s5cmd, but home (/mmfs1/home) is shared.
+if ! command -v module >/dev/null 2>&1; then
+    source /etc/profile.d/lmod.sh 2>/dev/null \
+        || source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
+fi
+module load apptainer
+export PATH="${HOME}/bin:${PATH}"
+
 # Slurm copies the batch script to a spool dir, so "$0" no longer points into the
 # repo. Derive the repo from SLURM_SUBMIT_DIR (where sbatch was invoked — submit
 # from the repo root); fall back to "$0" for direct, non-Slurm execution.
