@@ -1,0 +1,76 @@
+Bootstrap: docker
+From: rocker/r-ver:4.4.2
+
+# Apptainer runtime for stage 3b: the batch-corrected quasipoisson Pearson-residual
+# PCA (scPearsonPCA). This is a CPU/R stage — it runs on the `compute` partition,
+# NOT gpu-l40s. It is separate from rapids-singlecell.sif because scPearsonPCA is R
+# and rides on RSpectra/Matrix, none of which belong in the GPU image.
+#
+# Why scPearsonPCA and not rapids-singlecell's normalize_pearson_residuals: at the
+# ~8M-cell cohort scale, the rapids path densifies an n_cells x n_genes residual
+# matrix that does not fit on a single 46GB L40S. scPearsonPCA does the SVD on the
+# genes x genes cross-product and never densifies, so it scales on a big-memory CPU
+# node. See pipeline/containers/README.md for the full rationale.
+#
+# Reproducibility: R itself is pinned by the rocker/r-ver:4.4.2 base. CRAN packages
+# are installed from a DATED Posit Package Manager snapshot (CRAN_SNAPSHOT below) so
+# versions are frozen, and scPearsonPCA is pinned to a commit SHA. Bump the snapshot
+# date and SHA together and rebuild if you need to move forward.
+#
+# Build from the repo root on a klone login node (Apptainer + fakeroot), with
+# cache/tmp on /gscratch (home is only 10GB):
+#     cd ~/cosmx-utilities
+#     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
+#     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+#     apptainer build --fakeroot \
+#         /gscratch/scrubbed/$USER/containers/scpearsonpca.sif \
+#         pipeline/containers/scpearsonpca.def
+
+%post -c /bin/bash
+    set -euxo pipefail
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    # System libs: libhdf5-dev for hdf5r (reads the stage-3a .h5ad), plus the usual
+    # build toolchain for compiling RSpectra/Matrix from source.
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        libhdf5-dev \
+        libxml2-dev \
+        zlib1g-dev
+    rm -rf /var/lib/apt/lists/*
+
+    # Frozen CRAN snapshot — pins every CRAN package version to this date.
+    CRAN_SNAPSHOT="https://packagemanager.posit.co/cran/__linux__/jammy/2026-05-27"
+
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = parallel::detectCores()); \
+        install.packages(c('Matrix', 'data.table', 'RSpectra', 'hdf5r', 'remotes'))"
+
+    # scPearsonPCA lives in a subdirectory of the CosMx Scratch Space repo and is
+    # pinned to a commit SHA for reproducibility (see install issue #262 — pinning
+    # avoids the moving-target install failures reported there).
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
+        remotes::install_github('Nanostring-Biostats/CosMx-Analysis-Scratch-Space', \
+            subdir = '_code/scPearsonPCA', \
+            ref = '20f7f485fc1d42e3e0390aec1496d81464531a28', \
+            upgrade = 'never')"
+
+    # Build-time import check: load every package the stage-3b driver needs.
+    Rscript -e "library(Matrix); library(data.table); library(RSpectra); \
+        library(hdf5r); library(scPearsonPCA); \
+        stopifnot(is.function(scPearsonPCA::sparse_quasipoisson_pca_seurat_batch)); \
+        cat('R packages ok\n')"
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%runscript
+    exec Rscript "$@"
+
+%labels
+    org.opencontainers.image.source https://github.com/UW-BRaIN-lab/cosmx-utilities
+    org.opencontainers.image.description CosMx GBM pipeline runtime — R, scPearsonPCA (batch Pearson-residual PCA)
+    pipeline.stage scpearsonpca
