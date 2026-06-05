@@ -23,9 +23,12 @@ Runtime for the Python stages of the pipeline:
 The actual Pearson-residual PCA (stage 3b) does **not** run in this
 container — see `scpearsonpca.sif` below for why.
 
-Base: `nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04` (devel, not runtime —
-CuPy's NVRTC JIT needs the CUDA headers). Python 3.10 venv at `/opt/venv`
-(on `PATH` via `%environment`), built with `uv` from a pinned lock file.
+Base: `nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04` (devel, not runtime —
+CuPy's NVRTC JIT needs the CUDA headers, and the toolkit must be ≥12.8 so
+`cuda_fp8.h` defines the `__nv_fp8_e8m0` type that cupy 14.1 references; an
+older toolkit JITs simple kernels but fails on complex ones like the cuVS
+neighbors kernel). Python 3.10 venv at `/opt/venv` (on `PATH` via
+`%environment`), built with `uv` from a pinned lock file.
 
 ### Why rapids-singlecell, not ScaleSC
 

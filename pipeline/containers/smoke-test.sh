@@ -67,6 +67,14 @@ x = cp.arange(10**6, dtype='float32')
 print('  cupy sum:', float(x.sum()), 'on device', x.device)
 import rapids_singlecell as rsc
 print('  rapids_singlecell loaded:', rsc.__version__)
+# Exercise a COMPLEX cuVS kernel (neighbors), which NVRTC-JITs cuda_fp8.h. A
+# CUDA-toolkit/cupy version mismatch only shows up here, not in cp.sum above —
+# e.g. an older toolkit fails with: incomplete type '__nv_fp8_e8m0'.
+import anndata as ad, numpy as np
+a = ad.AnnData(np.zeros((200, 5), dtype='float32'))
+a.obsm['X_test'] = np.random.RandomState(0).rand(200, 20).astype('float32')
+rsc.pp.neighbors(a, n_neighbors=10, use_rep='X_test')
+print('  rsc.pp.neighbors JIT + run OK (complex cuVS kernel compiles)')
 "
 else
     echo "==> Tier 2: SKIPPED — no GPU visible. For GPU coverage, run inside"
