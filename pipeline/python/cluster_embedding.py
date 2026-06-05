@@ -42,6 +42,11 @@ REP_KEY = "X_pearson_pca"
 DEFAULT_RESOLUTION = 1.2
 DEFAULT_N_NEIGHBORS = 15
 
+# Batch-correction review: Case (patient) should be well-mixed after correction;
+# Region (Tumor bulk / Infiltrating edge / Contralateral uninvolved) and leiden
+# should drive the structure.
+DEFAULT_QC_COLOR = "Case,Region,leiden"
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
@@ -58,7 +63,36 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-pcs", type=int, default=0,
                    help="Use the first N PCs (0 = all columns in the embedding).")
     p.add_argument("--seed", type=int, default=0, help="Random state for neighbors/UMAP.")
+    p.add_argument("--qc-plots-dir", type=Path, default=None,
+                   help="Directory for UMAP QC PNGs (default: alongside --output).")
+    p.add_argument("--qc-color", default=DEFAULT_QC_COLOR,
+                   help="Comma-separated obs keys to color UMAP QC plots by.")
     return p.parse_args()
+
+
+def make_qc_plots(adata: ad.AnnData, color_keys: list[str], out_dir: Path) -> None:
+    """Save one UMAP PNG per obs key, for reviewing batch correction.
+
+    Non-critical: a missing column or plotting error is warned and skipped rather
+    than failing the job. Points are rasterized for the large cell count.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import scanpy as sc
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sc.settings.figdir = out_dir
+    sc.settings.set_figure_params(dpi=150, frameon=False)
+    for key in color_keys:
+        if key not in adata.obs:
+            print(f"WARN: QC color '{key}' not in obs; skipping", file=sys.stderr)
+            continue
+        try:
+            sc.pl.umap(adata, color=key, show=False, save=f"_{key}.png",
+                       size=2, legend_fontsize=6)
+            print(f"  wrote {out_dir}/umap_{key}.png")
+        except Exception as exc:  # plotting must never sink the pipeline
+            print(f"WARN: failed to plot UMAP by '{key}': {exc}", file=sys.stderr)
 
 
 def load_embedding(path: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -131,6 +165,12 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     print(f"Writing {args.output}")
     adata.write_h5ad(args.output, compression="gzip")
+
+    qc_dir = args.qc_plots_dir or args.output.parent / "qc_plots"
+    print(f"Writing UMAP QC plots to {qc_dir}")
+    make_qc_plots(adata, [k.strip() for k in args.qc_color.split(",") if k.strip()],
+                  qc_dir)
+
     print(f"Done. {adata.n_obs:,} cells, {n_clusters} Leiden clusters.")
 
 

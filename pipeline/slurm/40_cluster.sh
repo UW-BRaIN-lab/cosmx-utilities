@@ -55,11 +55,18 @@ apptainer exec --nv \
         --combined-h5ad "$WORK/combined_qc.h5ad" \
         --embedding "$WORK/embedding.h5" \
         --output "$WORK/cosmx_clustered.h5ad" \
+        --qc-plots-dir "$WORK/qc_plots" \
+        --qc-color "${QC_COLOR:-Case,Region,leiden}" \
         --resolution "${RESOLUTION:-1.2}" \
         --n-neighbors "${N_NEIGHBORS:-15}"
 
-echo "Uploading clustered AnnData to Kopah..."
+echo "Uploading clustered AnnData + QC plots to Kopah..."
 s5cmd cp "$WORK/cosmx_clustered.h5ad" \
     "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/cosmx_clustered.h5ad"
+# UMAP QC plots (Case / Region / leiden) for reviewing the patient-level
+# correction. Non-fatal: the clustered AnnData is already safely uploaded above.
+s5cmd cp "$WORK/qc_plots/*" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/qc_plots/" \
+    || echo "WARN: no QC plots to upload"
 
 echo "Done: stage 3c"

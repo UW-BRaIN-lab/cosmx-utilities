@@ -60,6 +60,7 @@ apptainer exec \
         --anndata-dir "$WORK/anndata" \
         --output "$OUT_PREFIX" \
         --batch-col "${BATCH_COL:-Case}" \
+        --cohort "${COHORT:-${PIPELINE_DIR}/cohort_wenyu.csv}" \
         --n-hvg "${N_HVG:-2000}" \
         --min-gene-counts "${MIN_GENE_COUNTS:-50}" \
         --max-area "${MAX_AREA:-30000}" \

@@ -80,6 +80,11 @@ def parse_args() -> argparse.Namespace:
                    help="Output prefix; writes <output>.h5ad and <output>.pca_input.h5.")
     p.add_argument("--batch-col", default=DEFAULT_BATCH_COL,
                    help="obs column used as the PCA batch variable (patient/Case).")
+    p.add_argument("--cohort", type=Path, default=None,
+                   help="Cohort CSV with Donor + Block columns (e.g. "
+                        "pipeline/cohort_wenyu.csv). If given, keep only cells whose "
+                        "(batch-col, Block) matches a cohort pair, dropping the "
+                        "extraneous tissues co-mounted on each slide.")
     p.add_argument("--n-hvg", type=int, default=DEFAULT_N_HVG,
                    help="Number of highly variable genes (seurat_v3) for the PCA.")
     p.add_argument("--min-gene-counts", type=int, default=DEFAULT_MIN_GENE_COUNTS,
@@ -161,6 +166,46 @@ def qc_keep_mask(qc: pd.DataFrame, args: argparse.Namespace) -> np.ndarray:
     return keep
 
 
+def apply_cohort_filter(adata: ad.AnnData, cohort_path: Path,
+                        batch_col: str) -> ad.AnnData:
+    """Keep only cells whose (batch_col, Block) is a cohort (Donor, Block) pair.
+
+    Two tissues are mounted per CosMx slide, so each slide carries extraneous
+    donors/blocks outside the study cohort. The metadata Block is authoritative
+    (e.g. donor 7464 is correctly 'A4' even though its slide name says 'A5'), so we
+    match (Case, Block) directly against the cohort table — no slide-name parsing.
+    """
+    cohort = pd.read_csv(cohort_path, dtype=str)
+    for col in ("Donor", "Block"):
+        if col not in cohort.columns:
+            print(f"ERROR: cohort CSV {cohort_path} missing '{col}' column",
+                  file=sys.stderr)
+            sys.exit(1)
+    if "Block" not in adata.obs or batch_col not in adata.obs:
+        print(f"ERROR: obs needs '{batch_col}' and 'Block' for cohort filtering; "
+              f"have {list(adata.obs.columns)}", file=sys.stderr)
+        sys.exit(1)
+
+    cohort_pairs = pd.MultiIndex.from_arrays(
+        [cohort["Donor"].str.strip(), cohort["Block"].str.strip()])
+    obs_pairs = pd.MultiIndex.from_arrays([
+        adata.obs[batch_col].astype(str).str.strip(),
+        adata.obs["Block"].astype(str).str.strip(),
+    ])
+    keep = obs_pairs.isin(cohort_pairs)
+
+    n_before = adata.shape[0]
+    kept_donors = set(adata.obs[batch_col].astype(str).str.strip()[keep].unique())
+    cohort_donors = set(cohort["Donor"].str.strip().unique())
+    absent = sorted(cohort_donors - kept_donors)
+    print(f"Cohort filter: kept {int(keep.sum()):,} / {n_before:,} cells across "
+          f"{len(kept_donors)} / {len(cohort_donors)} cohort donors")
+    if absent:
+        print(f"WARN: {len(absent)} cohort donor(s) absent from the data "
+              f"(slides not yet processed?): {absent}", file=sys.stderr)
+    return adata[keep].copy()
+
+
 def select_hvgs(gene_adata: ad.AnnData, n_hvg: int) -> np.ndarray:
     """seurat_v3 HVGs on raw counts — the scanpy analog of FindVariableFeatures(vst)."""
     n_hvg = min(n_hvg, gene_adata.n_vars)
@@ -228,6 +273,11 @@ def main() -> None:
     adata = adata[keep].copy()
     print(f"QC: kept {adata.shape[0]} / {n_before} cells "
           f"({n_before - adata.shape[0]} dropped)")
+
+    # Restrict to the study cohort before computing tc / HVGs / gene frequency, so
+    # those statistics reflect only the cells that enter the PCA.
+    if args.cohort:
+        adata = apply_cohort_filter(adata, args.cohort, args.batch_col)
 
     # All-gene matrix: PCA, tc, and gene frequency all use gene probes only.
     gene_mask = (adata.var["probe_type"] == "gene").to_numpy()
