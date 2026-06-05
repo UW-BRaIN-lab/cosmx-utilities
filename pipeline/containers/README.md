@@ -6,14 +6,18 @@ produces a `.sif` that the Slurm jobs in `pipeline/slurm/` invoke with
 
 ## rapids-singlecell.sif
 
-Runtime for stages 1–6 of the pipeline:
+Runtime for the Python stages of the pipeline:
 
 - **Stage 1** (`compute` partition): scanpy / anndata / pandas / boto3 →
   per-slide flat files → `.h5ad`. GPU not used but the same SIF works.
-- **Stage 3** (`gpu-l40s` partition): rapids-singlecell + Harmony for
-  GPU-accelerated QC / batch correction on the subsampled cohort
-  AnnData, distributed across 2x L40S via dask-cuda.
-- **Stage 6** (`gpu-l40s`): GPU embedding on the full cohort.
+- **Stage 3a** (`compute` partition): concatenate per-slide `.h5ad`,
+  per-cell QC, emit the scPearsonPCA input. CPU-only (anndata/scipy).
+- **Stage 3c** (`gpu-l40s` partition): neighbor graph + Leiden + UMAP on
+  the Pearson-PCA embedding. Runs on a **single** L40S — it operates on the
+  small cells × ~50 embedding, so no dask-cuda cluster is needed here.
+
+The actual Pearson-residual PCA (stage 3b) does **not** run in this
+container — see `scpearsonpca.sif` below for why.
 
 Base: `nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04` (devel, not runtime —
 CuPy's NVRTC JIT needs the CUDA headers). Python 3.10 venv at `/opt/venv`
@@ -138,3 +142,75 @@ Gen4. Practical implications when wiring up Stage 3:
 - Build the kNN graph once on a single GPU after PCA/HVG — the
   post-reduction data is small and avoids PCIe-bound communication for
   Leiden / UMAP.
+
+## scpearsonpca.sif
+
+R runtime for **stage 3b**: the batch-corrected quasipoisson Pearson-residual
+PCA (`scPearsonPCA::sparse_quasipoisson_pca_seurat_batch`). Batch correction is
+at the **patient level** (the `Case` column), per Patrick Danaher's guidance that
+per-slide effects are typically minor — matching the patient-batch example in the
+[scPearsonPCA post](https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/pearsonpca/).
+A CPU/R stage that runs on the `compute` partition, **not** gpu-l40s.
+
+Following that example, stage 3a hands this stage an **HVG subset** (~2000 genes
+for the 6k panel) plus **precomputed all-gene** `totalcounts` and per-batch
+`gene_frequency`; the R stage never sees the full panel.
+
+Base: `rocker/r-ver:4.4.2`. Packages: `data.table`, `Matrix`, `RSpectra`,
+`hdf5r` from a dated Posit Package Manager snapshot, plus `scPearsonPCA` pinned
+to a commit SHA. No Seurat — the driver calls with `return_seurat_reduction =
+FALSE` and gets back plain `cell.embeddings` + `feature.loadings`.
+
+### Why a separate R stage, not rapids-singlecell's Pearson residuals
+
+The vignette's dimension reduction is quasipoisson Pearson-residual PCA. The
+obvious GPU route, `rsc.pp.normalize_pearson_residuals`, **densifies** an
+`n_cells × n_genes` residual matrix on a single GPU (it has no dask path in
+0.13.1). At this cohort's ~8M cells that is ~64 GB for 2000 genes — it does not
+fit on a 46 GB L40S, and even both cards combined is too tight once PCA scratch
+is added.
+
+`scPearsonPCA` is purpose-built for exactly this: it computes the PCA via SVD of
+the **genes × genes** cross-product (≈6000²) and projects cell embeddings in
+blocks, so the dense `cells × genes` residual matrix is never formed. Peak
+memory is the sparse counts (`genes × cells`) plus one working copy — tens of GB
+on a big-memory CPU node, independent of how the residuals are defined. It is
+the faithful *and* the only memory-feasible option here, not a compromise.
+
+> **dgCMatrix nonzero ceiling.** R's `dgCMatrix` index slots are 32-bit, so the
+> counts matrix must stay under 2³¹ (~2.1B) nonzeros. This is exactly why stage 3a
+> hands R only the **HVG subset** rather than the full panel — the all-gene
+> `totalcounts` and per-batch `gene_frequency` are computed in Python (scipy uses
+> 64-bit indices, so the full cohort is fine) and passed in precomputed, so the
+> dense residual matrix is never formed and R's matrix stays small. Stage 3a still
+> errors clearly if even the HVG-subset nonzeros would cross the ceiling (reduce
+> `--n-hvg` or split the cohort).
+
+### Build
+
+Same flow as `rapids-singlecell.sif`, but this recipe has no `%files`, so the
+build CWD doesn't matter (the repo-root convention still works):
+
+```bash
+ssh klone.hyak.uw.edu
+module load apptainer
+export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
+export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+
+cd ~/cosmx-utilities
+apptainer build --fakeroot \
+    /gscratch/scrubbed/$USER/containers/scpearsonpca.sif \
+    pipeline/containers/scpearsonpca.def
+```
+
+Point `pipeline/.env` at it:
+
+```
+APPTAINER_SCPEARSON=/gscratch/scrubbed/<username>/containers/scpearsonpca.sif
+```
+
+### Reproducibility
+
+R is pinned by the `rocker/r-ver:4.4.2` base; CRAN packages by the dated PPM
+snapshot URL in the recipe; `scPearsonPCA` by commit SHA. To move forward, bump
+the snapshot date and the SHA together and rebuild.
