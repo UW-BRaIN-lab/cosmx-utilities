@@ -14,10 +14,13 @@ flowchart TD
     classDef data fill:#b7a57a,stroke:none,color:#32006e
     classDef viewer fill:#ffc700,stroke:none,color:#32006e
     classDef futureAction fill:#4b2e83,stroke:#b7a57a,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff
+    classDef done fill:#4b2e83,stroke:none,color:#ffffff
+    classDef running fill:#ffc700,stroke:#4b2e83,stroke-width:3px,color:#32006e
+    classDef todo fill:#4b2e83,stroke:#b7a57a,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff
 
     style fargate fill:#c5b4e3,stroke:none
     style ec2 fill:#c5b4e3,stroke:none
-    style hyak fill:#85754d,stroke:none
+    style hyak fill:#e8e1cc,stroke:#85754d
 
     atomx["AtoMx study export"]:::data
     sftp["Download slides from BSB SFTP endpoint"]:::action
@@ -50,25 +53,36 @@ flowchart TD
         ami --> launch --> sync --> dcv
     end
 
-    subgraph hyak["Future direction: Hyak GPU"]
+    migrate["Migrate flat files S3 → Kopah<br>migrate_s3_to_kopah.py"]:::done
+    kopahflat["Kopah flat files<br>(brainlabkg/CosMx-GBM)"]:::data
+
+    subgraph hyak["UW Hyak (Klone) — cell-typing pipeline · color = progress"]
         direction TB
-        etl["Reshape expression data for cell typing and batch correction"]:::futureAction
-        rsc["rapids-singlecell (dask-cuda, multi-GPU)"]:::futureAction
-        scvi["scvi-tools"]:::futureAction
-        etl --> rsc
-        etl --> scvi
+        stage1["Stage 1 · flat files → per-slide .h5ad<br>10_flatfiles_to_anndata.sh · ckpt array · rapids-singlecell.sif"]:::done
+        anndata["…/anndata/ · 28 per-slide .h5ad"]:::data
+        stage3a["Stage 3a · concat + QC + cohort filter (12 donors)<br>2000 HVGs + per-Case gene frequency<br>20_concat_qc.sh · ckpt · rapids-singlecell.sif"]:::done
+        combined["…/stage3/ · combined_qc.h5ad + pca_input.h5<br>2.33M cohort cells × 6519 probes"]:::data
+        stage3b["Stage 3b · quasipoisson Pearson-residual PCA<br>batch-corrected by patient (Case) · scPearsonPCA<br>30_pearson_pca.sh · ckpt · scpearsonpca.sif"]:::running
+        embedding["…/stage3/embedding.h5 · 2.33M × 50 PCs"]:::data
+        stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · rapids-singlecell.sif"]:::todo
+        clustered["…/stage3/ · cosmx_clustered.h5ad + qc_plots/"]:::data
+        stage4["Stage 4 · InSituType cell typing (R) · planned"]:::todo
+        stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered --> stage4
     end
 
     atomx --> sftp
     sftp --> s3raw
     s3raw -- per slide (parallel) --> stitch
     meta --> s3out
-    s3raw -- per slide (slurm job) --> etl
-    rsc -.-> s3out
-    scvi -.-> s3out
+    s3raw -- flat files --> migrate
+    migrate --> kopahflat
+    kopahflat -- per slide (Slurm array) --> stage1
+    clustered -.->|cell-type labels| napari
     s3out --> launch
     dcv --> napari
 ```
+
+**Progress legend (Hyak cell-typing pipeline):** solid purple = done · yellow = running now · dashed border = not yet run / planned · gold = data artifact on Kopah. Batch correction is at the patient (`Case`) level; tissue regions (tumor bulk / infiltrating edge / contralateral) are preserved as biological signal.
 
 ## Key design decisions
 
@@ -198,8 +212,15 @@ uv run napari /path/to/local/stitched
 
 Fargate task definitions, IAM roles, and networking configuration are documented in [`fargate/FARGATE-SETUP.md`](./fargate/FARGATE-SETUP.md). Infrastructure IDs are stored in `fargate/.env` (gitignored) — copy `fargate/.env.example` to get started.
 
-## Future directions
+## Hyak cell-typing pipeline (in progress)
 
-We will adapt our pipeline for the University of Washington's Hyak HPC cluster ([Klone](https://hyak.uw.edu/docs/)), leveraging GPU resources to reshape per-slide expression data for cell typing and batch correction using GPU-enabled libraries such as [rapids-singlecell](https://rapids-singlecell.readthedocs.io/) (distributed across the 2x L40S GPUs on the `gpu-l40s` partition via [dask-cuda](https://docs.rapids.ai/api/dask-cuda/stable/)) and [scvi-tools](https://scvi-tools.org). Workflow will include converting Docker containers to [Apptainer](https://apptainer.org/docs/user/main/) images, using [Slurm](https://slurm.schedmd.com/overview.html) for batch scheduling, and providing interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
+We are extending the pipeline onto the University of Washington's Hyak HPC cluster ([Klone](https://hyak.uw.edu/docs/)) for GPU-accelerated cell typing and batch correction, scheduled with [Slurm](https://slurm.schedmd.com/overview.html) and run from [Apptainer](https://apptainer.org/docs/user/main/) images (converted from the Docker build), with working storage on UW Kopah. The stages live in [`pipeline/`](./pipeline) and are shown in the diagram above:
+
+- **Stage 1** converts each slide's CosMx flat files into an AnnData `.h5ad`.
+- **Stage 3a** concatenates the cohort, applies per-cell QC, restricts to the study donors, and selects highly variable genes.
+- **Stage 3b** computes a patient-level, batch-corrected quasi-Poisson Pearson-residual PCA with [scPearsonPCA](https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/pearsonpca/), following the Bruker CosMx analysis vignette (the SVD is taken over the genes × genes cross-product, so the dense residual matrix is never formed).
+- **Stage 3c** builds the neighbor graph, Leiden clustering, and UMAP on the GPU with [rapids-singlecell](https://rapids-singlecell.readthedocs.io/) (`gpu-l40s` partition), and emits UMAP QC plots for reviewing the batch correction.
+
+Still planned: InSituType cell typing (Stage 4, R), [scvi-tools](https://scvi-tools.org) integration, and interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
 
 Pipeline tools, Fargate infrastructure templates, and napari-cosmx-fork are publicly available in this repository and on [GHCR](https://github.com/UW-BRaIN-lab/cosmx-utilities/pkgs/container/cosmx-utilities).
