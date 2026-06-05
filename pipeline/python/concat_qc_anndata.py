@@ -231,6 +231,13 @@ def per_batch_gene_frequency(
     return mat, np.asarray(batches, dtype=object)
 
 
+def _write_strings(grp, name: str, values: np.ndarray) -> None:
+    # h5py cannot write numpy fixed-width unicode ('<U…') to a variable-length
+    # string dtype ("No conversion path"). Pass an object array of Python str.
+    grp.create_dataset(name, data=np.asarray(values, dtype=object),
+                       dtype=h5py.string_dtype())
+
+
 def write_pca_input(path: Path, hvg_counts: sp.csr_matrix, genes: np.ndarray,
                     cell_id: np.ndarray, batch: np.ndarray, tc: np.ndarray,
                     genefreq: np.ndarray, batch_labels: np.ndarray) -> None:
@@ -238,7 +245,6 @@ def write_pca_input(path: Path, hvg_counts: sp.csr_matrix, genes: np.ndarray,
     # (@p, @i, @x) of a genes x cells CSC dgCMatrix — no transpose needed.
     hvg_counts.sort_indices()
     hvg_counts.eliminate_zeros()
-    str_dt = h5py.string_dtype()
     with h5py.File(path, "w") as f:
         g = f.create_group("counts")
         g.create_dataset("data", data=hvg_counts.data.astype(np.int32))
@@ -246,13 +252,13 @@ def write_pca_input(path: Path, hvg_counts: sp.csr_matrix, genes: np.ndarray,
         g.create_dataset("indptr", data=hvg_counts.indptr.astype(np.int64))
         g.create_dataset("shape", data=np.array(
             [hvg_counts.shape[1], hvg_counts.shape[0]], dtype=np.int64))  # genes x cells
-        f.create_dataset("genes", data=genes.astype(str), dtype=str_dt)
-        f.create_dataset("cell_id", data=cell_id.astype(str), dtype=str_dt)
-        f.create_dataset("batch", data=batch.astype(str), dtype=str_dt)
+        _write_strings(f, "genes", genes)
+        _write_strings(f, "cell_id", cell_id)
+        _write_strings(f, "batch", batch)
         f.create_dataset("total_counts", data=tc.astype(np.float64))
         gf = f.create_group("genefreq")
         gf.create_dataset("matrix", data=genefreq)
-        gf.create_dataset("batch", data=batch_labels.astype(str), dtype=str_dt)
+        _write_strings(gf, "batch", batch_labels)
 
 
 def main() -> None:
