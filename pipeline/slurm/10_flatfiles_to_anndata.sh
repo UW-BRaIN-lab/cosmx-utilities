@@ -20,8 +20,10 @@
 #SBATCH --requeue
 #SBATCH --array=1-57
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --time=01:00:00
+# 64G headroom: the dual-tissue slides peak near 32G during the exprMat read +
+# AnnData build, so 32G left no margin for the largest (tumor-bulk) slides.
 #SBATCH --output=pipeline/logs/flatfiles_to_anndata_%A_%a.out
 #SBATCH --error=pipeline/logs/flatfiles_to_anndata_%A_%a.err
 
