@@ -133,6 +133,19 @@ def pd_index_positions(target: np.ndarray, source: np.ndarray) -> np.ndarray:
 def main() -> None:
     args = parse_args()
 
+    # Route GPU allocations through an RMM managed-memory pool BEFORE importing
+    # rapids/cupy, so neighbors/Leiden/UMAP on millions of cells can oversubscribe
+    # VRAM and spill to host RAM instead of segfaulting when a single card's
+    # memory is exceeded (see containers/README "Multi-GPU memory tips"). Both
+    # cupy (via the allocator) and the native cuVS/cugraph libs (via the global
+    # RMM resource) then use managed memory.
+    import rmm
+    from rmm.allocators.cupy import rmm_cupy_allocator
+    import cupy as cp
+
+    rmm.reinitialize(managed_memory=True, pool_allocator=True)
+    cp.cuda.set_allocator(rmm_cupy_allocator)
+
     import rapids_singlecell as rsc
 
     print(f"Reading {args.combined_h5ad}")
