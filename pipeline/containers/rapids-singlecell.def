@@ -111,6 +111,12 @@ print('imports ok')
     # /usr/local/cuda/include match cupy 14.1's NVRTC + MX-FP8 (__nv_fp8_e8m0)
     # use; an older toolkit breaks complex-kernel JIT (see header NOTE above).
     export CUDA_PATH=/usr/local/cuda
+    # numba's default ctypes CUDA driver wrapper segfaults at cuCtxGetDevice on
+    # Hyak's 580 / CUDA-13 driver (hit during cugraph Leiden in stage 3c). Force
+    # numba onto NVIDIA's cuda-python bindings (cuda-bindings is installed),
+    # which work. (cluster_embedding.py also sets this, so it applies without a
+    # rebuild; this bakes it in container-wide.)
+    export NUMBA_CUDA_USE_NVIDIA_BINDING=1
 
 %runscript
     exec "$@"
