@@ -62,9 +62,9 @@ flowchart TD
         anndata["…/anndata/ · 28 per-slide .h5ad"]:::data
         stage3a["Stage 3a · concat + QC + cohort filter (12 donors)<br>2000 HVGs + per-Case gene frequency<br>20_concat_qc.sh · ckpt · rapids-singlecell.sif"]:::done
         combined["…/stage3/ · combined_qc.h5ad + pca_input.h5<br>2.33M cohort cells × 6519 probes"]:::data
-        stage3b["Stage 3b · quasipoisson Pearson-residual PCA<br>batch-corrected by patient (Case) · scPearsonPCA<br>30_pearson_pca.sh · ckpt · scpearsonpca.sif"]:::running
+        stage3b["Stage 3b · quasipoisson Pearson-residual PCA<br>batch-corrected by patient (Case) · scPearsonPCA<br>30_pearson_pca.sh · ckpt · scpearsonpca.sif"]:::done
         embedding["…/stage3/embedding.h5 · 2.33M × 50 PCs"]:::data
-        stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · rapids-singlecell.sif"]:::todo
+        stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · rapids-singlecell.sif"]:::done
         clustered["…/stage3/ · cosmx_clustered.h5ad + qc_plots/"]:::data
         stage4["Stage 4 · InSituType cell typing (R) · planned"]:::todo
         stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered --> stage4
