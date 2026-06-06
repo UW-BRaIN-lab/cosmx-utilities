@@ -27,6 +27,14 @@ Usage:
 
 from __future__ import annotations
 
+import os
+
+# numba's default ctypes CUDA driver wrapper segfaults at cuCtxGetDevice on
+# Hyak's 580 / CUDA-13 driver (hit inside rsc.tl.leiden). Force numba onto
+# NVIDIA's official cuda-python bindings (cuda-bindings is installed), which
+# work. Must be set before numba.cuda is imported — i.e., before rapids below.
+os.environ.setdefault("NUMBA_CUDA_USE_NVIDIA_BINDING", "1")
+
 import argparse
 import sys
 from pathlib import Path

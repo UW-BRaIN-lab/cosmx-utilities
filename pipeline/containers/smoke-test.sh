@@ -75,6 +75,12 @@ a = ad.AnnData(np.zeros((200, 5), dtype='float32'))
 a.obsm['X_test'] = np.random.RandomState(0).rand(200, 20).astype('float32')
 rsc.pp.neighbors(a, n_neighbors=10, use_rep='X_test')
 print('  rsc.pp.neighbors JIT + run OK (complex cuVS kernel compiles)')
+# numba's CUDA context init (cuCtxGetDevice) segfaults on the Hyak driver unless
+# NUMBA_CUDA_USE_NVIDIA_BINDING=1 (set in %environment). This is the call that
+# crashed cugraph Leiden in stage 3c; verify it works in the built container.
+from numba import cuda
+cuda.current_context()
+print('  numba CUDA context OK (', cuda.get_current_device().name, ')')
 "
 else
     echo "==> Tier 2: SKIPPED — no GPU visible. For GPU coverage, run inside"
