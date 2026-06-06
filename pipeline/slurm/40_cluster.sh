@@ -69,7 +69,7 @@ apptainer exec --nv \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
     "$APPTAINER_RSC" \
-    python "${PIPELINE_DIR}/python/cluster_embedding.py" \
+    python -u "${PIPELINE_DIR}/python/cluster_embedding.py" \
         --combined-h5ad "$WORK/combined_qc.h5ad" \
         --embedding "$WORK/embedding.h5" \
         --output "$WORK/cosmx_clustered.h5ad" \
