@@ -43,17 +43,13 @@ import anndata as ad
 import h5py
 import numpy as np
 
+from plot_qc import DEFAULT_QC_COLOR, make_qc_plots
 
 REP_KEY = "X_pearson_pca"
 
 # Vignette clusters at high resolution (1.2) "with the plan to condense afterwards".
 DEFAULT_RESOLUTION = 1.2
 DEFAULT_N_NEIGHBORS = 15
-
-# Batch-correction review: Case (patient) should be well-mixed after correction;
-# Region (Tumor bulk / Infiltrating edge / Contralateral uninvolved) and leiden
-# should drive the structure.
-DEFAULT_QC_COLOR = "Case,Region,leiden"
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,31 +72,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--qc-color", default=DEFAULT_QC_COLOR,
                    help="Comma-separated obs keys to color UMAP QC plots by.")
     return p.parse_args()
-
-
-def make_qc_plots(adata: ad.AnnData, color_keys: list[str], out_dir: Path) -> None:
-    """Save one UMAP PNG per obs key, for reviewing batch correction.
-
-    Non-critical: a missing column or plotting error is warned and skipped rather
-    than failing the job. Points are rasterized for the large cell count.
-    """
-    import matplotlib
-    matplotlib.use("Agg")
-    import scanpy as sc
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    sc.settings.figdir = out_dir
-    sc.settings.set_figure_params(dpi=150, frameon=False)
-    for key in color_keys:
-        if key not in adata.obs:
-            print(f"WARN: QC color '{key}' not in obs; skipping", file=sys.stderr)
-            continue
-        try:
-            sc.pl.umap(adata, color=key, show=False, save=f"_{key}.png",
-                       size=2, legend_fontsize=6)
-            print(f"  wrote {out_dir}/umap_{key}.png")
-        except Exception as exc:  # plotting must never sink the pipeline
-            print(f"WARN: failed to plot UMAP by '{key}': {exc}", file=sys.stderr)
 
 
 def load_embedding(path: Path) -> tuple[np.ndarray, np.ndarray]:
