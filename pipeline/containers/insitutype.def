@@ -58,6 +58,13 @@ From: rocker/r-ver:4.4.2
         libfribidi-dev
     rm -rf /var/lib/apt/lists/*
 
+    # InSituType's src/Makevars pins CXX_STD = CXX11, but the RcppArmadillo in this CRAN
+    # snapshot dropped C++11 and requires C++14+ (Armadillo's compiler_check.hpp errors
+    # under -std=gnu++11). Redirect R's "C++11 mode" to gnu++17 site-wide so the
+    # package's CXX11 request compiles against the newer Armadillo; C++11 sources are
+    # forward-compatible with C++17.
+    echo 'CXX11STD = -std=gnu++17' >> "$(Rscript -e 'cat(R.home("etc"))')/Makevars.site"
+
     # Frozen CRAN snapshot — pins every CRAN package version to this date. Matches the
     # date used by scpearsonpca.def so both R images draw from the same proven snapshot.
     CRAN_SNAPSHOT="https://packagemanager.posit.co/cran/__linux__/jammy/2026-05-27"
