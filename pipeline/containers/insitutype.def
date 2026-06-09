@@ -68,8 +68,8 @@ From: rocker/r-ver:4.4.2
     # driver and the remotes/BiocManager installers. spatstat.geom is CRAN (not Bioc).
     Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = 4); \
         install.packages(c('data.table', 'dplyr', 'fastglm', 'ggplot2', 'irlba', 'lsa', \
-            'magrittr', 'Matrix', 'mclust', 'Rcpp', 'rlang', 'scales', 'spatstat.geom', \
-            'tibble', 'umap', 'uwot', 'hdf5r', 'remotes', 'BiocManager'))"
+            'magrittr', 'Matrix', 'mclust', 'Rcpp', 'RcppArmadillo', 'rlang', 'scales', \
+            'spatstat.geom', 'tibble', 'umap', 'uwot', 'hdf5r', 'remotes', 'BiocManager'))"
 
     # Bioconductor dependencies, pinned to the BIOC_VERSION release repos.
     Rscript -e "BiocManager::install(c('SingleCellExperiment', 'SummarizedExperiment', \
