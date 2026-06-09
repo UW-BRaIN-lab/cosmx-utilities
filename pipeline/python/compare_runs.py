@@ -14,6 +14,10 @@ Writes to <output-dir>:
   run_comparison_by_case.csv      cells per Case in each run + delta + % retained
   run_comparison_by_region.csv    cells per Region in each run + delta
   run_comparison_cluster_xtab.csv leiden(A) x leiden(B) cell counts on shared cells
+  run_comparison_cluster_profile.csv  per run-A cluster: size, median counts, region
+                                      mix, cells dropped by run B, and a `fragmented`
+                                      flag (cells scatter across run-B clusters) —
+                                      the one-look read on what the stricter run did
 
 Usage:
     uv run python pipeline/python/compare_runs.py \\
@@ -43,6 +47,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--group-key", default="leiden", help="Cluster column in obs.")
     p.add_argument("--case-key", default="Case")
     p.add_argument("--region-key", default="Region")
+    p.add_argument("--frag-threshold", type=float, default=0.6,
+                   help="Flag a run-A cluster as 'fragmented' if less than this "
+                        "fraction of its shared cells land in one run-B cluster.")
     p.add_argument("--output-dir", type=Path, required=True)
     return p.parse_args()
 
@@ -52,6 +59,40 @@ def load_obs(path: Path) -> pd.DataFrame:
         print(f"ERROR: {path} not found", file=sys.stderr)
         sys.exit(1)
     return ad.read_h5ad(path, backed="r").obs.copy()
+
+
+def cluster_profile(obs_a: pd.DataFrame, shared: pd.Index, xtab: pd.DataFrame,
+                    group_key: str, region_key: str, label_b: str,
+                    frag_threshold: float) -> pd.DataFrame:
+    """Per run-A cluster: size, median counts, region mix, cells dropped by run B,
+    and how coherently its shared cells map to run B (fragmentation)."""
+    obs = obs_a.copy()
+    obs["_cl"] = obs[group_key].astype(str)
+    g = obs.groupby("_cl", observed=True)
+
+    prof = pd.DataFrame({"n_cells": g.size()})
+    if "total_counts" in obs:
+        prof["median_counts"] = g["total_counts"].median().round()
+
+    # Region mix (% of each cluster's cells in each region).
+    reg = obs.groupby(["_cl", region_key], observed=True).size().unstack(fill_value=0)
+    reg = (100 * reg.div(reg.sum(axis=1), axis=0)).round(1)
+    prof = prof.join(reg.rename(columns=lambda c: f"pct_{c}"))
+
+    # Cells in run A absent from run B (dropped by the stricter run, if B subset of A).
+    n_shared = obs.loc[obs.index.isin(shared)].groupby("_cl", observed=True).size()
+    prof["n_dropped"] = (prof["n_cells"] - prof.index.map(n_shared).fillna(0)).astype(int)
+    prof["pct_dropped"] = (100 * prof["n_dropped"] / prof["n_cells"]).round(1)
+
+    # Fragmentation: fraction of each cluster's shared cells landing in its top run-B
+    # cluster (low = it scattered / didn't survive as a unit at run B's threshold).
+    if not xtab.empty:
+        row_sum = xtab.sum(axis=1)
+        prof[f"top_{label_b}_cluster"] = xtab.idxmax(axis=1)
+        prof["frac_to_top"] = (xtab.max(axis=1) / row_sum).round(2)
+        prof["fragmented"] = prof["frac_to_top"] < frag_threshold
+
+    return prof.sort_values("frac_to_top") if "frac_to_top" in prof else prof.sort_index()
 
 
 def main() -> None:
@@ -119,10 +160,16 @@ def main() -> None:
             obs_b.loc[shared, args.group_key].astype(str).rename(f"{b}_cluster"),
         )
 
+    # --- per run-A cluster profile (size, counts, region mix, dropped, fragmented) -
+    profile = cluster_profile(obs_a, shared, xtab, args.group_key, args.region_key,
+                              b, args.frag_threshold)
+
     summary.to_csv(args.output_dir / "run_comparison_summary.csv", index=False)
     by_case.to_csv(args.output_dir / "run_comparison_by_case.csv")
     by_region.to_csv(args.output_dir / "run_comparison_by_region.csv")
     xtab.to_csv(args.output_dir / "run_comparison_cluster_xtab.csv")
+    profile.to_csv(args.output_dir / "run_comparison_cluster_profile.csv",
+                   index_label=f"{a}_cluster")
 
     # --- print a readable summary -------------------------------------------------
     pd.set_option("display.max_rows", None, "display.width", 200)
@@ -135,7 +182,15 @@ def main() -> None:
     if not np.isnan(ari):
         print(f"\nAdjusted Rand index ({a} vs {b} clusters on {len(shared):,} shared "
               f"cells): {ari:.3f}  (1=identical, ~0=random)")
-    print(f"\nWrote 4 CSVs to {args.output_dir}")
+    if "fragmented" in profile:
+        frag = profile[profile["fragmented"]]
+        print(f"\nRun-A clusters that fragmented under {b} "
+              f"(frac_to_top < {args.frag_threshold}): {len(frag)}")
+        if len(frag):
+            cols = [c for c in ["n_cells", "median_counts", "pct_dropped",
+                                f"top_{b}_cluster", "frac_to_top"] if c in frag]
+            print(frag[cols].to_string())
+    print(f"\nWrote 5 CSVs to {args.output_dir}")
 
 
 if __name__ == "__main__":
