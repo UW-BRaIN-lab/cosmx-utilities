@@ -46,6 +46,9 @@ set +a
 # Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
 # to write a parallel run without clobbering the default `stage3/` results.
 STAGE3="${STAGE3_DIR:-stage3}"
+# Which clustered AnnData to read. Defaults to the stage-3c output; for the cell-type
+# heatmap point it at the stage-4c typed file (with GROUP_KEY=cell_type STAGE3_DIR=stage4).
+CLUSTERED_BASENAME="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -57,16 +60,16 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging cosmx_clustered.h5ad from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/cosmx_clustered.h5ad" \
-    "$WORK/cosmx_clustered.h5ad"
+echo "Staging ${CLUSTERED_BASENAME} from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${CLUSTERED_BASENAME}" \
+    "$WORK/clustered.h5ad"
 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/marker_pseudobulk.py" \
-        --clustered-h5ad "$WORK/cosmx_clustered.h5ad" \
+        --clustered-h5ad "$WORK/clustered.h5ad" \
         --output-dir "$WORK/out" \
         --group-key "${GROUP_KEY:-leiden}" \
         --top-n "${TOP_N:-5}" \

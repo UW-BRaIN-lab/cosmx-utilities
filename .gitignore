@@ -211,3 +211,10 @@ sankey/
 pipeline/manifest.csv
 pipeline/logs/
 pipeline/containers/*.sif
+
+# Full GBmap reference exports (large; only the panel-restricted subset is committed —
+# see pipeline/reference/). Guards against committing a copy of the ~23MB raw export.
+pipeline/reference/*_raw_avg_expression.csv
+
+# Working handoff doc — scratchpad for picking up between chats, not committed
+HANDOFF.md
