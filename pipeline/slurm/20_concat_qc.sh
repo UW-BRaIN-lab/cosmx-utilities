@@ -59,6 +59,10 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
+# Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
+# to write a parallel run without clobbering the default `stage3/` results.
+STAGE3="${STAGE3_DIR:-stage3}"
+
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_concat_${SLURM_JOB_ID:-local}"
@@ -93,8 +97,8 @@ echo "Uploading combined_qc artifacts to Kopah..."
 # .h5ad: full all-probe record for stage 3c + downstream.
 # .pca_input.h5: compact HVG counts + tc + per-batch gene frequency for stage 3b.
 s5cmd cp "${OUT_PREFIX}.h5ad" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/combined_qc.h5ad"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/combined_qc.h5ad"
 s5cmd cp "${OUT_PREFIX}.pca_input.h5" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/combined_qc.pca_input.h5"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/combined_qc.pca_input.h5"
 
 echo "Done: stage 3a"
