@@ -43,6 +43,10 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
+# Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
+# to write a parallel run without clobbering the default `stage3/` results.
+STAGE3="${STAGE3_DIR:-stage3}"
+
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_marker_${SLURM_JOB_ID:-local}"
@@ -54,7 +58,7 @@ export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 echo "Staging cosmx_clustered.h5ad from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/cosmx_clustered.h5ad" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/cosmx_clustered.h5ad" \
     "$WORK/cosmx_clustered.h5ad"
 
 apptainer exec \
@@ -70,6 +74,6 @@ apptainer exec \
 
 echo "Uploading marker-heatmap CSVs to Kopah..."
 s5cmd cp "$WORK/out/*" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/marker_heatmap/"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/marker_heatmap/"
 
 echo "Done: marker-heatmap compute. Render with pipeline/R/marker_heatmap.R."

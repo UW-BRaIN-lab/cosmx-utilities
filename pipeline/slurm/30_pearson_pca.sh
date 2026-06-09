@@ -60,6 +60,10 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
+# Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
+# to write a parallel run without clobbering the default `stage3/` results.
+STAGE3="${STAGE3_DIR:-stage3}"
+
 : "${APPTAINER_SCPEARSON:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_pca_${SLURM_JOB_ID:-local}"
@@ -71,7 +75,7 @@ export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 echo "Staging the PCA input from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/combined_qc.pca_input.h5" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/combined_qc.pca_input.h5" \
     "$WORK/pca_input.h5"
 
 apptainer exec \
@@ -88,6 +92,6 @@ apptainer exec \
 
 echo "Uploading embedding to Kopah..."
 s5cmd cp "$WORK/embedding.h5" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/embedding.h5"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/embedding.h5"
 
 echo "Done: stage 3b"

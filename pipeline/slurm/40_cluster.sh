@@ -49,6 +49,10 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
+# Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
+# to write a parallel run without clobbering the default `stage3/` results.
+STAGE3="${STAGE3_DIR:-stage3}"
+
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_cluster_${SLURM_JOB_ID:-local}"
@@ -60,9 +64,9 @@ export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 echo "Staging combined_qc + embedding from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/combined_qc.h5ad" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/combined_qc.h5ad" \
     "$WORK/combined_qc.h5ad"
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/embedding.h5" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/embedding.h5" \
     "$WORK/embedding.h5"
 
 apptainer exec --nv \
@@ -80,11 +84,11 @@ apptainer exec --nv \
 
 echo "Uploading clustered AnnData + QC plots to Kopah..."
 s5cmd cp "$WORK/cosmx_clustered.h5ad" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/cosmx_clustered.h5ad"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/cosmx_clustered.h5ad"
 # UMAP QC plots (Case / Region / leiden) for reviewing the patient-level
 # correction. Non-fatal: the clustered AnnData is already safely uploaded above.
 s5cmd cp "$WORK/qc_plots/*" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/stage3/qc_plots/" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/qc_plots/" \
     || echo "WARN: no QC plots to upload"
 
 echo "Done: stage 3c"
