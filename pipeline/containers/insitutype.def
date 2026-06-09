@@ -1,0 +1,94 @@
+Bootstrap: docker
+From: rocker/r-ver:4.4.2
+
+# Apptainer runtime for stage 4: InSituType cell typing (semi-supervised against the
+# CZI GBmap reference). This is a CPU/R stage — it runs on the free, preemptible `ckpt`
+# partition, NOT gpu-l40s. InSituType phase-subsamples internally, so the 2.3M-cell
+# cohort is tractable on a big-memory CPU node; the embedding/clustering GPU work is
+# stage 3c, separate from this image.
+#
+# It is its own SIF (not folded into scpearsonpca.sif) because InSituType pulls a large
+# Bioconductor + tidyverse dependency tree that has no business in the lean PCA image.
+#
+# Reproducibility (same scheme as scpearsonpca.def): R is pinned by the
+# rocker/r-ver:4.4.2 base, CRAN packages come from a DATED Posit Package Manager
+# snapshot (CRAN_SNAPSHOT), Bioconductor is pinned to the release matching R 4.4
+# (BIOC_VERSION 3.20), and InSituType is pinned to a commit SHA. Bump all three
+# together and rebuild to move forward.
+#
+# Build from the repo root on a klone login node (Apptainer + fakeroot), with
+# cache/tmp on /gscratch (home is only 10GB):
+#     cd ~/cosmx-utilities
+#     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
+#     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+#     apptainer build --fakeroot \
+#         /gscratch/scrubbed/$USER/containers/insitutype.sif \
+#         pipeline/containers/insitutype.def
+
+%post -c /bin/bash
+    set -euxo pipefail
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    # System libs: libhdf5-dev for hdf5r (reads the stage-4a .h5), libxml2/zlib for the
+    # usual build toolchain, and the font/image stack that ggplot2's graphics deps
+    # (an InSituType import) compile against.
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        libhdf5-dev \
+        libxml2-dev \
+        zlib1g-dev \
+        libpng-dev \
+        libjpeg-dev \
+        libtiff5-dev \
+        libfontconfig1-dev \
+        libfreetype6-dev \
+        libharfbuzz-dev \
+        libfribidi-dev
+    rm -rf /var/lib/apt/lists/*
+
+    # Frozen CRAN snapshot — pins every CRAN package version to this date. Matches the
+    # date used by scpearsonpca.def so both R images draw from the same proven snapshot.
+    CRAN_SNAPSHOT="https://packagemanager.posit.co/cran/__linux__/jammy/2026-05-27"
+    # Bioconductor release paired with R 4.4.
+    BIOC_VERSION="3.20"
+
+    # CRAN dependencies of InSituType (see its DESCRIPTION Imports) plus hdf5r for our
+    # driver and the remotes/BiocManager installers. spatstat.geom is CRAN (not Bioc).
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = parallel::detectCores()); \
+        install.packages(c('data.table', 'dplyr', 'fastglm', 'ggplot2', 'irlba', 'lsa', \
+            'magrittr', 'Matrix', 'mclust', 'Rcpp', 'rlang', 'scales', 'spatstat.geom', \
+            'tibble', 'umap', 'uwot', 'hdf5r', 'remotes', 'BiocManager'))"
+
+    # Bioconductor dependencies, pinned to the BIOC_VERSION release repos.
+    Rscript -e "BiocManager::install(c('SingleCellExperiment', 'SummarizedExperiment', \
+        'sparseMatrixStats'), version = '${BIOC_VERSION}', update = FALSE, ask = FALSE)"
+
+    # InSituType from GitHub, pinned to a commit SHA for reproducibility. Dependencies
+    # are already installed above, so don't let remotes upgrade them off the snapshot.
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
+        remotes::install_github('Nanostring-Biostats/InSituType', \
+            ref = 'f3ef0dd0814318d74675e6a613fad3ef7f1e23a1', \
+            upgrade = 'never', dependencies = FALSE)"
+
+    # Build-time import check: load every package the stage-4 driver needs and confirm
+    # the InSituType entry points exist.
+    Rscript -e "library(Matrix); library(data.table); library(hdf5r); \
+        library(InSituType); \
+        stopifnot(is.function(InSituType::insitutype), \
+                  is.function(InSituType::refineClusters)); \
+        cat('InSituType ok\n')"
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%runscript
+    exec Rscript "$@"
+
+%labels
+    org.opencontainers.image.source https://github.com/UW-BRaIN-lab/cosmx-utilities
+    org.opencontainers.image.description CosMx GBM pipeline runtime — R, InSituType (semi-supervised cell typing)
+    pipeline.stage insitutype

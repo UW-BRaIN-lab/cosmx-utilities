@@ -66,8 +66,13 @@ flowchart TD
         embedding["…/stage3/embedding.h5 · 2.33M × 50 PCs"]:::data
         stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · rapids-singlecell.sif"]:::done
         clustered["…/stage3/ · cosmx_clustered.h5ad + qc_plots/"]:::data
-        stage4["Stage 4 · InSituType cell typing (R) · planned"]:::todo
-        stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered --> stage4
+        stage4a["Stage 4a · gene counts + per-cell negprobe mean<br>70_prep_insitutype.sh · ckpt · rapids-singlecell.sif"]:::done
+        itinput["…/stage4/ · insitutype_input.h5"]:::data
+        stage4b["Stage 4b · semi-supervised InSituType vs GBmap (level 4)<br>rescale, n_clusts 10:20 · 80_insitutype.sh · ckpt · insitutype.sif"]:::done
+        itresult["…/stage4/ · insitutype_result.h5 + .rds"]:::data
+        stage4c["Stage 4c · write cell_type back to obs + UMAP<br>90_write_celltypes.sh · ckpt · rapids-singlecell.sif"]:::done
+        typed["…/stage4/ · cosmx_typed.h5ad + qc_plots/"]:::data
+        stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered --> stage4a --> itinput --> stage4b --> itresult --> stage4c --> typed
     end
 
     atomx --> sftp
@@ -220,7 +225,8 @@ We are extending the pipeline onto the University of Washington's Hyak HPC clust
 - **Stage 3a** concatenates the cohort, applies per-cell QC, restricts to the study donors, and selects highly variable genes.
 - **Stage 3b** computes a patient-level, batch-corrected quasi-Poisson Pearson-residual PCA with [scPearsonPCA](https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/pearsonpca/), following the Bruker CosMx analysis vignette (the SVD is taken over the genes × genes cross-product, so the dense residual matrix is never formed).
 - **Stage 3c** builds the neighbor graph, Leiden clustering, and UMAP on the GPU with [rapids-singlecell](https://rapids-singlecell.readthedocs.io/) (`gpu-l40s` partition), and emits UMAP QC plots for reviewing the batch correction.
+- **Stage 4** types cells with [InSituType](https://github.com/Nanostring-Biostats/InSituType) (R) in semi-supervised mode against the CZI [GBmap](https://www.gbmap.org/) reference (level-4 annotation, restricted to the panel): cells are matched to named GBmap types while de novo clusters (letters a, b, c…) are discovered for off-reference tumour populations. Stage 4a emits the gene counts + per-cell negprobe mean, 4b runs the typing (gentle `rescale`-only reference update, `n_clusts` 10:20), and 4c writes `cell_type` back into the clustered AnnData — so the marker-heatmap/QC tooling re-renders by cell type with a one-flag flip.
 
-Still planned: InSituType cell typing (Stage 4, R), [scvi-tools](https://scvi-tools.org) integration, and interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
+Still planned: [scvi-tools](https://scvi-tools.org) integration and interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
 
 Pipeline tools, Fargate infrastructure templates, and napari-cosmx-fork are publicly available in this repository and on [GHCR](https://github.com/UW-BRaIN-lab/cosmx-utilities/pkgs/container/cosmx-utilities).
