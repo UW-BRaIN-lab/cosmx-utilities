@@ -26,6 +26,16 @@ REGION_COLORS <- c("Tumor bulk" = "#E7298A",
                    "Infiltrating edge" = "#009E73",
                    "Contralateral uninvolved" = "#7570B3")
 
+# Font sizes (pt) and per-row/col canvas size (inches). With many Leiden clusters
+# the heatmap is large; bump these up if labels render too small (or render fewer
+# markers with a smaller TOP_N in marker_pseudobulk.py).
+ROW_FONTSIZE   <- 11   # marker gene names
+COL_FONTSIZE   <- 12   # column (Region) labels
+SPLIT_FONTSIZE <- 13   # cluster split titles
+TITLE_FONTSIZE <- 16   # overall title
+PER_ROW_IN     <- 0.28
+PER_COL_IN     <- 0.55
+
 args   <- commandArgs(trailingOnly = TRUE)
 indir  <- if (length(args) >= 1) args[[1]] else "."
 outdir <- if (length(args) >= 2) args[[2]] else indir
@@ -88,20 +98,20 @@ ht <- Heatmap(
   column_labels     = as.character(col_region),
   column_names_rot  = 90,
   column_names_side = "top",
-  column_names_gp   = gpar(fontsize = 9),
+  column_names_gp   = gpar(fontsize = COL_FONTSIZE),
   column_split      = col_cluster,
   cluster_column_slices = FALSE,
   column_title_side = "bottom",
   column_title_rot  = 0,
-  column_title_gp   = gpar(fontsize = 10, fontface = "bold"),
+  column_title_gp   = gpar(fontsize = SPLIT_FONTSIZE, fontface = "bold"),
   column_gap        = unit(1, "mm"),
   row_split         = row_cluster,
   cluster_row_slices = FALSE,
   row_title_side    = "left",
   row_title_rot     = 0,
-  row_title_gp      = gpar(fontsize = 9, fontface = "bold"),
+  row_title_gp      = gpar(fontsize = SPLIT_FONTSIZE, fontface = "bold"),
   row_gap           = unit(0.7, "mm"),
-  row_names_gp      = gpar(fontsize = 8),
+  row_names_gp      = gpar(fontsize = ROW_FONTSIZE),
   row_names_side    = "right",
   top_annotation    = top_anno,
   left_annotation   = left_anno,
@@ -111,8 +121,8 @@ ht <- Heatmap(
 )
 
 n_genes <- nrow(pb_z)
-height  <- max(10, n_genes * 0.20 + 5)
-width   <- max(14, ncol(pb_z) * 0.42 + 4)
+height  <- max(10, n_genes * PER_ROW_IN + 5)
+width   <- max(14, ncol(pb_z) * PER_COL_IN + 4)
 
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 out_pdf <- file.path(outdir, "marker_heatmap.pdf")
@@ -122,6 +132,6 @@ draw(ht,
      annotation_legend_side = "bottom",
      merge_legend           = TRUE,
      column_title           = TOP_TITLE,
-     column_title_gp        = gpar(fontsize = 12, fontface = "bold"))
+     column_title_gp        = gpar(fontsize = TITLE_FONTSIZE, fontface = "bold"))
 invisible(dev.off())
 message("Wrote: ", out_pdf)
