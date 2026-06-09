@@ -29,12 +29,13 @@ REGION_COLORS <- c("Tumor bulk" = "#E7298A",
 # Font sizes (pt) and per-row/col canvas size (inches). With many Leiden clusters
 # the heatmap is large; bump these up if labels render too small (or render fewer
 # markers with a smaller TOP_N in marker_pseudobulk.py).
-ROW_FONTSIZE   <- 11   # marker gene names
-COL_FONTSIZE   <- 12   # column (Region) labels
-SPLIT_FONTSIZE <- 13   # cluster split titles
-TITLE_FONTSIZE <- 16   # overall title
-PER_ROW_IN     <- 0.28
-PER_COL_IN     <- 0.55
+ROW_FONTSIZE    <- 16   # marker gene names
+COL_FONTSIZE    <- 16   # column (Region) labels
+SPLIT_FONTSIZE  <- 16   # cluster split titles
+TITLE_FONTSIZE  <- 16   # overall title
+LEGEND_FONTSIZE <- 16   # legend labels + titles
+PER_ROW_IN      <- 0.32
+PER_COL_IN      <- 0.60
 
 args   <- commandArgs(trailingOnly = TRUE)
 indir  <- if (length(args) >= 1) args[[1]] else "."
@@ -77,7 +78,10 @@ top_anno <- HeatmapAnnotation(
   Region = col_region,
   col = list(Region = region_colors),
   show_annotation_name = FALSE,
-  annotation_legend_param = list(Region = list(title = "Region", nrow = 1))
+  annotation_legend_param = list(Region = list(
+    title = "Region", nrow = 1,
+    labels_gp = gpar(fontsize = LEGEND_FONTSIZE),
+    title_gp = gpar(fontsize = LEGEND_FONTSIZE, fontface = "bold")))
 )
 left_anno <- rowAnnotation(
   cluster = row_cluster,
@@ -117,7 +121,9 @@ ht <- Heatmap(
   left_annotation   = left_anno,
   border            = TRUE,
   heatmap_legend_param = list(title = "z-score", direction = "horizontal",
-                              title_position = "topcenter")
+                              title_position = "topcenter",
+                              labels_gp = gpar(fontsize = LEGEND_FONTSIZE),
+                              title_gp = gpar(fontsize = LEGEND_FONTSIZE, fontface = "bold"))
 )
 
 n_genes <- nrow(pb_z)
