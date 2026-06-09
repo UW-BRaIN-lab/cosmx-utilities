@@ -30,6 +30,15 @@ From: rocker/r-ver:4.4.2
 
     export DEBIAN_FRONTEND=noninteractive
 
+    # The klone login node caps processes per user (RLIMIT_NPROC ~1024). R's OpenBLAS
+    # otherwise spins one thread per core (48 on klone) and install.packages(Ncpus=N)
+    # compiles N packages at once — together they blow past the cap with "Cannot fork"
+    # (InSituType pulls ~47 deps, so this bites here where the lean scpearsonpca image
+    # was fine). Pin BLAS to one thread and cap parallel compiles; harmless in a build.
+    export OPENBLAS_NUM_THREADS=1
+    export OMP_NUM_THREADS=1
+    export MAKEFLAGS="-j4"
+
     # System libs: libhdf5-dev for hdf5r (reads the stage-4a .h5), libxml2/zlib for the
     # usual build toolchain, and the font/image stack that ggplot2's graphics deps
     # (an InSituType import) compile against.
@@ -57,7 +66,7 @@ From: rocker/r-ver:4.4.2
 
     # CRAN dependencies of InSituType (see its DESCRIPTION Imports) plus hdf5r for our
     # driver and the remotes/BiocManager installers. spatstat.geom is CRAN (not Bioc).
-    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = parallel::detectCores()); \
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = 4); \
         install.packages(c('data.table', 'dplyr', 'fastglm', 'ggplot2', 'irlba', 'lsa', \
             'magrittr', 'Matrix', 'mclust', 'Rcpp', 'rlang', 'scales', 'spatstat.geom', \
             'tibble', 'umap', 'uwot', 'hdf5r', 'remotes', 'BiocManager'))"
