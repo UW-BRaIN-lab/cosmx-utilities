@@ -79,6 +79,19 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/anndata/*.h5ad" "$WORK/anndata/"
 
 OUT_PREFIX="$WORK/out/combined_qc"
 
+# Cohort filter. Defaults to the Wenyu (Donor,Block) table; set COHORT= empty in
+# .env to disable it and keep ALL co-mounted donors (the full-cohort run). Use
+# ${COHORT-...} (single dash) so an explicit empty value is preserved rather than
+# replaced by the default, then omit the flag entirely — concat_qc_anndata.py only
+# filters when --cohort is given (passing --cohort "" would parse to Path('.')).
+COHORT_PATH="${COHORT-${PIPELINE_DIR}/cohort_wenyu.csv}"
+COHORT_ARG=()
+if [[ -n "$COHORT_PATH" ]]; then
+    COHORT_ARG=(--cohort "$COHORT_PATH")
+else
+    echo "Cohort filter DISABLED (COHORT empty): keeping all co-mounted donors."
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -87,7 +100,7 @@ apptainer exec \
         --anndata-dir "$WORK/anndata" \
         --output "$OUT_PREFIX" \
         --batch-col "${BATCH_COL:-Case}" \
-        --cohort "${COHORT:-${PIPELINE_DIR}/cohort_wenyu.csv}" \
+        "${COHORT_ARG[@]}" \
         --n-hvg "${N_HVG:-2000}" \
         --min-gene-counts "${MIN_GENE_COUNTS:-50}" \
         --max-area "${MAX_AREA:-30000}" \
