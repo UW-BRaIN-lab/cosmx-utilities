@@ -73,7 +73,8 @@ apptainer exec \
         --output-dir "$WORK/out" \
         --group-key "${GROUP_KEY:-leiden}" \
         --top-n "${TOP_N:-5}" \
-        --min-group-n "${MIN_GROUP_N:-10}"
+        --min-group-n "${MIN_GROUP_N:-10}" \
+        ${CLUSTERS:+--clusters "$CLUSTERS"}
 
 echo "Uploading marker-heatmap CSVs to Kopah..."
 s5cmd cp "$WORK/out/*" \

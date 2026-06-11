@@ -69,6 +69,14 @@ def parse_args() -> argparse.Namespace:
                    help="Drop cluster x Region groups with fewer than this many cells.")
     p.add_argument("--scale-factor", type=float, default=DEFAULT_SCALE_FACTOR,
                    help="LogNormalize scale factor.")
+    p.add_argument("--clusters", default=None,
+                   help="Comma-separated subset of group-key values to SELECT markers "
+                        "for and show as heatmap columns (e.g. the de novo InSituType "
+                        "letters 'a,b,c,...'). Differential scores are still computed "
+                        "against ALL clusters, so the markers are genuinely "
+                        "distinguishing; this only restricts which clusters get their "
+                        "top-N picked (and dedup priority) and which appear in the "
+                        "heatmap. Default: all clusters.")
     return p.parse_args()
 
 
@@ -139,10 +147,28 @@ def main() -> None:
         cl_order = sorted(cl_labels)
     profile = profile[cl_order]
 
+    # Which clusters to select markers for / show. The differential is always computed
+    # against ALL clusters (profile keeps every column); --clusters only narrows which
+    # clusters get their top-N picked (and the dedup priority) and which appear in the
+    # heatmap, so a subset — e.g. the de novo InSituType letters — isn't starved of
+    # markers by the named types claiming shared genes first.
+    if args.clusters:
+        requested = {c.strip() for c in args.clusters.split(",") if c.strip()}
+        missing = sorted(requested - set(cl_order))
+        if missing:
+            print(f"ERROR: --clusters values not in '{args.group_key}': {missing}. "
+                  f"Available: {cl_order}", file=sys.stderr)
+            sys.exit(1)
+        select_order = [c for c in cl_order if c in requested]
+        print(f"Selecting markers for {len(select_order)} requested clusters "
+              f"(differential still vs all {len(cl_order)})")
+    else:
+        select_order = cl_order
+
     print(f"Selecting top {args.top_n} markers per cluster")
     ordered_markers: list[str] = []
     gene_to_cluster: dict[str, str] = {}
-    for c in cl_order:
+    for c in select_order:
         others_mean = profile.drop(columns=c).mean(axis=1)
         diff = (profile[c] - others_mean).sort_values(ascending=False)
         for g in diff.index[: args.top_n]:
@@ -150,11 +176,13 @@ def main() -> None:
                 ordered_markers.append(g)
                 gene_to_cluster[g] = c
 
-    # Pseudobulk the marker genes by cluster x Region.
+    # Pseudobulk the marker genes by cluster x Region, over the selected clusters' cells.
+    sel_mask = np.isin(cluster, select_order)
     marker_idx = pd.Index(genes).get_indexer(ordered_markers)
-    group = np.char.add(np.char.add(cluster.astype(str), " | "), region.astype(str))
+    group = np.char.add(np.char.add(cluster[sel_mask].astype(str), " | "),
+                        region[sel_mask].astype(str))
     grp_oh, grp_labels = onehot(group)
-    pb = group_means(norm[:, marker_idx], grp_oh).T   # markers x groups
+    pb = group_means(norm[sel_mask][:, marker_idx], grp_oh).T   # markers x groups
     pb = pd.DataFrame(pb, index=ordered_markers, columns=grp_labels)
     grp_sizes = pd.Series(np.asarray(grp_oh.sum(axis=0)).ravel(), index=grp_labels)
 
@@ -165,7 +193,7 @@ def main() -> None:
 
     # Order columns by (cluster, region); z-score each marker (row) across groups.
     region_rank = {r: i for i, r in enumerate(wanted)}
-    cl_rank = {c: i for i, c in enumerate(cl_order)}
+    cl_rank = {c: i for i, c in enumerate(select_order)}
     def _col_key(g: str):
         c, r = g.split(" | ", 1)
         return (cl_rank.get(c, len(cl_rank)), region_rank.get(r, len(region_rank)))
@@ -188,7 +216,7 @@ def main() -> None:
         dropped=lambda d: d["group"].isin(small)).to_csv(spath, index=False)
 
     print(f"Done. {pb_z.shape[0]} markers x {pb_z.shape[1]} groups "
-          f"({len(cl_order)} clusters x {len(wanted)} regions).")
+          f"({len(select_order)} clusters x {len(wanted)} regions).")
 
 
 if __name__ == "__main__":
