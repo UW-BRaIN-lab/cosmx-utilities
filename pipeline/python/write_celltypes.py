@@ -39,8 +39,12 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--clustered-h5ad", type=Path, required=True,
                    help="cosmx_clustered.h5ad from stage 3c (obs has leiden + UMAP).")
-    p.add_argument("--insitutype-h5", type=Path, required=True,
-                   help="insitutype_result.h5 from stage 4b.")
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--insitutype-h5", type=Path,
+                     help="Single insitutype_result.h5 (single-pass stage 4b).")
+    src.add_argument("--insitutype-dir", type=Path,
+                     help="Directory of per-slide *.h5 results (two-pass PASS 2); "
+                          "all are concatenated by cell id.")
     p.add_argument("--output", type=Path, required=True,
                    help="Output cosmx_typed.h5ad.")
     p.add_argument("--qc-plots-dir", type=Path, default=None,
@@ -56,16 +60,33 @@ def _decode(arr) -> np.ndarray:
     return vals.astype(str)
 
 
-def main() -> None:
-    args = parse_args()
-
-    print(f"Reading {args.insitutype_h5}")
-    with h5py.File(args.insitutype_h5, "r") as f:
+def _read_typing(path: Path) -> pd.DataFrame:
+    """Read one insitutype result .h5 into a cell_id-indexed (cell_type, prob) frame."""
+    with h5py.File(path, "r") as f:
         cell_id = _decode(f["cell_id"])
         cell_type = _decode(f["cell_type"])
         prob = np.asarray(f["prob"][()], dtype=np.float64)
-    typed = pd.DataFrame({"cell_type": cell_type, "insitutype_prob": prob},
-                         index=pd.Index(cell_id, name="cell_id"))
+    return pd.DataFrame({"cell_type": cell_type, "insitutype_prob": prob},
+                        index=pd.Index(cell_id, name="cell_id"))
+
+
+def main() -> None:
+    args = parse_args()
+
+    if args.insitutype_dir is not None:
+        parts = sorted(args.insitutype_dir.glob("*.h5"))
+        if not parts:
+            print(f"ERROR: no *.h5 in {args.insitutype_dir}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Reading {len(parts)} per-slide results from {args.insitutype_dir}")
+        typed = pd.concat([_read_typing(p) for p in parts])
+        if not typed.index.is_unique:
+            print(f"ERROR: duplicate cell ids across per-slide results "
+                  f"({typed.index.duplicated().sum()} dups)", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Reading {args.insitutype_h5}")
+        typed = _read_typing(args.insitutype_h5)
     print(f"  {len(typed):,} typed cells across {typed['cell_type'].nunique()} cell types")
 
     print(f"Reading {args.clustered_h5ad}")
