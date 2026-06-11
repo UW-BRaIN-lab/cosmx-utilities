@@ -45,6 +45,11 @@ set +a
 
 A="${STAGE3_DIR_A:-stage3}"
 B="${STAGE3_DIR_B:-stage3_q100}"
+# Which AnnData basename + obs key to compare. Defaults diff the Stage-3c Leiden runs;
+# for two Stage-4 typed runs set CLUSTERED_BASENAME=cosmx_typed.h5ad GROUP_KEY=cell_type
+# (e.g. STAGE3_DIR_A=stage4 STAGE3_DIR_B=stage4_refit).
+CLUSTERED_BASENAME="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
+GROUP_KEY="${GROUP_KEY:-leiden}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_compare_${SLURM_JOB_ID:-local}"
 mkdir -p "$WORK/out"
@@ -54,9 +59,9 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging clustered AnnDatas for '$A' and '$B' from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${A}/cosmx_clustered.h5ad" "$WORK/a.h5ad"
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${B}/cosmx_clustered.h5ad" "$WORK/b.h5ad"
+echo "Staging ${CLUSTERED_BASENAME} for '$A' and '$B' from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${A}/${CLUSTERED_BASENAME}" "$WORK/a.h5ad"
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${B}/${CLUSTERED_BASENAME}" "$WORK/b.h5ad"
 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
@@ -65,6 +70,7 @@ apptainer exec \
     python -u "${PIPELINE_DIR}/python/compare_runs.py" \
         --run-a "$WORK/a.h5ad" --label-a "$A" \
         --run-b "$WORK/b.h5ad" --label-b "$B" \
+        --group-key "$GROUP_KEY" \
         --output-dir "$WORK/out"
 
 echo "Uploading comparison CSVs to Kopah..."
