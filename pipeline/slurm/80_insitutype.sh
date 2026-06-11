@@ -50,6 +50,11 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE4="${STAGE4_DIR:-stage4}"
+# Where to READ insitutype_input.h5 from. Defaults to the output prefix, but a variant
+# run (e.g. refit, a cluster sweep) can read the shared input from the original prefix
+# while writing results to its own STAGE4_DIR — avoids duplicating the multi-GB input
+# (Kopah server-side copy caps at 5GB anyway). E.g. INPUT_DIR=stage4 STAGE4_DIR=stage4_refit.
+INPUT_DIR="${INPUT_DIR:-$STAGE4}"
 REFERENCE_BASENAME="${REFERENCE_BASENAME:-gbmap_level4_panel.csv}"
 
 : "${APPTAINER_INSITUTYPE:?must be set in pipeline/.env}"
@@ -62,8 +67,8 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging InSituType input + reference from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/insitutype_input.h5" \
+echo "Staging InSituType input (from ${INPUT_DIR}) + reference from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT_DIR}/insitutype_input.h5" \
     "$WORK/insitutype_input.h5"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
     "$WORK/reference.csv"
