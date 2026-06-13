@@ -1,22 +1,25 @@
 #!/bin/bash
 # Two-pass PASS 1 (4a-anchor): build the stratified anchor input from the clustered
-# cohort AnnData. CPU only; the rapids-singlecell SIF carries anndata/scipy/h5py.
+# cohort AnnData. Needs a GPU: the anchor is stratified on PER-SLIDE Leiden clusters
+# computed on the scPearsonPCA embedding via rapids-singlecell (same idiom as stage 3c
+# 40_cluster.sh). Single L40S is sufficient — each slide's embedding is small.
 #
 # Submit:  sbatch pipeline/slurm/71_prep_anchor.sh
 # Chain:   jid=$(sbatch --parsable pipeline/slurm/71_prep_anchor.sh)
 #          sbatch --dependency=afterok:$jid pipeline/slurm/72_anchor_typing.sh
 #
-# Tune the anchor size with CAP_PER_STRATUM (cells per slide x leiden stratum).
-# Required env (pipeline/.env): KOPAH_*, APPTAINER_RSC.
+# Tune the anchor size with CAP_PER_STRATUM (cells per slide x cluster stratum); tune
+# the per-slide clustering with RESOLUTION / N_NEIGHBORS.
+# Required env (pipeline/.env): KOPAH_*, APPTAINER_RSC (run with --nv).
 
 #SBATCH --job-name=cosmx-prep-anchor
-#SBATCH --account=glioblastoma-ckpt
-#SBATCH --partition=ckpt
-#SBATCH --qos=ckpt
-#SBATCH --requeue
-#SBATCH --cpus-per-task=4
+#SBATCH --account=glioblastoma
+#SBATCH --partition=gpu-l40s
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=1
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --time=01:30:00
+#SBATCH --time=02:00:00
 #SBATCH --output=pipeline/logs/prep_anchor_%j.out
 #SBATCH --error=pipeline/logs/prep_anchor_%j.err
 
@@ -58,13 +61,16 @@ echo "Staging ${CLUSTERED} from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${CLUSTERED}" \
     "$WORK/${CLUSTERED}"
 
-apptainer exec \
+apptainer exec --nv \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/prep_insitutype_anchor.py" \
         --clustered-h5ad "$WORK/${CLUSTERED}" \
         --output "$WORK/anchor_input.h5" \
+        --cluster-mode "${CLUSTER_MODE:-per-slide}" \
+        --resolution "${RESOLUTION:-1.2}" \
+        --n-neighbors "${N_NEIGHBORS:-15}" \
         --cluster-key "${CLUSTER_KEY:-leiden}" \
         --slide-key "${SLIDE_KEY:-slide_id}" \
         --cap-per-stratum "${CAP_PER_STRATUM:-750}" \
