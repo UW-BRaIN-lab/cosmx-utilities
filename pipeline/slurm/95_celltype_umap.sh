@@ -42,7 +42,7 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
-RUN="${RUN:?set RUN to the run's Kopah sub-prefix, e.g. stage4_extl3_rescale}"
+RUN="${RUN:?set RUN to the Kopah sub-prefix for the run, e.g. stage4_extl3_rescale}"
 MAPPING="${PIPELINE_DIR}/reference/denovo_annotations/${RUN}.csv"
 [[ -f "$MAPPING" ]] || { echo "ERROR: no annotation table $MAPPING" >&2; exit 1; }
 
