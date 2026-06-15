@@ -27,8 +27,8 @@ import numpy as np
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.path import Path as MPath
 
-PINK, TEAL, RED, GRAY = "#D4537E", "#1D9E75", "#E24B4A", "#888780"
-CAT_COL = {"denovo": PINK, "named": TEAL, "artifact": RED}
+DBLUE, TEAL, RED, GRAY = "#185FA5", "#1D9E75", "#E24B4A", "#888780"
+CAT_COL = {"denovo": DBLUE, "named": TEAL, "artifact": RED}
 LINEAGE_COL = {"Tumor": "#D85A30", "Glia": "#1D9E75", "Neuronal": "#7F77DD",
                "Myeloid": "#BA7517", "Lymphoid": "#D4537E", "Vascular": "#378ADD",
                "Unresolved/stress": "#888780"}
@@ -40,7 +40,7 @@ RUN_LABELS = ["Core L4\nrescale", "Core L4\nrefit", "Ext L3\nrefit",
 COMPOSITION = {
     "Named — mapped to GBmap":      ([10.4, 40.7, 27.7, 13.9], TEAL),
     "Named — rare-type artifact":   ([0.0, 19.6, 27.7, 0.0], RED),
-    "De novo — interpretable type": ([38.6, 36.0, 16.6, 33.1], PINK),
+    "De novo — interpretable type": ([38.6, 36.0, 16.6, 33.1], DBLUE),
     "De novo — low-signal / stress":([51.0, 3.7, 27.9, 53.0], GRAY),
 }
 
@@ -115,23 +115,74 @@ def fig_composition(out: Path) -> None:
     fig.savefig(out, dpi=200, bbox_inches="tight"); plt.close(fig)
 
 
-def fig_breakdown(out: Path) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(15, 9))
-    for ax, (name, rows) in zip(axes.ravel(), BREAKDOWN.items()):
-        rows = rows[::-1]  # largest at top after barh
-        counts = [r[1] for r in rows]
-        cols = [CAT_COL[r[2]] for r in rows]
-        ax.barh(range(len(rows)), counts, color=cols)
-        ax.set_yticks(range(len(rows))); ax.set_yticklabels([r[0] for r in rows], fontsize=8)
-        ax.set_title(name, fontsize=11)
+# run display name -> (Kopah dir / counts-CSV stem, annotation table, artifact named-types)
+RUNS_META = [
+    ("Core L4 · rescale", "stage4", "stage4.csv", set()),
+    ("Core L4 · refit", "stage4_refit", "stage4_refit.csv", {"Reg_T", "DC3"}),
+    ("Ext L3 · refit", "stage4_ext_l3", "stage4_ext_l3.csv", {"B_cell", "RG", "Mast"}),
+    ("Ext L3 · rescale — keeper", "stage4_extl3_rescale", "stage4_extl3_rescale.csv", set()),
+]
+
+
+def _categorize(label: str, artifacts: set[str]) -> str:
+    if len(label) == 1 and label.islower():
+        return "denovo"
+    if label in artifacts:
+        return "artifact"
+    return "named"
+
+
+def build_rows_from_counts(counts_dir: Path, anno_dir: Path | None):
+    """Per run: read counts_<dir>.csv (cell_type,count) -> sorted (label, count, cat) rows,
+    relabeling de-novo letters via the run's annotation table when anno_dir is given."""
+    rows_by_run = {}
+    for name, stem, anno_file, artifacts in RUNS_META:
+        cpath = counts_dir / f"counts_{stem}.csv"
+        if not cpath.exists():
+            print(f"WARN: missing {cpath}; skipping {name}")
+            continue
+        df = pd.read_csv(cpath, index_col=0)
+        counts = df.iloc[:, 0]
+        anno = {}
+        if anno_dir is not None and (anno_dir / anno_file).exists():
+            a = pd.read_csv(anno_dir / anno_file)
+            anno = dict(zip(a["denovo_label"].astype(str), a["annotation"].astype(str)))
+        rows = []
+        for lab, cnt in counts.sort_values(ascending=False).items():
+            lab = str(lab)
+            cat = _categorize(lab, artifacts)
+            disp = anno.get(lab, lab) if cat == "denovo" else lab
+            rows.append((disp, int(cnt), cat))
+        rows_by_run[name] = rows
+    return rows_by_run
+
+
+def fig_breakdown(out: Path, rows_by_run: dict, top_n: int | None, suptitle: str,
+                  show_counts: bool = True) -> None:
+    maxbars = max(len(r if top_n is None else r[:top_n]) for r in rows_by_run.values())
+    fig, axes = plt.subplots(2, 2, figsize=(16, max(9, maxbars * 0.22 * 2)))
+    fontsize = 8 if maxbars <= 14 else 6
+    for ax, (name, rows) in zip(axes.ravel(), rows_by_run.items()):
+        show = (rows if top_n is None else rows[:top_n])[::-1]  # largest at top after barh
+        cols = [CAT_COL[r[2]] for r in show]
+        ax.barh(range(len(show)), [r[1] for r in show], color=cols)
+        ax.set_yticks(range(len(show))); ax.set_yticklabels([r[0] for r in show], fontsize=fontsize)
+        ax.set_ylim(-0.6, len(show) - 0.4)
+        if show_counts:
+            ndn = sum(r[2] == "denovo" for r in rows)
+            ax.set_title(f"{name}  ({len(rows)} types, {ndn} de novo)", fontsize=11)
+        else:
+            ax.set_title(name, fontsize=11)
         ax.set_xlabel("cells")
         ax.xaxis.set_major_formatter(lambda v, _: f"{v/1000:.0f}k" if v else "0")
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
-    handles = [Rectangle((0, 0), 1, 1, color=c) for c in (PINK, TEAL, RED)]
+    for ax in axes.ravel()[len(rows_by_run):]:
+        ax.set_visible(False)
+    handles = [Rectangle((0, 0), 1, 1, color=c) for c in (DBLUE, TEAL, RED)]
     fig.legend(handles, ["De novo cluster", "Named (GBmap)", "Named — rare-type artifact"],
-               loc="upper center", ncol=3, fontsize=10, frameon=False, bbox_to_anchor=(0.5, 1.02))
-    fig.suptitle("Top 12 cell types per run", fontsize=14, y=1.06)
+               loc="upper center", ncol=3, fontsize=10, frameon=False, bbox_to_anchor=(0.5, 1.0))
+    fig.suptitle(suptitle, fontsize=14, y=1.02)
     fig.tight_layout()
     fig.savefig(out, dpi=200, bbox_inches="tight"); plt.close(fig)
 
@@ -179,12 +230,31 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output-dir", type=Path, default=Path("stage4_qc/figures"))
+    p.add_argument("--counts-dir", type=Path, default=None,
+                   help="Dir with per-run counts_<run>.csv (cell_type,count) — dump via "
+                        "obs value_counts. Enables the all-types breakdown + count-accurate "
+                        "top-12. Without it, the top-12 uses the embedded summary.")
+    p.add_argument("--anno-dir", type=Path,
+                   default=Path("pipeline/reference/denovo_annotations"),
+                   help="denovo_annotations dir, to relabel de-novo letters in the "
+                        "count-CSV breakdowns.")
     args = p.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     fig_composition(args.output_dir / "composition_stacked.png")
-    fig_breakdown(args.output_dir / "per_run_breakdown.png")
     fig_sankey(args.output_dir / "lineage_sankey.png")
-    print(f"Wrote 3 figures to {args.output_dir}")
+
+    if args.counts_dir is not None:
+        rows = build_rows_from_counts(args.counts_dir, args.anno_dir)
+        fig_breakdown(args.output_dir / "per_run_breakdown.png", rows, top_n=12,
+                      suptitle="Top 12 cell types per run", show_counts=True)
+        fig_breakdown(args.output_dir / "per_run_breakdown_all.png", rows, top_n=None,
+                      suptitle="All cell types per run", show_counts=True)
+        print(f"Wrote 4 figures (incl. all-types) to {args.output_dir}")
+    else:
+        fig_breakdown(args.output_dir / "per_run_breakdown.png", BREAKDOWN, top_n=12,
+                      suptitle="Top 12 cell types per run", show_counts=False)
+        print(f"Wrote 3 figures to {args.output_dir} "
+              f"(pass --counts-dir for the all-types breakdown)")
 
 
 if __name__ == "__main__":
