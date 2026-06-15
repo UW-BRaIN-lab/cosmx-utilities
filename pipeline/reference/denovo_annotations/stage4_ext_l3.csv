@@ -1,0 +1,13 @@
+denovo_label,annotation,top_markers,quality
+a,a - OPC-like tumor,"PDGFRA,SLC1A3,VIM,COX1",clean
+b,b - Neuronal,"SNAP25,NRGN,RTN1,VAMP2",clean
+c,c - Mixed/low-signal,"SNRPD1,SPP1,VEGFA,NDUFA3,IGFBP5",low-confidence (housekeeping + myeloid + hypoxia mix)
+d,d - Astrocyte + heat-shock,"GFAP,CLU,DNAJB1,HSP90AA1",mixed (astrocyte + stress)
+e,e - Myeloid/TAM + heat-shock,"CD74,HLA-DRA,HSPA1A,APOE",mixed (myeloid + stress)
+f,f - Myeloid/TAM,"C1QC,APOC1,LAPTM5,SRGN",clean
+g,g - Astrocyte/AC-like,"AQP4,AQP1,CHI3L1,SERPINA3",clean
+h,h - MES/AC-like tumor,"CD44,SEC61G,NAMPT,NFASC",clean
+i,i - Hypoxia/collagen,"ATP2B4,A1BG,COL6A1,COL6A2",mixed
+j,j - Vascular/fibroblast,"COL4A1,FN1,SPARC,COL1A1",clean
+k,k - MES/AC-like tumor,"EGFR",low-signal (single marker)
+l,l - OPC-like/stem tumor,"PTPRZ1,BCAN,MDM4",clean

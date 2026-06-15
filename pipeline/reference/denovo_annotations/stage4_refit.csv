@@ -1,0 +1,13 @@
+denovo_label,annotation,top_markers,quality
+a,a - Astrocyte/AC-like,"AQP4,GFAP,CLU,CHI3L1,SERPINA3",clean
+b,b - Neuronal,"SNAP25,NRGN,RTN1,SYT1",clean
+c,c - OPC-like tumor,"PDGFRA,SLC1A3,VIM,COX1",clean
+d,d - Hypoxia/MES-like,"VEGFA,HSPB1,CD44,NFASC",moderate
+e,e - MES/AC-like tumor,"EGFR,SEC61G,NAMPT",low-signal (few markers)
+f,f - Mixed (myeloid/MES),"SPP1,SNRPD1,PTN,IGFBP5",low-confidence (mixed signature)
+g,g - OPC-like/stem tumor,"PTPRZ1,BCAN,MDM4",clean
+h,h - Proliferating/cycling,"H3C2,H3C10,HMGN1,S100A6",clean
+i,i - Myeloid/TAM,"C1QC,APOC1,CD74",clean
+j,j - Neuronal,"VAMP2",low-signal (single marker)
+k,k - Heat-shock/stress,"DNAJB1,HSPA1B",clean (cross-cutting stress signature)
+l,l - Oligodendrocyte,"PLP1,MBP,CNP,PTGDS",clean
