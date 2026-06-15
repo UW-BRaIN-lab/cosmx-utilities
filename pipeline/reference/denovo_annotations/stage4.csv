@@ -1,0 +1,13 @@
+denovo_label,annotation,top_markers,quality
+a,a - Myeloid/TAM,"SPP1,C1QC,APOC1,APOE,CD74",clean
+b,b - Heat-shock/stress,"HSPA1A,DNAJB1,HSPB1,HSPA1B",clean (cross-cutting stress signature)
+c,c - Vascular/mesenchymal stroma,"COL1A1,FN1,COL4A1,SPARC",clean
+d,d - MES/AC-like tumor,"CHI3L1,EGFR,PTN,CLU,SEC61G",clean
+e,e - Astrocyte,"AQP4,CRYAB,AQP1,SPARCL1",clean
+f,f - Hypoxia/angiogenic,"VEGFA,ATP2B4,DUSP2",moderate (few markers)
+g,g - Neuronal,"SNAP25,NRGN,RTN1,VAMP2",clean
+h,h - OPC-like tumor,"PDGFRA,SLC1A3,VIM,MT3",clean
+i,i - Neuronal,"SYT1",low-signal (single marker)
+j,j - Low-signal/generic,"SNRPD1,NDUFA3,H2AX",low-signal (housekeeping only; dominant cluster ~40%)
+k,k - MES-like,"PTEN,IGFBP5,VPS29",low-confidence (mixed/weak)
+l,l - Oligodendrocyte,"PLP1,MBP,CNP,PTGDS",clean

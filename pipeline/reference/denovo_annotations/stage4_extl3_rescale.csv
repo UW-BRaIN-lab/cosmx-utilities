@@ -1,0 +1,13 @@
+denovo_label,annotation,top_markers,quality
+a,a - MES/AC-like tumor,"CHI3L1,CD44,GFAP,SERPINA3",clean
+b,b - Myeloid/TAM,"SPP1,C1QC,APOE,CD74",clean
+c,c - OPC-like/stem tumor,"PTPRZ1,BCAN,PTN,EGFR",clean
+d,d - Neuronal,"NRGN,SNAP25,RTN1,CALM3",clean
+e,e - Hypoxia/angiogenic,"VEGFA,A1BG,ATP2B4",moderate
+f,f - OPC-like tumor,"PDGFRA,SLC1A3,VIM,COX1",clean
+g,g - Low-signal/generic,"SNRPD1,NDUFA3,VPS29,PTEN",low-signal (housekeeping only)
+h,h - Metallothionein,"MT3,PHKG2",low-signal (few markers)
+i,i - Vascular/fibroblast,"COL1A1,DCN,FN1,COL3A1",clean
+j,j - Neuronal,"VAMP2",low-signal (single marker)
+k,k - Stressed/hypoxic tumor-bulk,"DNAJB1,HSPA1A","moderate (tumor bulk + edge restricted, not contralateral)"
+l,l - Astrocyte,"AQP4,AQP1",clean
