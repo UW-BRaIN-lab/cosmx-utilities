@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 # Stage 4b: semi-supervised cell typing with InSituType against the CZI GBmap reference.
 #
-# Cells are matched to the GBmap level-4 reference profiles (named types: AC-like,
-# MES-like, TAM/Mono subsets, Oligodendrocyte, ...) while InSituType ALSO discovers de
+# Cells are matched to the Extended GBmap level-3 reference profiles (named types:
+# AC-like, MES-like, TAM-BDM/TAM-MG, Oligodendrocyte, ...) while InSituType ALSO discovers de
 # novo clusters (single-letter labels a, b, c, ...) for tumour populations that fit the
 # reference poorly. Follows the Bruker CosMx Scratch Space InSituType workflow.
 #

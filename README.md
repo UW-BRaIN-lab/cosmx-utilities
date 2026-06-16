@@ -9,18 +9,23 @@ This pipeline automates the workflow for converting raw CosMx slide exports to i
 After exporting a study from the AtoMx Spatial Informatics Platform, raw slide data is staged on AWS S3. Each slide is processed in parallel on AWS Fargate: FOV images are stitched into whole-slide mosaics, RNA transcript locations are decoded, and cell metadata is generated, all formatted for viewing in Napari. Processed data is uploaded back to S3, where it can be loaded into Napari for visualization across slides.
 
 ```mermaid
+%%{init: {'themeVariables': {'edgeLabelBackground': '#ffc700'}}}%%
 flowchart TD
     classDef action fill:#4b2e83,stroke:none,color:#ffffff
-    classDef data fill:#b7a57a,stroke:none,color:#32006e
+    classDef data fill:#b7a57a,stroke:#4b2e83,stroke-width:1px,color:#32006e
     classDef viewer fill:#ffc700,stroke:none,color:#32006e
     classDef futureAction fill:#4b2e83,stroke:#b7a57a,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff
     classDef done fill:#4b2e83,stroke:none,color:#ffffff
     classDef running fill:#ffc700,stroke:#4b2e83,stroke-width:3px,color:#32006e
-    classDef todo fill:#4b2e83,stroke:#b7a57a,stroke-width:2px,stroke-dasharray: 5 5,color:#ffffff
+    classDef todo fill:#4b2e83,stroke:#b7a57a,stroke-width:2px,color:#ffffff
+    classDef dataTodo fill:#b7a57a,stroke:#4b2e83,stroke-width:2px,color:#32006e
+
+    linkStyle default stroke:#32006e,stroke-width:2px,color:#1a1a1a
 
     style fargate fill:#c5b4e3,stroke:none
     style ec2 fill:#c5b4e3,stroke:none
-    style hyak fill:#e8e1cc,stroke:#85754d
+    style hyak fill:#d7cba6,stroke:#5c5230,stroke-width:2px
+    style twopass fill:#c9bb8f,stroke:#5c5230,stroke-width:2px,stroke-dasharray: 6 4
 
     atomx["AtoMx study export"]:::data
     sftp["Download slides from BSB SFTP endpoint"]:::action
@@ -58,21 +63,44 @@ flowchart TD
 
     subgraph hyak["UW Hyak (Klone) — cell-typing pipeline · color = progress"]
         direction TB
-        stage1["Stage 1 · flat files → per-slide .h5ad<br>10_flatfiles_to_anndata.sh · ckpt array · rapids-singlecell.sif"]:::done
+        stage1["Stage 1 · flat files → per-slide .h5ad<br>10_flatfiles_to_anndata.sh · ckpt array · <u><b>rapids-singlecell.sif</b></u>"]:::done
         anndata["…/anndata/ · 28 per-slide .h5ad"]:::data
-        stage3a["Stage 3a · concat + QC + cohort filter (12 donors)<br>2000 HVGs + per-Case gene frequency<br>20_concat_qc.sh · ckpt · rapids-singlecell.sif"]:::done
+        stage3a["Stage 3a · concat + QC + cohort filter (12 donors)<br>2000 HVGs + per-Case gene frequency<br>20_concat_qc.sh · ckpt · <u><b>rapids-singlecell.sif</b></u>"]:::done
         combined["…/stage3/ · combined_qc.h5ad + pca_input.h5<br>2.33M cohort cells × 6519 probes"]:::data
-        stage3b["Stage 3b · quasipoisson Pearson-residual PCA<br>batch-corrected by patient (Case) · scPearsonPCA<br>30_pearson_pca.sh · ckpt · scpearsonpca.sif"]:::done
+        stage3b["Stage 3b · quasipoisson Pearson-residual PCA<br>batch-corrected by patient (Case) · scPearsonPCA<br>30_pearson_pca.sh · ckpt · <u><b>scpearsonpca.sif</b></u>"]:::done
         embedding["…/stage3/embedding.h5 · 2.33M × 50 PCs"]:::data
-        stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · rapids-singlecell.sif"]:::done
+        stage3c["Stage 3c · neighbors → Leiden (1.2) → UMAP<br>+ Case / Region QC plots<br>40_cluster.sh · gpu-l40s · <u><b>rapids-singlecell.sif</b></u>"]:::done
         clustered["…/stage3/ · cosmx_clustered.h5ad + qc_plots/"]:::data
-        stage4a["Stage 4a · gene counts + per-cell negprobe mean<br>70_prep_insitutype.sh · ckpt · rapids-singlecell.sif"]:::done
+        stage4a["Stage 4a · single-pass · gene counts + per-cell negprobe mean<br>70_prep_insitutype.sh · ckpt · <u><b>rapids-singlecell.sif</b></u>"]:::done
         itinput["…/stage4/ · insitutype_input.h5"]:::data
-        stage4b["Stage 4b · semi-supervised InSituType vs GBmap (level 4)<br>rescale, n_clusts 10:20 · 80_insitutype.sh · ckpt · insitutype.sif"]:::done
+        stage4b["Stage 4b · single-pass semi-supervised InSituType vs Extended GBmap (level 3)<br>rescale, n_clusts 10:20 · 80_insitutype.sh · ckpt · <u><b>insitutype.sif</b></u>"]:::done
         itresult["…/stage4/ · insitutype_result.h5 + .rds"]:::data
-        stage4c["Stage 4c · write cell_type back to obs + UMAP<br>90_write_celltypes.sh · ckpt · rapids-singlecell.sif"]:::done
+        stage4c["Stage 4c · write cell_type back to obs + UMAP<br>90_write_celltypes.sh · ckpt · <u><b>rapids-singlecell.sif</b></u>"]:::done
         typed["…/stage4/ · cosmx_typed.h5ad + qc_plots/"]:::data
-        stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered --> stage4a --> itinput --> stage4b --> itresult --> stage4c --> typed
+        stage1 --> anndata --> stage3a --> combined --> stage3b --> embedding --> stage3c --> clustered
+        clustered --> stage4a --> itinput --> stage4b --> itresult --> stage4c --> typed
+
+        subgraph twopass["Two-pass typing (planned) — anchor de novo once, then supervised per slide"]
+            direction TB
+            tpAnchorPrep["Pass 1 · stratified anchor on per-slide Leiden<br>cap/stratum 750 · 71_prep_anchor.sh · gpu-l40s · <u><b>rapids-singlecell.sif</b></u>"]:::todo
+            anchorIn["…/stage4/ · anchor_input.h5"]:::dataTodo
+            tpAnchorType["Pass 1 · de-novo EM on anchor only · InSituType vs Extended GBmap (level 3)<br>rescale, n_clusts 20:40 · 72_anchor_typing.sh · ckpt · <u><b>insitutype.sif</b></u>"]:::todo
+            anchorLab["…/stage4/ · anchor labels (.rds)"]:::dataTodo
+            tpProfile["Pass 1 · fixed cohort profile (genes × types, incl. de novo)<br>getRNAprofiles · 73_build_profile.sh · ckpt · <u><b>insitutype.sif</b></u>"]:::todo
+            profile["…/stage4/ · cohort_profile.csv"]:::dataTodo
+            tpSplit["Pass 2 · split QC'd cohort into per-slide inputs<br>74_split_inputs.sh · ckpt · <u><b>rapids-singlecell.sif</b></u>"]:::todo
+            slideIn["…/stage4/ · per-slide insitutype_input.h5 (×57)"]:::dataTodo
+            tpSup["Pass 2 · supervised assignment to fixed profile (Slurm array, 1 task/slide)<br>75_insitutype_supervised.sh · ckpt · <u><b>insitutype.sif</b></u>"]:::todo
+            slideRes["…/stage4/ · per-slide results (×57)"]:::dataTodo
+            tpWrite["Pass 2 · concat results + write cell_type back + UMAP<br>76_write_celltypes.sh · ckpt · <u><b>rapids-singlecell.sif</b></u>"]:::todo
+            typed2["…/stage4/ · cosmx_typed.h5ad + qc_plots/"]:::dataTodo
+            tpAnchorPrep --> anchorIn --> tpAnchorType --> anchorLab --> tpProfile --> profile
+            tpSplit --> slideIn --> tpSup --> slideRes --> tpWrite --> typed2
+            profile --> tpSup
+        end
+
+        clustered --> tpAnchorPrep
+        combined --> tpSplit
     end
 
     atomx --> sftp
@@ -82,12 +110,15 @@ flowchart TD
     s3raw -- flat files --> migrate
     migrate --> kopahflat
     kopahflat -- per slide (Slurm array) --> stage1
-    clustered -.->|cell-type labels| napari
+    typed -.->|cell-type labels| napari
+    typed2 -.->|cell-type labels| napari
     s3out --> launch
     dcv --> napari
 ```
 
-**Progress legend (Hyak cell-typing pipeline):** solid purple = done · yellow = running now · dashed border = not yet run / planned · gold = data artifact on Kopah. Batch correction is at the patient (`Case`) level; tissue regions (tumor bulk / infiltrating edge / contralateral) are preserved as biological signal.
+**Progress legend (Hyak cell-typing pipeline):** solid purple = done · yellow = running now · dashed box = not yet run / planned (the Two-pass typing panel) · gold = data artifact on Kopah. Batch correction is at the patient (`Case`) level; tissue regions (tumor bulk / infiltrating edge / contralateral) are preserved as biological signal.
+
+**Stage 4 typing — two strategies.** The original *single-pass* path (`70 → 80 → 90`) runs one semi-supervised InSituType (de novo + Extended GBmap level-3 reference) over the whole cohort at once. The *two-pass* path (planned, `71 → 76`) instead runs the one expensive de-novo EM on a bounded, per-slide-Leiden-stratified **anchor**, freezes the resulting cohort profile (`getRNAprofiles`), then assigns every slide's cells to that fixed profile with a fast *supervised* Slurm array (one task per slide). This keeps de-novo programs (shared and patient-private malignant) consistent across slides while scaling to the full 57-slide cohort.
 
 ## Key design decisions
 
@@ -225,7 +256,7 @@ We are extending the pipeline onto the University of Washington's Hyak HPC clust
 - **Stage 3a** concatenates the cohort, applies per-cell QC, restricts to the study donors, and selects highly variable genes.
 - **Stage 3b** computes a patient-level, batch-corrected quasi-Poisson Pearson-residual PCA with [scPearsonPCA](https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/pearsonpca/), following the Bruker CosMx analysis vignette (the SVD is taken over the genes × genes cross-product, so the dense residual matrix is never formed).
 - **Stage 3c** builds the neighbor graph, Leiden clustering, and UMAP on the GPU with [rapids-singlecell](https://rapids-singlecell.readthedocs.io/) (`gpu-l40s` partition), and emits UMAP QC plots for reviewing the batch correction.
-- **Stage 4** types cells with [InSituType](https://github.com/Nanostring-Biostats/InSituType) (R) in semi-supervised mode against the CZI [GBmap](https://www.gbmap.org/) reference (level-4 annotation, restricted to the panel): cells are matched to named GBmap types while de novo clusters (letters a, b, c…) are discovered for off-reference tumour populations. Stage 4a emits the gene counts + per-cell negprobe mean, 4b runs the typing (gentle `rescale`-only reference update, `n_clusts` 10:20), and 4c writes `cell_type` back into the clustered AnnData — so the marker-heatmap/QC tooling re-renders by cell type with a one-flag flip.
+- **Stage 4** types cells with [InSituType](https://github.com/Nanostring-Biostats/InSituType) (R) in semi-supervised mode against the CZI [GBmap](https://www.gbmap.org/) Extended reference (level-3 annotation, restricted to the panel): cells are matched to named Extended GBmap types while de novo clusters (letters a, b, c…) are discovered for off-reference tumour populations. Stage 4a emits the gene counts + per-cell negprobe mean, 4b runs the typing (gentle `rescale`-only reference update, `n_clusts` 10:20), and 4c writes `cell_type` back into the clustered AnnData — so the marker-heatmap/QC tooling re-renders by cell type with a one-flag flip.
 
 Still planned: [scvi-tools](https://scvi-tools.org) integration and interactive Napari sessions via [Open OnDemand](https://www.openondemand.org).
 

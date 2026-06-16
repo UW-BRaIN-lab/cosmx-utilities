@@ -43,7 +43,7 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE4="${STAGE4_DIR:-stage4}"
-REFERENCE_BASENAME="${REFERENCE_BASENAME:-gbmap_level4_panel.csv}"
+REFERENCE_BASENAME="${REFERENCE_BASENAME:-gbmap_extended_level3_panel.csv}"
 
 : "${APPTAINER_INSITUTYPE:?must be set in pipeline/.env}"
 

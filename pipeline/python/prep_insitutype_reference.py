@@ -8,7 +8,7 @@ HGNC symbols and Ensembl IDs) x dozens of cell types and is too big to commit; t
 intersects it with the ~6k CosMx panel and writes a small, committable matrix.
 
 Reads:
-  --gbmap-csv    GBmap "<...>_gene_by_annotation_level_4_raw_avg_expression.csv":
+  --gbmap-csv    GBmap "<...>_gene_by_annotation_level_3_raw_avg_expression.csv":
                  a genes x cell-types matrix of raw average expression. First (unnamed)
                  column is the gene name index; remaining columns are cell types.
   --panel-h5ad   any AnnData carrying the CosMx panel in var (a per-slide stage-1
@@ -18,7 +18,7 @@ Reads:
 Writes:
   --output       genes x cell-types CSV restricted to the panel genes present in the
                  reference, ready for InSituType reference_profiles. Genes are the row
-                 index; cell types are columns (level-4 GBmap annotation).
+                 index; cell types are columns (Extended GBmap level-3 annotation).
 
 Overlap is the symbol intersection; GBmap's Ensembl-ID rows simply don't match the
 symbol-named panel and drop out. A low overlap (<50% of the panel) is flagged loudly,
@@ -26,10 +26,10 @@ since that would point at a symbol-vs-Ensembl naming mismatch needing a gene-id 
 
 Usage:
     uv run python pipeline/python/prep_insitutype_reference.py \\
-        --gbmap-csv ~/keene-lab/GBM/GBmap/core_GBmap_results/\\
-core_GBmap_gene_by_annotation_level_4_raw_avg_expression.csv \\
+        --gbmap-csv ~/keene-lab/GBM/GBmap/extended_GBmap_results/\\
+extended_GBmap_gene_by_annotation_level_3_raw_avg_expression.csv \\
         --panel-h5ad combined_qc.h5ad \\
-        --output pipeline/reference/gbmap_level4_panel.csv
+        --output pipeline/reference/gbmap_extended_level3_panel.csv
 """
 
 from __future__ import annotations
