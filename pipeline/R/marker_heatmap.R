@@ -10,8 +10,14 @@
 # a laptop that already has ComplexHeatmap, or in a small R container.
 #
 # Usage:
-#   Rscript pipeline/R/marker_heatmap.R <input_dir> [output_dir]
+#   Rscript pipeline/R/marker_heatmap.R <input_dir> [output_dir] [label_map_csv] [title]
 # where <input_dir> holds marker_heatmap_zmatrix.csv + top_markers_per_cluster.csv.
+#
+# Optional label_map_csv (a denovo_annotations table with denovo_label + annotation
+# columns) relabels the cluster ids in both the column groups and the row split — e.g.
+# the InSituType de novo letter `a` -> `a - MES/AC-like tumor`. Clusters absent from the
+# map keep their original id, so it is safe to pass for a named-type heatmap too. Pass
+# "" (empty) to skip relabeling while still overriding the title.
 
 suppressPackageStartupMessages({
   library(ComplexHeatmap)
@@ -19,7 +25,7 @@ suppressPackageStartupMessages({
   library(grid)
 })
 
-TOP_TITLE <- "Top markers per Leiden cluster, pseudobulk by region (z-scored log-norm expression)"
+DEFAULT_TITLE <- "Top markers per Leiden cluster, pseudobulk by region (z-scored log-norm expression)"
 # Tumor -> edge -> normal; only those present are used.
 REGION_ORDER  <- c("Tumor bulk", "Infiltrating edge", "Contralateral uninvolved")
 REGION_COLORS <- c("Tumor bulk" = "#E7298A",
@@ -37,9 +43,11 @@ LEGEND_FONTSIZE <- 16   # legend labels + titles
 PER_ROW_IN      <- 0.32
 PER_COL_IN      <- 0.60
 
-args   <- commandArgs(trailingOnly = TRUE)
-indir  <- if (length(args) >= 1) args[[1]] else "."
-outdir <- if (length(args) >= 2) args[[2]] else indir
+args      <- commandArgs(trailingOnly = TRUE)
+indir     <- if (length(args) >= 1) args[[1]] else "."
+outdir    <- if (length(args) >= 2) args[[2]] else indir
+label_map <- if (length(args) >= 3) args[[3]] else ""
+TOP_TITLE <- if (length(args) >= 4 && nzchar(args[[4]])) args[[4]] else DEFAULT_TITLE
 
 zmat_path <- file.path(indir, "marker_heatmap_zmatrix.csv")
 mark_path <- file.path(indir, "top_markers_per_cluster.csv")
@@ -55,6 +63,21 @@ gene_to_cluster <- setNames(as.character(markers$cluster), markers$gene)
 # --- derive column (cluster, Region) metadata from the column names -----------
 col_cluster <- sub(" \\| .*", "", colnames(pb_z))
 col_region  <- sub(".* \\| ", "", colnames(pb_z))
+
+# --- optional relabel of cluster ids (de novo letter -> annotation) -----------
+# Applied to both the column groups and the row-split labels so they stay aligned.
+# Unmapped clusters keep their original id.
+if (nzchar(label_map)) {
+  stopifnot("missing label_map csv" = file.exists(label_map))
+  message("Relabeling clusters from ", label_map)
+  lm <- read.csv(label_map, stringsAsFactors = FALSE)
+  stopifnot("label_map needs denovo_label + annotation columns" =
+              all(c("denovo_label", "annotation") %in% names(lm)))
+  relabel <- setNames(trimws(lm$annotation), trimws(lm$denovo_label))
+  remap <- function(x) ifelse(x %in% names(relabel), relabel[x], x)
+  col_cluster     <- remap(col_cluster)
+  gene_to_cluster <- setNames(remap(unname(gene_to_cluster)), names(gene_to_cluster))
+}
 
 # Cluster ordering: numeric when leiden-like, else lexical.
 uniq_cl <- unique(c(col_cluster, unname(gene_to_cluster)))
@@ -73,6 +96,11 @@ cl_palette <- setNames(
   cl_levels)
 region_colors <- REGION_COLORS[region_levels]
 heatmap_col <- colorRamp2(c(-3, 0, 3), c("navy", "white", "firebrick"))
+
+# Long annotated labels (e.g. "a - MES/AC-like tumor") overlap as horizontal bottom
+# split titles; rotate them vertical. Short ids (Leiden integers) stay horizontal.
+long_labels  <- max(nchar(cl_levels)) > 6
+col_title_rot <- if (long_labels) 90 else 0
 
 top_anno <- HeatmapAnnotation(
   Region = col_region,
@@ -106,7 +134,7 @@ ht <- Heatmap(
   column_split      = col_cluster,
   cluster_column_slices = FALSE,
   column_title_side = "bottom",
-  column_title_rot  = 0,
+  column_title_rot  = col_title_rot,
   column_title_gp   = gpar(fontsize = SPLIT_FONTSIZE, fontface = "bold"),
   column_gap        = unit(1, "mm"),
   row_split         = row_cluster,
@@ -127,7 +155,9 @@ ht <- Heatmap(
 )
 
 n_genes <- nrow(pb_z)
-height  <- max(10, n_genes * PER_ROW_IN + 5)
+# Vertical (rotated) bottom split titles need headroom proportional to label length.
+title_pad <- if (long_labels) max(nchar(cl_levels)) * 0.13 else 0
+height  <- max(10, n_genes * PER_ROW_IN + 5 + title_pad)
 width   <- max(14, ncol(pb_z) * PER_COL_IN + 4)
 
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
