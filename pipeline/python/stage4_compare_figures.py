@@ -18,6 +18,7 @@ Run anywhere with matplotlib:
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import matplotlib
@@ -25,7 +26,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.patches import PathPatch, Rectangle
+from matplotlib.patches import PathPatch, Patch, Rectangle
 from matplotlib.path import Path as MPath
 
 DBLUE, TEAL, RED, GRAY = "#185FA5", "#1D9E75", "#E24B4A", "#888780"
@@ -227,10 +228,169 @@ def fig_sankey(out: Path) -> None:
     fig.savefig(out, dpi=200, bbox_inches="tight"); plt.close(fig)
 
 
+# ---------------------------------------------------------------------------
+# De-novo-resolved lineage Sankey: named GBmap types collapse into coarse
+# lineages, but every de-novo cluster (a-l) gets its own labelled node instead
+# of vanishing into a single Unresolved/stress bar. Flows are computed from the
+# real Core-L4-rescale vs Ext-L3-rescale cluster cross-tab, so nothing is
+# hand-transcribed. De-novo nodes are coloured by their interpreted lineage and
+# hatched so they read distinctly from the named-lineage nodes.
+
+LINEAGE_RULES = [  # (regex on named label, lineage); first match wins
+    (r"AC-like|MES-like|NPC-like|OPC-like", "Tumor"),
+    (r"^(Astrocyte|Oligodendrocyte|RG|OPC)$", "Glia"),
+    (r"^Neuron$", "Neuronal"),
+    (r"^(TAM-|Mono|DC\d|cDC|pDC|Mast|Neutrophil|DC$)", "Myeloid"),
+    (r"^(B_cell|Plasma_B|CD4|CD8|NK|Reg_T|Prolif_T)", "Lymphoid"),
+    (r"^(Endo|Pericyte|Perivascular|SMC|VLMC|Mural|Scavenging|Tip-like)", "Vascular"),
+]
+
+
+def named_lineage(label: str) -> str:
+    for pat, lin in LINEAGE_RULES:
+        if re.search(pat, label):
+            return lin
+    return "Unresolved/stress"
+
+
+def annotation_lineage(annotation: str) -> str:
+    """Coarse lineage for a de-novo cluster from its annotation text (tumour wins
+    over a co-occurring stress/hypoxia term, e.g. 'Stressed/hypoxic tumor-bulk')."""
+    a = annotation.lower()
+    if re.search(r"tumor|tumour|mes|ac-like|opc-like|stem", a):
+        return "Tumor"
+    if re.search(r"astrocyte|oligodendrocyte|\brg\b|\bopc\b", a):
+        return "Glia"
+    if "neuron" in a:
+        return "Neuronal"
+    if re.search(r"myeloid|tam", a):
+        return "Myeloid"
+    if re.search(r"vascular|fibroblast|angiogenic|stroma|endothel", a):
+        return "Vascular"
+    return "Unresolved/stress"
+
+
+def is_denovo(label: str) -> bool:
+    return len(label) == 1 and label.islower()
+
+
+def load_anno(path: Path) -> dict[str, str]:
+    """letter -> display label ('k · Stressed/hypoxic tumor-bulk')."""
+    df = pd.read_csv(path)
+    out = {}
+    for letter, anno in zip(df["denovo_label"].astype(str), df["annotation"].astype(str)):
+        out[letter] = anno.replace(" - ", " · ")
+    return out
+
+
+def _denovo_node(letter: str, anno: dict[str, str]) -> tuple[str, str]:
+    """Return (display label, interpreted lineage) for a de-novo letter."""
+    disp = anno.get(letter, letter)
+    lin = annotation_lineage(disp)
+    return disp, lin
+
+
+def fig_sankey_denovo(crosstab: Path, left_anno: Path, right_anno: Path,
+                      out: Path, min_frac: float = 0.0012) -> None:
+    ct = pd.read_csv(crosstab, index_col=0)
+    lanno, ranno = load_anno(left_anno), load_anno(right_anno)
+
+    def side_node(label, anno):  # -> (display name, lineage, is_denovo)
+        if is_denovo(label):
+            disp, lin = _denovo_node(label, anno)
+            return disp, lin, True
+        return named_lineage(label), named_lineage(label), False
+
+    # Aggregate the fine cross-tab onto (left node, right node).
+    flows: dict[tuple[str, str], float] = {}
+    lmeta: dict[str, tuple[str, bool]] = {}  # node -> (lineage, is_denovo)
+    rmeta: dict[str, tuple[str, bool]] = {}
+    for r in ct.index:
+        ln, llin, ldn = side_node(r, lanno)
+        lmeta[ln] = (llin, ldn)
+        for c in ct.columns:
+            v = float(ct.loc[r, c])
+            if v <= 0:
+                continue
+            rn, rlin, rdn = side_node(c, ranno)
+            rmeta[rn] = (rlin, rdn)
+            flows[(ln, rn)] = flows.get((ln, rn), 0.0) + v
+
+    ltot = {n: sum(v for (s, _), v in flows.items() if s == n) for n in lmeta}
+    rtot = {n: sum(v for (_, d), v in flows.items() if d == n) for n in rmeta}
+
+    def order(meta, tot):  # named lineage first, then its de-novo nodes (size desc)
+        nodes = []
+        for lin in LIN_ORDER:
+            named = [n for n, (l, dn) in meta.items() if l == lin and not dn and tot[n] > 0]
+            denovo = sorted((n for n, (l, dn) in meta.items()
+                             if l == lin and dn and tot[n] > 0), key=lambda n: -tot[n])
+            nodes += sorted(named, key=lambda n: -tot[n]) + denovo
+        return nodes
+
+    L, R = order(lmeta, ltot), order(rmeta, rtot)
+    total = sum(ltot.values())
+    gap = total * 0.012
+    thresh = min_frac * total
+
+    def layout(nodes, tot):
+        y, pos = 0.0, {}
+        for n in nodes:
+            pos[n] = (y, tot[n]); y += tot[n] + gap
+        return pos, y
+
+    Lp, yL = layout(L, ltot); Rp, yR = layout(R, rtot)
+    xL0, xL1, xR0, xR1 = 0.0, 0.022, 0.978, 1.0
+    xm = (xL1 + xR0) / 2
+    fig, ax = plt.subplots(figsize=(13, max(10, 0.34 * max(len(L), len(R)) + 2)))
+    Loff = {n: 0.0 for n in L}; Roff = {n: 0.0 for n in R}
+    for s in L:                                   # ribbons big-first per source
+        for d in sorted(R, key=lambda d: -flows.get((s, d), 0)):
+            f = flows.get((s, d), 0)
+            if f <= 0:
+                continue
+            y1, y2 = Lp[s][0] + Loff[s], Rp[d][0] + Roff[d]
+            Loff[s] += f; Roff[d] += f
+            if f < thresh:
+                continue
+            verts = [(xL1, y1), (xm, y1), (xm, y2), (xR0, y2),
+                     (xR0, y2 + f), (xm, y2 + f), (xm, y1 + f), (xL1, y1 + f), (xL1, y1)]
+            codes = [MPath.MOVETO, MPath.CURVE4, MPath.CURVE4, MPath.CURVE4,
+                     MPath.LINETO, MPath.CURVE4, MPath.CURVE4, MPath.CURVE4, MPath.CLOSEPOLY]
+            ax.add_patch(PathPatch(MPath(verts, codes), facecolor=LINEAGE_COL[lmeta[s][0]],
+                                   edgecolor="none", alpha=0.40))
+
+    def draw_nodes(nodes, pos, meta, x0, x1, txt_x, ha):
+        for n in nodes:
+            lin, dn = meta[n]
+            ax.add_patch(Rectangle((x0, pos[n][0]), x1 - x0, pos[n][1],
+                                   facecolor=LINEAGE_COL[lin], edgecolor="white",
+                                   linewidth=0.4, hatch="////" if dn else None))
+            ax.text(txt_x, pos[n][0] + pos[n][1] / 2, n, ha=ha, va="center", fontsize=7.5)
+
+    draw_nodes(L, Lp, lmeta, xL0, xL1, xL0 - 0.01, "right")
+    draw_nodes(R, Rp, rmeta, xR0, xR1, xR1 + 0.01, "left")
+    ax.set_xlim(-0.34, 1.34); ax.set_ylim(0, max(yL, yR)); ax.invert_yaxis(); ax.axis("off")
+    ax.text(xL1, -gap * 1.5, "Core L4 · rescale", ha="center", va="bottom", fontsize=11, weight="bold")
+    ax.text(xR0, -gap * 1.5, "Ext L3 · rescale (keeper)", ha="center", va="bottom", fontsize=11, weight="bold")
+    ax.set_title(f"Lineage flow between the two rescale runs — de novo clusters broken out  "
+                 f"({int(total):,} cells)", fontsize=12.5, pad=22)
+    leg = [Patch(facecolor=LINEAGE_COL[l], label=l) for l in LIN_ORDER] + \
+          [Patch(facecolor="white", edgecolor="#444", hatch="////", label="de novo cluster")]
+    ax.legend(handles=leg, loc="upper center", bbox_to_anchor=(0.5, -0.02),
+              ncol=4, fontsize=8, frameon=False)
+    fig.savefig(out, dpi=200, bbox_inches="tight"); plt.close(fig)
+    print(f"wrote {out}  ({len(L)} left x {len(R)} right nodes)")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--output-dir", type=Path, default=Path("stage4_qc/figures"))
+    p.add_argument("--crosstab", type=Path,
+                   default=Path("stage4_qc/core_vs_ext/run_comparison_cluster_xtab.csv"),
+                   help="Core-L4-rescale (rows) vs Ext-L3-rescale (cols) cluster cross-tab; "
+                        "drives the de-novo-resolved lineage Sankey.")
     p.add_argument("--counts-dir", type=Path, default=None,
                    help="Dir with per-run counts_<run>.csv (cell_type,count) — dump via "
                         "obs value_counts. Enables the all-types breakdown + count-accurate "
@@ -243,6 +403,15 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     fig_composition(args.output_dir / "composition_stacked.png")
     fig_sankey(args.output_dir / "lineage_sankey.png")
+    if args.crosstab.exists():
+        fig_sankey_denovo(
+            args.crosstab,
+            args.anno_dir / "stage4.csv",
+            args.anno_dir / "stage4_extl3_rescale.csv",
+            args.output_dir / "lineage_denovo_sankey.png",
+        )
+    else:
+        print(f"WARN: {args.crosstab} missing; skipping de-novo-resolved Sankey")
 
     if args.counts_dir is not None:
         rows = build_rows_from_counts(args.counts_dir, args.anno_dir)
