@@ -49,6 +49,10 @@ STAGE3="${STAGE3_DIR:-stage3}"
 # Which clustered AnnData to read. Defaults to the stage-3c output; for the cell-type
 # heatmap point it at the stage-4c typed file (with GROUP_KEY=cell_type STAGE3_DIR=stage4).
 CLUSTERED_BASENAME="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
+# Kopah sub-dir under STAGE3 to write the CSVs into. Override (e.g.
+# OUTPUT_SUBDIR=marker_heatmap_named) to keep parallel subset runs (--clusters) from
+# clobbering each other's marker_heatmap/ outputs.
+OUTPUT_SUBDIR="${OUTPUT_SUBDIR:-marker_heatmap}"
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -78,6 +82,6 @@ apptainer exec \
 
 echo "Uploading marker-heatmap CSVs to Kopah..."
 s5cmd cp "$WORK/out/*" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/marker_heatmap/"
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${OUTPUT_SUBDIR}/"
 
 echo "Done: marker-heatmap compute. Render with pipeline/R/marker_heatmap.R."
