@@ -218,3 +218,9 @@ pipeline/reference/*_raw_avg_expression.csv
 
 # Working handoff doc — scratchpad for picking up between chats, not committed
 HANDOFF.md
+
+# Local analysis-output scratch (QC dirs, marker-heatmap PDFs/z-matrices, etc.).
+# These are pulled from Kopah / rendered locally; the code that produces them is
+# tracked, the artifacts themselves are not.
+stage4_qc/
+marker_full/
