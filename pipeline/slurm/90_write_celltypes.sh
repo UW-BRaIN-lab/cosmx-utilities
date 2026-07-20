@@ -52,6 +52,10 @@ set +a
 # Read cosmx_clustered from the stage-3 dir; write the typed AnnData under stage-4 dir.
 STAGE3="${STAGE3_DIR:-stage3}"
 STAGE4="${STAGE4_DIR:-stage4}"
+# Which typing result to write back. Defaults to the InSituType result; an InSituTree run
+# (STAGE4_DIR=stage4_insitutree) overrides RESULT_BASENAME=insitutree_result.h5. Both h5s
+# carry the same /cell_id, /cell_type, /prob datasets write_celltypes.py expects.
+RESULT_BASENAME="${RESULT_BASENAME:-insitutype_result.h5}"
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -63,11 +67,11 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging clustered AnnData + InSituType result from Kopah..."
+echo "Staging clustered AnnData + typing result (${RESULT_BASENAME}) from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/cosmx_clustered.h5ad" \
     "$WORK/cosmx_clustered.h5ad"
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/insitutype_result.h5" \
-    "$WORK/insitutype_result.h5"
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/${RESULT_BASENAME}" \
+    "$WORK/typing_result.h5"
 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
@@ -75,7 +79,7 @@ apptainer exec \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/write_celltypes.py" \
         --clustered-h5ad "$WORK/cosmx_clustered.h5ad" \
-        --insitutype-h5 "$WORK/insitutype_result.h5" \
+        --insitutype-h5 "$WORK/typing_result.h5" \
         --output "$WORK/cosmx_typed.h5ad" \
         --qc-plots-dir "$WORK/qc_plots"
 

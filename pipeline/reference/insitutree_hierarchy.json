@@ -1,0 +1,78 @@
+{
+  "Malignant": [
+    "AC-like",
+    "AC-like_Prolif",
+    "MES-like_hypoxia_independent",
+    "MES-like_hypoxia_MHC",
+    "NPC-like_OPC",
+    "NPC-like_Prolif",
+    "NPC-like_neural",
+    "OPC-like",
+    "OPC-like_Prolif",
+    "Stress_sig",
+    "MES_AClike_denovo",
+    "MESlike_denovo",
+    "Hypoxia_denovo",
+    "OPClike_denovo",
+    "Stress_denovo"
+  ],
+  "Glial": [
+    "Astrocyte",
+    "Oligodendrocyte",
+    "OPC",
+    "RG"
+  ],
+  "Immune": {
+    "Myeloid": [
+      "DC1",
+      "DC2",
+      "DC3",
+      "cDC1",
+      "cDC2",
+      "pDC",
+      "Mono_anti-infl",
+      "Mono_hypoxia",
+      "Mono_naive",
+      "TAM-BDM_INF",
+      "TAM-BDM_MHC",
+      "TAM-BDM_anti-infl",
+      "TAM-BDM_hypoxia_MES",
+      "TAM-MG_aging_sig",
+      "TAM-MG_pro-infl_I",
+      "TAM-MG_pro-infl_II",
+      "TAM-MG_prolif",
+      "Mast"
+    ],
+    "Lymphoid": [
+      "B_cell",
+      "Plasma_B",
+      "CD4_INF",
+      "CD4_rest",
+      "CD8_EM",
+      "CD8_NK_sig",
+      "CD8_cytotoxic",
+      "NK",
+      "Prolif_T",
+      "Reg_T"
+    ]
+  },
+  "Vascular": [
+    "Endo_arterial",
+    "Endo_capilar",
+    "Scavenging_endothelial",
+    "Tip-like",
+    "Pericyte",
+    "Scavenging_pericyte",
+    "SMC",
+    "SMC_COL",
+    "SMC_prolif",
+    "Perivascular_fibroblast",
+    "VLMC"
+  ],
+  "Neuron": [
+    "Neuron"
+  ],
+  "Low_signal": [
+    "Low_signal_denovo"
+  ]
+}
