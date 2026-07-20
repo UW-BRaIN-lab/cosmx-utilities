@@ -99,13 +99,22 @@ From: rocker/r-ver:4.4.2
             upgrade = 'never', dependencies = FALSE)"
 
     # InSituTree (supervised, hierarchical typing) lives in a subdir of the CosMx
-    # Analysis Scratch Space repo; install it the same pinned/no-upgrade way. Depends on
-    # InSituType (>= 2.0, satisfied above) + stringr (installed above).
+    # Analysis Scratch Space MONOREPO, which also carries an unrelated `_code/smiDE` git
+    # submodule. remotes::install_github clones with --recurse-submodules and HANGS on a
+    # git credential prompt trying to fetch that submodule (it needs auth) — even though
+    # InSituTree has no dependency on it. So clone WITHOUT submodules, check out the
+    # pinned SHA, and install the subdir locally. GIT_TERMINAL_PROMPT=0 makes any stray
+    # auth prompt fail fast instead of hanging the build. Depends on InSituType (>= 2.0,
+    # satisfied above) + stringr (installed above).
+    export GIT_TERMINAL_PROMPT=0
+    git clone --no-recurse-submodules \
+        https://github.com/Nanostring-Biostats/CosMx-Analysis-Scratch-Space.git \
+        /tmp/scratch-space
+    git -C /tmp/scratch-space checkout 1760ea2d565fa56e0cdc5b6e959d4e4cc8f191bd
     Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
-        remotes::install_github('Nanostring-Biostats/CosMx-Analysis-Scratch-Space', \
-            subdir = '_code/InSituTree', \
-            ref = '1760ea2d565fa56e0cdc5b6e959d4e4cc8f191bd', \
+        remotes::install_local('/tmp/scratch-space/_code/InSituTree', \
             upgrade = 'never', dependencies = FALSE)"
+    rm -rf /tmp/scratch-space
 
     # Build-time import check: load every package the stage-4 drivers need and confirm
     # the InSituType + InSituTree entry points exist.
