@@ -1,11 +1,16 @@
 Bootstrap: docker
 From: rocker/r-ver:4.4.2
 
-# Apptainer runtime for stage 4: InSituType cell typing (semi-supervised against the
-# CZI GBmap reference). This is a CPU/R stage — it runs on the free, preemptible `ckpt`
-# partition, NOT gpu-l40s. InSituType phase-subsamples internally, so the 2.3M-cell
-# cohort is tractable on a big-memory CPU node; the embedding/clustering GPU work is
-# stage 3c, separate from this image.
+# Apptainer runtime for stage 4 cell typing (R, CPU). Ships two typing engines:
+#   - InSituType: semi-supervised typing against the CZI GBmap reference (de novo
+#     discovery). Driver R/insitutype_typing.R.
+#   - InSituTree: supervised, hierarchical typing against a user-defined cell-type
+#     hierarchy + profile matrix (no de novo — forces a label, flag low prob).
+#     Driver R/insitutree_typing.R.
+# This is a CPU/R stage — it runs on the free, preemptible `ckpt` partition, NOT
+# gpu-l40s. InSituType phase-subsamples internally and InSituTree runs one supervised
+# insitutypeML pass per hierarchy node, so the 2.3M-cell cohort is tractable on a
+# big-memory CPU node; the embedding/clustering GPU work is stage 3c, separate.
 #
 # It is its own SIF (not folded into scpearsonpca.sif) because InSituType pulls a large
 # Bioconductor + tidyverse dependency tree that has no business in the lean PCA image.
@@ -73,10 +78,13 @@ From: rocker/r-ver:4.4.2
 
     # CRAN dependencies of InSituType (see its DESCRIPTION Imports) plus hdf5r for our
     # driver and the remotes/BiocManager installers. spatstat.geom is CRAN (not Bioc).
+    # jsonlite parses the InSituTree hierarchy JSON; stringr is InSituTree's only Import
+    # not already pulled in by InSituType.
     Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}'), Ncpus = 4); \
         install.packages(c('data.table', 'dplyr', 'fastglm', 'ggplot2', 'irlba', 'lsa', \
             'magrittr', 'Matrix', 'mclust', 'Rcpp', 'RcppArmadillo', 'rlang', 'scales', \
-            'spatstat.geom', 'tibble', 'umap', 'uwot', 'hdf5r', 'remotes', 'BiocManager'))"
+            'spatstat.geom', 'tibble', 'umap', 'uwot', 'hdf5r', 'jsonlite', 'stringr', \
+            'remotes', 'BiocManager'))"
 
     # Bioconductor dependencies, pinned to the BIOC_VERSION release repos.
     Rscript -e "BiocManager::install(c('SingleCellExperiment', 'SummarizedExperiment', \
@@ -84,18 +92,30 @@ From: rocker/r-ver:4.4.2
 
     # InSituType from GitHub, pinned to a commit SHA for reproducibility. Dependencies
     # are already installed above, so don't let remotes upgrade them off the snapshot.
+    # This SHA is InSituType 2.0, which exports insitutypeML (InSituTree's engine).
     Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
         remotes::install_github('Nanostring-Biostats/InSituType', \
             ref = 'f3ef0dd0814318d74675e6a613fad3ef7f1e23a1', \
             upgrade = 'never', dependencies = FALSE)"
 
-    # Build-time import check: load every package the stage-4 driver needs and confirm
-    # the InSituType entry points exist.
-    Rscript -e "library(Matrix); library(data.table); library(hdf5r); \
-        library(InSituType); \
+    # InSituTree (supervised, hierarchical typing) lives in a subdir of the CosMx
+    # Analysis Scratch Space repo; install it the same pinned/no-upgrade way. Depends on
+    # InSituType (>= 2.0, satisfied above) + stringr (installed above).
+    Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
+        remotes::install_github('Nanostring-Biostats/CosMx-Analysis-Scratch-Space', \
+            subdir = '_code/InSituTree', \
+            ref = '1760ea2d565fa56e0cdc5b6e959d4e4cc8f191bd', \
+            upgrade = 'never', dependencies = FALSE)"
+
+    # Build-time import check: load every package the stage-4 drivers need and confirm
+    # the InSituType + InSituTree entry points exist.
+    Rscript -e "library(Matrix); library(data.table); library(hdf5r); library(jsonlite); \
+        library(InSituType); library(InSituTree); \
         stopifnot(is.function(InSituType::insitutype), \
-                  is.function(InSituType::refineClusters)); \
-        cat('InSituType ok\n')"
+                  is.function(InSituType::refineClusters), \
+                  is.function(InSituType::insitutypeML), \
+                  is.function(InSituTree::runInSituTree)); \
+        cat('InSituType + InSituTree ok\n')"
 
 %environment
     export LC_ALL=C.UTF-8
@@ -106,5 +126,5 @@ From: rocker/r-ver:4.4.2
 
 %labels
     org.opencontainers.image.source https://github.com/UW-BRaIN-lab/cosmx-utilities
-    org.opencontainers.image.description CosMx GBM pipeline runtime — R, InSituType (semi-supervised cell typing)
+    org.opencontainers.image.description CosMx GBM pipeline runtime — R, InSituType (semi-supervised) + InSituTree (hierarchical) cell typing
     pipeline.stage insitutype
