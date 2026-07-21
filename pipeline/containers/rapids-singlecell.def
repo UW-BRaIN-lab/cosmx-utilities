@@ -14,7 +14,7 @@ From: nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
 # "__nv_fp8_e8m0" is not allowed. Hence a 12.9 -devel base, aligned with the
 # 12.9.86 pip NVRTC. (If this exact tag 404s on pull, 12.9.0 or 12.8.1
 # -cudnn-devel-ubuntu22.04 also provide the e8m0 type.) ~2-3GB more SIF; fine
-# on scrubbed.
+# in the lab's persistent /gscratch storage (see build note below).
 #
 # Apptainer runtime for the CosMx GBM analysis pipeline on Hyak.
 #
@@ -28,13 +28,17 @@ From: nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
 # unnecessary at this scale (see containers/README.md for rationale).
 #
 # Build from the REPO ROOT — the %files lock path below is resolved relative
-# to the build's working directory. On a klone login node (Apptainer +
-# fakeroot), with cache/tmp on /gscratch (home is only 10GB):
+# to the build's working directory. On a klone login node (Apptainer + fakeroot).
+# Cache/tmp go on /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF
+# itself in the lab's PERSISTENT storage /gscratch/glioblastoma/containers — NOT
+# /gscratch/scrubbed, which auto-purges by last-access (~21 days) and will silently
+# delete an idle SIF. Point APPTAINER_RSC in pipeline/.env at wherever you build it.
 #     cd ~/cosmx-utilities
 #     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
 #     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+#     mkdir -p /gscratch/glioblastoma/containers
 #     apptainer build --fakeroot \
-#         /gscratch/scrubbed/$USER/containers/rapids-singlecell.sif \
+#         /gscratch/glioblastoma/containers/rapids-singlecell.sif \
 #         pipeline/containers/rapids-singlecell.def
 #
 # See pipeline/containers/README.md for the full build + install flow.
