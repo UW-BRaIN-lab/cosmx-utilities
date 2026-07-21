@@ -79,9 +79,16 @@ stopifnot("--output-rds is required" = !is.null(opt[["output-rds"]]))
 stopifnot("--output-h5 is required" = !is.null(opt[["output-h5"]]))
 stopifnot("--output-csv is required" = !is.null(opt[["output-csv"]]))
 
-# InSituTree feature-selection quantiles (0-1); source defaults are 0.5/0.5.
+# InSituTree feature-selection quantiles (0-1). quantile-absolute keeps InSituTree's
+# source default (0.5). quantile-percent DEFAULTS TO 0, NOT the source's 0.5: its metric
+# is range/max, which is <= 1 by construction, so at any node with a sparse leaf (e.g.
+# RG has ~389 nonzero genes, pDC ~474) most genes are zero in some child -> min=0 ->
+# perc=1. The 0.5-quantile of a mostly-1 vector is 1, and the strict `perc > 1` filter
+# then selects ZERO genes, so insitutypeML::alignGenes aborts ("<10 genes in common").
+# Setting it to 0 makes the threshold the minimum, effectively disabling that
+# ceiling-pinned filter and letting the well-behaved absolute-difference metric select.
 q_abs <- as.numeric(opt[["quantile-absolute"]] %||% "0.5")
-q_pct <- as.numeric(opt[["quantile-percent"]] %||% "0.5")
+q_pct <- as.numeric(opt[["quantile-percent"]] %||% "0")
 excluded_genes <- parse_csv_list(opt[["excluded-genes"]])
 seed <- as.integer(opt$seed %||% 0)
 
