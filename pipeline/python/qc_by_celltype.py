@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-COUNT_CANDIDATES = ["total_counts", "tc", "n_counts", "total_counts_all", "nCount"]
+COUNT_CANDIDATES = ["total_counts", "totalcounts", "tc", "n_counts", "total_counts_all", "nCount"]
 GENE_CANDIDATES = ["n_genes_by_counts", "n_genes", "nFeature", "n_genes_all"]
 PROB_CANDIDATES = ["insitutype_prob", "prob", "type_prob"]
 
