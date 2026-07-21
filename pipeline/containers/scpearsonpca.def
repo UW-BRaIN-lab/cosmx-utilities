@@ -19,15 +19,15 @@ From: rocker/r-ver:4.4.2
 #
 # Build from the repo root on a klone login node (Apptainer + fakeroot). Cache/tmp go
 # on /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF itself in the
-# lab's PERSISTENT storage /gscratch/glioblastoma/containers — NOT /gscratch/scrubbed,
+# lab's PERSISTENT storage /gscratch/glioblastoma/$USER/containers — NOT /gscratch/scrubbed,
 # which auto-purges by last-access (~21 days) and will silently delete an idle SIF.
 # Point APPTAINER_SCPEARSON in pipeline/.env at wherever you build it.
 #     cd ~/cosmx-utilities
 #     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
 #     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
-#     mkdir -p /gscratch/glioblastoma/containers
+#     mkdir -p /gscratch/glioblastoma/$USER/containers
 #     apptainer build --fakeroot \
-#         /gscratch/glioblastoma/containers/scpearsonpca.sif \
+#         /gscratch/glioblastoma/$USER/containers/scpearsonpca.sif \
 #         pipeline/containers/scpearsonpca.def
 
 %post -c /bin/bash
