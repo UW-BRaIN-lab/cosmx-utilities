@@ -30,15 +30,15 @@ From: nvidia/cuda:12.9.1-cudnn-devel-ubuntu22.04
 # Build from the REPO ROOT — the %files lock path below is resolved relative
 # to the build's working directory. On a klone login node (Apptainer + fakeroot).
 # Cache/tmp go on /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF
-# itself in the lab's PERSISTENT storage /gscratch/glioblastoma/containers — NOT
+# itself in the lab's PERSISTENT storage /gscratch/glioblastoma/$USER/containers — NOT
 # /gscratch/scrubbed, which auto-purges by last-access (~21 days) and will silently
 # delete an idle SIF. Point APPTAINER_RSC in pipeline/.env at wherever you build it.
 #     cd ~/cosmx-utilities
 #     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
 #     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
-#     mkdir -p /gscratch/glioblastoma/containers
+#     mkdir -p /gscratch/glioblastoma/$USER/containers
 #     apptainer build --fakeroot \
-#         /gscratch/glioblastoma/containers/rapids-singlecell.sif \
+#         /gscratch/glioblastoma/$USER/containers/rapids-singlecell.sif \
 #         pipeline/containers/rapids-singlecell.def
 #
 # See pipeline/containers/README.md for the full build + install flow.
