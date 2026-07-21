@@ -21,13 +21,18 @@ From: rocker/r-ver:4.4.2
 # (BIOC_VERSION 3.20), and InSituType is pinned to a commit SHA. Bump all three
 # together and rebuild to move forward.
 #
-# Build from the repo root on a klone login node (Apptainer + fakeroot), with
-# cache/tmp on /gscratch (home is only 10GB):
+# Build from the repo root on a klone login node (Apptainer + fakeroot). Cache/tmp go
+# on /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF itself in the
+# lab's PERSISTENT storage /gscratch/glioblastoma/containers — NOT /gscratch/scrubbed,
+# which auto-purges by last-access (~21 days) and will silently delete an idle SIF
+# (this bit us: the rapids SIF vanished between stages). Point the matching APPTAINER_*
+# in pipeline/.env at wherever you build it.
 #     cd ~/cosmx-utilities
 #     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
 #     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+#     mkdir -p /gscratch/glioblastoma/containers
 #     apptainer build --fakeroot \
-#         /gscratch/scrubbed/$USER/containers/insitutype.sif \
+#         /gscratch/glioblastoma/containers/insitutype.sif \
 #         pipeline/containers/insitutype.def
 
 %post -c /bin/bash

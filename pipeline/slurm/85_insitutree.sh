@@ -99,7 +99,7 @@ apptainer exec \
         --output-h5 "$WORK/insitutree_result.h5" \
         --output-csv "$WORK/insitutree_summary.csv" \
         --quantile-absolute "${QUANTILE_ABS:-0.5}" \
-        --quantile-percent "${QUANTILE_PCT:-0.5}" \
+        --quantile-percent "${QUANTILE_PCT:-0}" \
         --excluded-genes "${EXCLUDED_GENES:-}"
 
 echo "Uploading InSituTree result to Kopah..."
