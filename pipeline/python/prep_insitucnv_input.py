@@ -7,12 +7,16 @@ AnnData (stage4_insitutree/cosmx_typed.h5ad) has the counts and labels but NOT a
 obsm['spatial'] — the CosMx per-cell centroids live in obs (CenterX/Y_global_px). This
 driver assembles a clean CNV input and SPLITS it into one file per tissue section.
 
-WHY PER TISSUE SECTION: each CosMx slide co-mounts TWO donor tissues, and the global-px
-centroids are per-slide (they repeat across slides). If the spatial neighbor graph were
-built on the whole cohort — or even per slide — smoothing would pool counts, and
-subtract the CNV reference, ACROSS patients. The physically meaningful unit is one donor
-tissue on one slide, keyed here as ``tissue_section = "<slide_id>__<Case>"``. run_insitucnv.py
-processes one section at a time so every neighbor graph is self-contained.
+WHY PER TISSUE SECTION: each CosMx slide co-mounts TWO tissue blocks that are DIFFERENT
+regions (e.g. one tumor-bulk block + one contralateral-uninvolved block), often from the
+SAME donor; and the global-px centroids are per-slide (they repeat across slides). If the
+spatial neighbor graph were built on the whole cohort, per slide, or even per (slide,donor),
+smoothing would pool counts — and subtract the CNV reference — across physically distinct
+tissues (and, for two-donor slides, across patients). Merging a tumor block with a
+contralateral block is the worst case since contralateral is the negative control. The
+physically meaningful unit is one block on one slide, keyed here as
+``tissue_section = "<slide_id>__<Case>__<Block>"``. run_insitucnv.py processes one section
+at a time so every neighbor graph is self-contained.
 
 Gene positions are annotated HERE (once) from a full-genome table so every section shares
 an identical gene set -> identical infercnv windows -> per-section X_cnv matrices that
@@ -74,6 +78,9 @@ def parse_args() -> argparse.Namespace:
                    help="Diploid reference cell_type list (one per line; '#' comments ok).")
     p.add_argument("--celltype-key", default="cell_type")
     p.add_argument("--donor-key", default="Case", help="obs column identifying the donor.")
+    p.add_argument("--block-key", default="Block",
+                   help="obs column identifying the physical tissue block on the slide "
+                        "(distinct region, e.g. tumor bulk vs contralateral).")
     p.add_argument("--region-key", default="Region")
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--min-cells", type=int, default=500,
@@ -148,7 +155,7 @@ def main() -> None:
     adata = ad.read_h5ad(args.typed_h5ad)
     print(f"  {adata.n_obs:,} cells x {adata.n_vars:,} probes; obs cols: {list(adata.obs.columns)}")
 
-    for key in (args.celltype_key, args.donor_key):
+    for key in (args.celltype_key, args.donor_key, args.block_key):
         if key not in adata.obs:
             sys.exit(f"ERROR: obs['{key}'] missing (needed for typing / section key).")
 
@@ -178,11 +185,17 @@ def main() -> None:
         slide = adata.obs.index.to_series().str.split("_F", n=1).str[0]
         print("  note: no obs['slide_id']; derived slide from the cell-id prefix.")
     donor = adata.obs[args.donor_key].astype(str)
-    adata.obs["tissue_section"] = (slide.to_numpy() + "__" + donor.to_numpy())
+    block = adata.obs[args.block_key].astype(str)
+    # Physical tissue unit = one block on one slide. (slide, donor, block) is the finest
+    # key: it never merges across slide (global-px coord collision), donor (patient
+    # contamination), or block/region (mixing tumor-bulk with contralateral, etc.).
+    adata.obs["tissue_section"] = (slide.to_numpy() + "__" + donor.to_numpy()
+                                   + "__" + block.to_numpy())
 
     # keep only the obs columns downstream needs (keeps section files small)
     keep_obs = [c for c in [args.celltype_key, args.region_key, args.donor_key,
-                            "slide_id", "tissue_section"] if c in adata.obs]
+                            args.block_key, "slide_id", "tissue_section"]
+                if c in adata.obs]
     adata.obs = adata.obs[keep_obs].copy()
 
     # --- split per section ----------------------------------------------------------
