@@ -1,0 +1,67 @@
+# Conservative diploid reference for Stage-5 InSituCNV (one cell_type per line).
+#
+# These are the confidently-typed NON-malignant cell types from the InSituTree run
+# (stage4_insitutree cosmx_typed.h5ad, obs['cell_type']). infercnvpy centers every
+# cell's per-window expression on the mean of these categories, so any tumor
+# contamination here FLATTENS the CNV signal and hides malignancy.
+#
+# DELIBERATELY EXCLUDED (not listed): Astrocyte, OPC, RG. AC-like and OPC-like are
+# malignant Neftel states; reactive-astrocyte / OPC lineages are hard to separate
+# cleanly from their tumor look-alikes on a 6k panel, so they are kept OUT of the
+# baseline (they are still CNV-profiled downstream, just not used as reference).
+# Also excluded: the 14 malignant states (positive control) and Low_signal (the test).
+#
+# Lines starting with '#' and blank lines are ignored. Names must match obs['cell_type']
+# EXACTLY (case-sensitive); any name absent from a given tissue section is skipped with
+# a warning by run_insitucnv.py, so this superset is safe to reuse for every section.
+
+# --- Oligodendrocyte lineage (mature; classic diploid GBM reference) ---
+Oligodendrocyte
+
+# --- Neuron ---
+Neuron
+
+# --- Myeloid (TAM / monocyte / dendritic / mast) ---
+TAM-BDM_INF
+TAM-BDM_MHC
+TAM-BDM_anti-infl
+TAM-BDM_hypoxia_MES
+TAM-MG_aging_sig
+TAM-MG_pro-infl_I
+TAM-MG_pro-infl_II
+TAM-MG_prolif
+Mono_anti-infl
+Mono_hypoxia
+Mono_naive
+DC1
+DC2
+DC3
+cDC1
+cDC2
+pDC
+Mast
+
+# --- Lymphoid (T / B / NK / plasma) ---
+B_cell
+CD4_INF
+CD4_rest
+CD8_EM
+CD8_NK_sig
+CD8_cytotoxic
+NK
+Prolif_T
+Reg_T
+Plasma_B
+
+# --- Vascular / stroma (endothelial, mural, fibroblast) ---
+Endo_arterial
+Endo_capilar
+Scavenging_endothelial
+Tip-like
+Pericyte
+Scavenging_pericyte
+SMC
+SMC_COL
+SMC_prolif
+Perivascular_fibroblast
+VLMC

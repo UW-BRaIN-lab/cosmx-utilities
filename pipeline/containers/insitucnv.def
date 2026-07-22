@@ -1,0 +1,118 @@
+Bootstrap: docker
+From: python:3.11-slim-bookworm
+
+# Apptainer runtime for Stage 5: in-situ copy-number inference (InSituCNV / infercnvpy).
+# CPU-only Python image — runs on the free, preemptible `ckpt` partition, NOT gpu-l40s
+# (infercnvpy + the spatial neighbor-smoothing are CPU work; no CUDA in this env).
+#
+# WHAT IT SHIPS
+#   - infercnvpy      the Python inferCNV reimplementation (does the actual CNV calling)
+#   - scvelo          provides the "moments" neighbor graph InSituCNV smooths over
+#   - Moldia InSituCNV (github.com/Moldia/InSituCNV-manuscript, pinned SHA) on PYTHONPATH:
+#     we use icv.tl.smooth_data_for_cnv (M = connectivities @ counts, spatial smoothing).
+#   - A full-genome gene-position table (the repo's Ensmbl_BioMart_gene_info.txt) baked in
+#     at INSITUCNV_GENE_TABLE. We DO NOT use InSituCNV's add_genomic_positions (it maps
+#     against the ~3k maynard2020_3k set and would discard most of our ~5.9k panel, and it
+#     downloads at runtime — compute nodes have no internet). Our driver annotates chr/
+#     start/end for ALL panel genes from this baked-in table instead.
+#
+# This is its own SIF (not folded into rapids-singlecell.sif) because infercnvpy + scvelo
+# pull a separate dependency tree that has no business in the GPU image, and this stage is
+# pure CPU.
+#
+# REPRODUCIBILITY: Python is pinned by the python:3.11-slim-bookworm base; the Python
+# deps are pinned to the exact versions validated in the colleague pipeline
+# (UW-BRaIN-lab/Glioblastoma/insituCNV-pipeline/environment.yml); InSituCNV is pinned to a
+# commit SHA. Bump the versions + SHA together and rebuild to move forward. uv is the
+# installer/resolver (same scheme as rapids-singlecell.def), pip only bootstraps it.
+#
+# Build from the REPO ROOT on a klone login node (Apptainer + fakeroot). Cache/tmp go on
+# /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF itself in the lab's
+# PERSISTENT storage /gscratch/glioblastoma/$USER/containers — NOT /gscratch/scrubbed,
+# which auto-purges by last-access (~21 days) and will silently delete an idle SIF. Point
+# APPTAINER_INSITUCNV in pipeline/.env at wherever you build it.
+#     cd ~/cosmx-utilities
+#     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
+#     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
+#     mkdir -p /gscratch/glioblastoma/$USER/containers
+#     apptainer build --fakeroot \
+#         /gscratch/glioblastoma/$USER/containers/insitucnv.sif \
+#         pipeline/containers/insitucnv.def
+
+%post -c /bin/bash
+    set -euxo pipefail
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    # git to clone InSituCNV; build-essential for any sdist that lacks a manylinux wheel.
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        git \
+        build-essential
+    rm -rf /var/lib/apt/lists/*
+
+    # uv is the installer/resolver (not a runtime dep); pip just bootstraps it.
+    python3 -m pip install --no-cache-dir uv
+    uv venv --python "$(command -v python3.11)" --seed /opt/venv
+
+    # Pinned to the versions in the colleague pipeline's environment.yml (validated on the
+    # same ~2.5M-cell CosMx GBM cohort). infercnvpy does the CNV calling; scvelo backs the
+    # neighbor-graph smoothing; leidenalg/igraph power CNV-space clustering; matplotlib/
+    # seaborn render the in-job plots.
+    VIRTUAL_ENV=/opt/venv uv pip install --no-cache \
+        "infercnvpy==0.6.0" \
+        "scvelo==0.3.3" \
+        "scanpy==1.11.2" \
+        "anndata==0.11.4" \
+        "numpy==2.2.6" \
+        "scipy==1.16.0" \
+        "pandas==2.3.1" \
+        "scikit-learn==1.7.0" \
+        "leidenalg==0.10.2" \
+        "igraph==0.11.9" \
+        "h5py>=3.11" \
+        "matplotlib>=3.8" \
+        "seaborn>=0.13"
+
+    # Moldia InSituCNV, pinned to a commit SHA. We import icv.tl.smooth_data_for_cnv from
+    # it; the package __init__ is lazy so importing it does not pull scvelo until tl is
+    # touched (scvelo is installed above regardless). We keep the whole checkout because
+    # the gene-position table lives at its repo root.
+    git clone https://github.com/Moldia/InSituCNV-manuscript.git /opt/InSituCNV-manuscript
+    git -C /opt/InSituCNV-manuscript checkout e3c7ee3023fbe14c8f35b15b9dbdfc282ae6a123
+
+    # Build-time import check: load the real stack and the InSituCNV smoothing entry point.
+    /opt/venv/bin/python -c "
+import sys; sys.path.insert(0, '/opt/InSituCNV-manuscript')
+import scanpy, anndata, infercnvpy, scvelo
+import insitucnv as icv
+from insitucnv.tl.moments import smooth_data_for_cnv
+assert callable(smooth_data_for_cnv)
+import os
+assert os.path.exists('/opt/InSituCNV-manuscript/Ensmbl_BioMart_gene_info.txt'), 'gene table missing'
+print('infercnvpy + scvelo + InSituCNV ok')
+"
+
+%environment
+    export PATH=/opt/venv/bin:$PATH
+    export PYTHONNOUSERSITE=1
+    # Put the Moldia package on the import path so `import insitucnv` works everywhere.
+    export PYTHONPATH=/opt/InSituCNV-manuscript:${PYTHONPATH:-}
+    # Full-genome gene-position table (HGNC symbol -> chr/start/end) baked into the image;
+    # run_insitucnv.py reads it to annotate the panel for infercnvpy (no runtime download).
+    export INSITUCNV_GENE_TABLE=/opt/InSituCNV-manuscript/Ensmbl_BioMart_gene_info.txt
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    # infercnvpy/scanpy honor these for the CPU-bound linear algebra; the Slurm script
+    # sets them per allocation, this is just a sane container default.
+    export OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-4}
+    export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+
+%runscript
+    exec "$@"
+
+%labels
+    org.opencontainers.image.source https://github.com/UW-BRaIN-lab/cosmx-utilities
+    org.opencontainers.image.description CosMx GBM pipeline runtime — infercnvpy + Moldia InSituCNV spatial copy-number inference (CPU)
+    pipeline.stage insitucnv

@@ -1,0 +1,93 @@
+#!/bin/bash
+# Stage 5b: InSituCNV copy-number inference, ONE Slurm array task per tissue section.
+# Each task stages its section input, runs the spatial-smoothing + infercnvpy recipe, and
+# uploads a per-section CNV h5ad. Per-section keeps the spatial neighbor graph inside one
+# donor tissue (never bridging the two donors co-mounted on a slide). CPU only.
+#
+# Submit AFTER stage 5a (needs sections.txt to size the array). Set the array range to the
+# section count:
+#   s5cmd cp s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage5_insitucnv/sections.txt .
+#   sbatch --array=0-$(($(wc -l < sections.txt)-1))%32 pipeline/slurm/87_insitucnv.sh
+# (The %32 throttle is optional — caps concurrent array tasks so ckpt preemption is gentler.)
+# Smoke test on a single section first:  sbatch --array=0 pipeline/slurm/87_insitucnv.sh
+#
+# Env knobs (KOPAH_*, APPTAINER_INSITUCNV from pipeline/.env):
+#   STAGE5_DIR    Kopah sub-dir for stage-5 (default stage5_insitucnv)
+#   N_NEIGHBORS   spatial smoothing neighbors (default 100)
+#   WINDOW_SIZE   infercnv window (default 200)   STEP (default 10)
+#   DYNAMIC_THRESHOLD (default 1.5)
+
+#SBATCH --job-name=cosmx-insitucnv
+#SBATCH --account=glioblastoma-ckpt
+#SBATCH --partition=ckpt
+#SBATCH --qos=ckpt
+#SBATCH --requeue
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=06:00:00
+#SBATCH --output=pipeline/logs/insitucnv_%A_%a.out
+#SBATCH --error=pipeline/logs/insitucnv_%A_%a.err
+
+set -euo pipefail
+
+if ! command -v module >/dev/null 2>&1; then
+    source /etc/profile.d/lmod.sh 2>/dev/null \
+        || source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
+fi
+module load apptainer
+export PATH="${HOME}/bin:${PATH}"
+
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+    PIPELINE_DIR="${SLURM_SUBMIT_DIR}/pipeline"
+else
+    PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+fi
+
+set -a
+# shellcheck disable=SC1091
+source "${PIPELINE_DIR}/.env"
+set +a
+
+STAGE5="${STAGE5_DIR:-stage5_insitucnv}"
+: "${APPTAINER_INSITUCNV:?must be set in pipeline/.env}"
+: "${SLURM_ARRAY_TASK_ID:?run this as a Slurm array job (see header)}"
+
+WORK="${SLURM_TMPDIR:-/tmp}/cosmx_insitucnv_${SLURM_ARRAY_JOB_ID:-local}_${SLURM_ARRAY_TASK_ID}"
+mkdir -p "$WORK"
+trap 'rm -rf "$WORK"' EXIT
+
+export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
+export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
+export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+
+# Map this array index -> a section id from the prep manifest.
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections.txt" "$WORK/sections.txt"
+N_SECTIONS=$(wc -l < "$WORK/sections.txt")
+if (( SLURM_ARRAY_TASK_ID >= N_SECTIONS )); then
+    echo "Array index ${SLURM_ARRAY_TASK_ID} >= ${N_SECTIONS} sections; nothing to do."
+    exit 0
+fi
+SECTION=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "$WORK/sections.txt")
+echo "Array task ${SLURM_ARRAY_TASK_ID}/${N_SECTIONS}: section '${SECTION}'"
+
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections/${SECTION}.h5ad" \
+    "$WORK/section.h5ad"
+
+apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
+    "$APPTAINER_INSITUCNV" \
+    python -u "${PIPELINE_DIR}/python/run_insitucnv.py" \
+        --input "$WORK/section.h5ad" \
+        --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
+        --output "$WORK/${SECTION}_cnv.h5ad" \
+        --n-neighbors "${N_NEIGHBORS:-100}" \
+        --window-size "${WINDOW_SIZE:-200}" \
+        --step "${STEP:-10}" \
+        --dynamic-threshold "${DYNAMIC_THRESHOLD:-1.5}" \
+        --n-jobs "${SLURM_CPUS_PER_TASK:-8}"
+
+s5cmd cp "$WORK/${SECTION}_cnv.h5ad" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/persection/${SECTION}_cnv.h5ad"
+
+echo "Done: InSituCNV for section '${SECTION}'."
