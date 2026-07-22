@@ -46,7 +46,11 @@ import numpy as np
 import scanpy as sc
 import scvelo as scv
 
-import insitucnv as icv  # Moldia package, on PYTHONPATH via the SIF
+# Moldia package (on PYTHONPATH via the SIF). Its __init__ is lazy — it declares
+# __all__=["pp","tl"] but does NOT import the submodules, so `import insitucnv; insitucnv.tl`
+# raises AttributeError. Import the smoothing function directly (as the container build-check
+# does) instead of going through the package namespace.
+from insitucnv.tl.moments import smooth_data_for_cnv
 
 
 def parse_args() -> argparse.Namespace:
@@ -114,7 +118,7 @@ def main() -> None:
     # 2. spatial neighbor graph + neighborhood smoothing (M = connectivities @ Xnorm)
     print(f"Spatial neighbor graph (n_neighbors={args.n_neighbors}) + smoothing ...")
     scv.pp.neighbors(adata, use_rep=args.spatial_key, n_neighbors=args.n_neighbors)
-    icv.tl.smooth_data_for_cnv(adata, n_neighbors=args.n_neighbors)  # -> layers['M']
+    smooth_data_for_cnv(adata, n_neighbors=args.n_neighbors)  # -> layers['M']
     if "M" not in adata.layers:
         sys.exit("ERROR: smooth_data_for_cnv did not create layer 'M'.")
 
