@@ -26,15 +26,26 @@ From: python:3.11-slim-bookworm
 # commit SHA. Bump the versions + SHA together and rebuild to move forward. uv is the
 # installer/resolver (same scheme as rapids-singlecell.def), pip only bootstraps it.
 #
-# Build from the REPO ROOT on a klone login node (Apptainer + fakeroot). Cache/tmp go on
-# /gscratch/scrubbed (rebuildable; home is only 10GB), but put the SIF itself in the lab's
+# Build from the REPO ROOT (Apptainer + fakeroot). Put the SIF itself in the lab's
 # PERSISTENT storage /gscratch/glioblastoma/$USER/containers — NOT /gscratch/scrubbed,
 # which auto-purges by last-access (~21 days) and will silently delete an idle SIF. Point
 # APPTAINER_INSITUCNV in pipeline/.env at wherever you build it.
+#
+# IMPORTANT — put CACHE/TMP on NODE-LOCAL disk (/tmp), NOT /gscratch. Under --fakeroot's
+# root-mapped namespace, extracting the base image onto GPFS (/gscratch/scrubbed) crawls at
+# ~1MB/30s with apptainer near 0% CPU (per-file chown metadata latency) and effectively
+# hangs at "Extracting OCI image". Node-local /tmp (klone nodes have ~355GB free there)
+# clears it in seconds. Build on a COMPUTE node: the login-node arbiter throttles long
+# builds, and ckpt compute nodes DO have outbound internet for the %post pip/apt/clone
+# (verified 2026-07-22). Do it in tmux ON A LOGIN NODE, salloc INSIDE the tmux (so the
+# alloc survives an SSH drop), then build on the compute node:
+#     tmux new -s insitucnv-build
+#     salloc --account=glioblastoma-ckpt --partition=ckpt --qos=ckpt \
+#         --cpus-per-task=8 --mem=32G --time=3:00:00
 #     cd ~/cosmx-utilities
-#     export APPTAINER_CACHEDIR=/gscratch/scrubbed/$USER/apptainer-cache
-#     export APPTAINER_TMPDIR=/gscratch/scrubbed/$USER/apptainer-tmp
-#     mkdir -p /gscratch/glioblastoma/$USER/containers
+#     export APPTAINER_CACHEDIR=/tmp/$USER/apptainer-cache
+#     export APPTAINER_TMPDIR=/tmp/$USER/apptainer-tmp
+#     mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" /gscratch/glioblastoma/$USER/containers
 #     apptainer build --fakeroot \
 #         /gscratch/glioblastoma/$USER/containers/insitucnv.sif \
 #         pipeline/containers/insitucnv.def
