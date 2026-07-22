@@ -191,6 +191,35 @@ def main() -> None:
     sc_summary = sc_summary.sort_values("median", ascending=False)
     sc_summary.to_csv(args.output_dir / "cnv_score_by_group.csv")
 
+    # --- malignant CNV-SIGNATURE score (directional — the real discriminator) -------
+    # Expression-based CNV on a targeted panel detects LOSSES far better than gains, and the
+    # L2 burden above is non-directional and noise-dominated, so it barely separates tumour
+    # from normal. Score each cell instead by how well its CNV profile matches the malignant
+    # CONSENSUS direction (the chr10/arm-loss pattern): cosine similarity to the mean profile
+    # of the confidently-malignant cells. Calibrated on the negative controls.
+    ls_contra = ((obs[args.celltype_key] == args.lowsignal_label).to_numpy()
+                 & (region == CONTRALATERAL))
+    mal_rows = np.flatnonzero((obs["class"] == "malignant").to_numpy())
+    sig_thr, sig_summary = float("nan"), None
+    if mal_rows.size:
+        centroid = np.asarray(X[mal_rows].mean(axis=0)).ravel()
+        cnorm = float(np.linalg.norm(centroid))
+        if cnorm > 0:
+            unit = centroid / cnorm
+            dots = np.asarray(X @ unit).ravel()
+            rn = np.sqrt(np.asarray(X.multiply(X).sum(axis=1)).ravel())
+            with np.errstate(divide="ignore", invalid="ignore"):
+                obs["mal_sig"] = np.where(rn > 0, dots / rn, 0.0)
+            neg_sig = obs.loc[neg_mask, "mal_sig"].dropna()
+            sig_thr = float(np.percentile(neg_sig, 95)) if len(neg_sig) else float("nan")
+            sig_summary = obs.groupby("group", observed=True)["mal_sig"].agg(
+                n="size", median="median")
+            sig_summary["frac_above"] = obs.groupby("group", observed=True)["mal_sig"] \
+                .apply(lambda s: float((s > sig_thr).mean()))
+            sig_summary["class"] = group_class.reindex(sig_summary.index).to_numpy()
+            sig_summary = sig_summary.sort_values("median", ascending=False)
+            sig_summary.to_csv(args.output_dir / "mal_signature_by_group.csv")
+
     # ================================ PLOTS ========================================
     class_rank = {"reference": 0, "low_signal": 1, "malignant": 2, "other": 3}
     class_color = {"reference": "#2c7fb8", "low_signal": "#d95f0e",
@@ -279,36 +308,44 @@ def main() -> None:
     lines = []
     lines.append(f"InSituCNV group comparison — {X.shape[0]:,} cells, {len(order)} groups "
                  f">= {args.min_cells} cells.\n")
-    lines.append(f"Malignant cnv_score threshold (95th pct of diploid+contralateral "
-                 f"controls) = {threshold:.4g}\n")
+    lsg = [x for x in order if x.startswith(args.lowsignal_label)]
 
-    def frac_above(mask):
-        s = obs.loc[mask, "cnv_score"].dropna()
-        return float((s > threshold).mean()) if len(s) else float("nan")
+    # PRIMARY: directional malignant-signature (cosine to the malignant CNV consensus).
+    if sig_summary is not None:
+        def fs(mask):
+            s = obs.loc[mask, "mal_sig"].dropna()
+            return float((s > sig_thr).mean()) if len(s) else float("nan")
+        lines.append("MALIGNANT-SIGNATURE = per-cell cosine to the malignant CNV consensus "
+                     "(the chr-loss pattern; the right discriminator on a targeted panel).")
+        lines.append(f"  threshold (95th pct of diploid+contralateral controls) = {sig_thr:.4g}")
+        lines.append("  CALIBRATION (should hold if the run is trustworthy):")
+        lines.append(f"    malignant (positive control): {fs(pos_mask):.1%} above  (expect HIGH)")
+        lines.append(f"    diploid reference:            "
+                     f"{fs((obs['class'] == 'reference').to_numpy()):.1%}  (expect ~5%)")
+        lines.append(f"    Low_signal | {CONTRALATERAL}:  {fs(ls_contra):.1%}  (expect LOW)")
+        lines.append("  THE TEST — Low_signal signature-high fraction by region:")
+        for g in lsg:
+            fa = sig_summary.loc[g, "frac_above"] if g in sig_summary.index else float("nan")
+            md = sig_summary.loc[g, "median"] if g in sig_summary.index else float("nan")
+            lines.append(f"    {g:<34} sig-high={fa:.1%}  median={md:+.3f}  (n={int(counts[g]):,})")
+        lines.append("")
 
-    lines.append("CALIBRATION (should hold if the run is trustworthy):")
-    lines.append(f"  positive control (malignant states): {frac_above(pos_mask):.1%} of cells "
-                 f"above threshold  (expect HIGH)")
-    lines.append(f"  negative control (diploid reference): "
-                 f"{frac_above((obs['class'] == 'reference').to_numpy()):.1%}  (expect ~5%)")
-    ls_contra = (obs[args.celltype_key] == args.lowsignal_label).to_numpy() & (region == CONTRALATERAL)
-    lines.append(f"  Low_signal | {CONTRALATERAL} (neg control): {frac_above(ls_contra):.1%}  "
-                 f"(expect LOW if uninvolved brain is diploid)\n")
+    # SECONDARY: chromosome-arm means (losses are the detectable GBM signal on this panel).
+    loss_arms = [c for c in ("chr10", "chr14", "chr15", "chr22") if c in arm.columns]
+    lines.append(f"CHROMOSOME-ARM means (secondary; chr7 gain is weak by expression, loss "
+                 f"arms {loss_arms} carry the signal):")
+    for g in lsg:
+        vals = "  ".join(f"{c}={arm.loc[g, c]:+.4f}"
+                         for c in (["chr7"] + loss_arms) if c in arm.columns)
+        lines.append(f"  {g:<34} {vals}")
 
-    lines.append("THE TEST — Low_signal by region (chr7 gain / chr10 loss / % CNV-high):")
-    for g in [x for x in order if x.startswith(args.lowsignal_label)]:
-        c7 = arm.loc[g, "chr7"] if "chr7" in arm.columns else float("nan")
-        c10 = arm.loc[g, "chr10"] if "chr10" in arm.columns else float("nan")
-        fa = sc_summary.loc[g, "frac_above_malignant_thr"] if g in sc_summary.index else float("nan")
-        lines.append(f"  {g:<32} chr7={c7:+.3f}  chr10={c10:+.3f}  CNV-high={fa:.1%}  "
-                     f"(n={int(counts[g]):,})")
-    # nearest-class by mean cosine similarity for each Low_signal group
-    lines.append("\n  Nearest class by mean cosine similarity of profiles:")
-    for g in [x for x in order if x.startswith(args.lowsignal_label)]:
+    # nearest class by cosine of the full mean profiles.
+    lines.append("\nNearest class by mean cosine similarity of profiles:")
+    for g in lsg:
         sims = {cl: sim.loc[g, [o for o in order if group_class.get(o) == cl and o != g]].mean()
                 for cl in ("malignant", "reference")}
         verdict = max(sims, key=lambda k: (sims[k] if np.isfinite(sims[k]) else -9))
-        lines.append(f"  {g:<32} malignant={sims['malignant']:.3f}  "
+        lines.append(f"  {g:<34} malignant={sims['malignant']:.3f}  "
                      f"reference={sims['reference']:.3f}  -> closer to {verdict.upper()}")
 
     (args.output_dir / "SUMMARY.txt").write_text("\n".join(lines) + "\n")
