@@ -43,6 +43,7 @@ from pathlib import Path
 import anndata as ad
 import infercnvpy as cnv
 import numpy as np
+import pandas as pd
 import scanpy as sc
 import scvelo as scv
 
@@ -59,7 +60,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--reference-file", type=Path, required=True)
+    p.add_argument("--reference-vector", type=Path, default=None,
+                   help="CSV of diploid references in the M_log1p space (gene x [donors + "
+                        "GLOBAL], from build_insitucnv_reference.py). If given, inferCNV "
+                        "baselines against this section's DONOR column (matched normal) when "
+                        "present, else the GLOBAL pool — instead of the section's own cells, "
+                        "avoiding reference contamination in tumor-bulk sections.")
     p.add_argument("--celltype-key", default="cell_type")
+    p.add_argument("--donor-key", default="Case",
+                   help="obs column identifying the donor, to pick the matched reference column.")
     p.add_argument("--spatial-key", default="spatial")
     p.add_argument("--n-neighbors", type=int, default=100,
                    help="Spatial neighbors for the smoothing graph.")
@@ -105,11 +114,16 @@ def main() -> None:
     missing = [r for r in wanted if r not in present]
     if missing:
         print(f"  reference types absent from this section (skipped): {len(missing)}")
-    if not ref:
-        sys.exit("ERROR: none of the diploid reference cell types are present in this "
-                 "section — cannot baseline. (prep should have skipped it.)")
     n_ref = int(adata.obs[args.celltype_key].isin(ref).sum())
-    print(f"  diploid reference: {len(ref)} types, {n_ref:,} cells")
+    if args.reference_vector is None:
+        if not ref:
+            sys.exit("ERROR: none of the diploid reference cell types are present in this "
+                     "section — cannot baseline. (prep should have skipped it, or pass "
+                     "--reference-vector for a global baseline.)")
+        print(f"  diploid reference (per-section): {len(ref)} types, {n_ref:,} cells")
+    else:
+        print(f"  diploid reference: GLOBAL vector '{args.reference_vector.name}' "
+              f"(section also has {n_ref:,} local reference cells)")
 
     # 1. raw -> normalized (not logged); stash raw
     adata.layers["counts"] = adata.X.copy()
@@ -130,10 +144,7 @@ def main() -> None:
     # 4. inferCNV against the diploid reference
     print(f"inferCNV (window={args.window_size}, step={args.step}, "
           f"dynamic_threshold={args.dynamic_threshold}) ...")
-    cnv.tl.infercnv(
-        adata,
-        reference_key=args.celltype_key,
-        reference_cat=ref,
+    infercnv_kwargs = dict(
         window_size=args.window_size,
         step=args.step,
         dynamic_threshold=args.dynamic_threshold,
@@ -141,6 +152,33 @@ def main() -> None:
         chunksize=args.chunksize,
         n_jobs=args.n_jobs,
     )
+    if args.reference_vector is not None:
+        # Diploid reference (M_log1p space): this section's DONOR column (matched normal) if
+        # present, else the GLOBAL pool. Aligned to this section's gene order.
+        rv = pd.read_csv(args.reference_vector, index_col=0)
+        rv.columns = rv.columns.astype(str)
+        donor = None
+        if args.donor_key in adata.obs:
+            vc = adata.obs[args.donor_key].astype(str).value_counts()
+            donor = str(vc.index[0]) if len(vc) else None
+        if donor is not None and donor in rv.columns:
+            col = donor
+            print(f"  reference: matched donor column '{donor}'")
+        elif "GLOBAL" in rv.columns:
+            col = "GLOBAL"
+            print(f"  reference: GLOBAL pool (no matched column for donor '{donor}')")
+        else:
+            col = rv.columns[0]
+            print(f"  reference: column '{col}' (no donor/GLOBAL column found)")
+        ref_aligned = rv[col].reindex(adata.var_names).to_numpy(dtype=float)
+        n_missing = int(np.isnan(ref_aligned).sum())
+        if n_missing:
+            print(f"  WARN: {n_missing} genes absent from reference vector; filled with mean")
+            ref_aligned = np.nan_to_num(ref_aligned, nan=float(np.nanmean(ref_aligned)))
+        cnv.tl.infercnv(adata, reference=ref_aligned.reshape(1, -1), **infercnv_kwargs)
+    else:
+        cnv.tl.infercnv(adata, reference_key=args.celltype_key, reference_cat=ref,
+                        **infercnv_kwargs)
     if "X_cnv" not in adata.obsm:
         sys.exit("ERROR: infercnv did not populate obsm['X_cnv'].")
 
