@@ -423,7 +423,52 @@ def main() -> None:
         lines.append(f"  {g:<34} malignant={sims['malignant']:.3f}  "
                      f"reference={sims['reference']:.3f}  -> closer to {verdict.upper()}")
 
-    (args.output_dir / "SUMMARY.txt").write_text("\n".join(lines) + "\n")
+    # ---- PER-DONOR Low_signal malignancy (patient-specificity) ----------------------
+    # The malignant fraction of Low_signal is patient-specific, so a single cohort number
+    # hides the biology. Report, per donor, the fraction of Low_signal cells above the
+    # malignant threshold (overall + by region) and a donor x region heatmap.
+    if sig_summary is not None and "tissue_section" in obs:
+        sig_arr = obs["mal_sig"].to_numpy()
+        donor_arr = obs["tissue_section"].astype(str).str.split("__").str[1].to_numpy()
+        ls_mask = (ct == args.lowsignal_label) & np.isfinite(sig_arr)
+        dfd = pd.DataFrame({"donor": donor_arr[ls_mask], "region": region[ls_mask],
+                            "mal_sig": sig_arr[ls_mask]})
+        frac_mal = lambda s: float((s > sig_thr).mean())
+        by_donor = (dfd.groupby("donor")["mal_sig"]
+                    .agg(n="size", median="median", malignant_frac=frac_mal)
+                    .sort_values("malignant_frac", ascending=False))
+        by_donor.to_csv(args.output_dir / "lowsignal_by_donor.csv")
+        pivot = (dfd.groupby(["donor", "region"])["mal_sig"].apply(frac_mal)
+                 .unstack().reindex(index=by_donor.index))
+        pivot.to_csv(args.output_dir / "lowsignal_by_donor_region.csv")
+
+        lines.append(f"\nPER-DONOR Low_signal malignant fraction (> sig_thr {sig_thr:.3g}; "
+                     "patient-specificity — this varies hugely, so no single cohort number):")
+        for d, r in by_donor.iterrows():
+            lines.append(f"  donor {d:<8} malignant_frac={r['malignant_frac']:.1%}  "
+                         f"median={r['median']:+.3f}  (n={int(r['n']):,})")
+        (args.output_dir / "SUMMARY.txt").write_text("\n".join(lines) + "\n")
+
+        cols = [c for c in (TUMOR_BULK, INFILTRATING_EDGE, CONTRALATERAL) if c in pivot.columns]
+        Hm = pivot[cols].to_numpy(dtype=float)
+        fig, ax = plt.subplots(figsize=(6, max(4, 0.36 * len(by_donor) + 1.5)))
+        im = ax.imshow(Hm, aspect="auto", cmap="magma", vmin=0, vmax=1)
+        ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=20, fontsize=8)
+        ax.set_yticks(range(len(by_donor))); ax.set_yticklabels(by_donor.index, fontsize=8)
+        for i in range(Hm.shape[0]):
+            for j in range(Hm.shape[1]):
+                if np.isfinite(Hm[i, j]):
+                    ax.text(j, i, f"{Hm[i, j]:.0%}", ha="center", va="center", fontsize=7,
+                            color="white" if Hm[i, j] < 0.6 else "black")
+        ax.set_ylabel("donor (sorted by overall Low_signal malignant fraction)")
+        ax.set_title("Low_signal malignant fraction by donor x region")
+        fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="malignant fraction")
+        fig.tight_layout()
+        fig.savefig(args.output_dir / "lowsignal_by_donor.png", dpi=180, bbox_inches="tight")
+        plt.close(fig)
+    else:
+        (args.output_dir / "SUMMARY.txt").write_text("\n".join(lines) + "\n")
+
     print("\n" + "\n".join(lines))
     print(f"\nWrote tables + plots + SUMMARY.txt to {args.output_dir}")
 
