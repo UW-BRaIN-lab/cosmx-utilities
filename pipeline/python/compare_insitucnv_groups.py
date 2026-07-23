@@ -53,6 +53,8 @@ DEFAULT_MALIGNANT = [
     "Hypoxia_denovo", "MES_AClike_denovo", "MESlike_denovo", "OPClike_denovo", "Stress_denovo",
 ]
 CONTRALATERAL = "Contralateral uninvolved"  # obs['Region'] value marking uninvolved brain
+TUMOR_BULK = "Tumor bulk"
+INFILTRATING_EDGE = "Infiltrating edge"
 
 
 def parse_args() -> argparse.Namespace:
@@ -304,6 +306,38 @@ def main() -> None:
     fig.savefig(args.output_dir / "cnv_score.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
 
+    # within-region signature: reference vs Low_signal vs malignant, per region. Both
+    # reference and Low_signal cells here are equally exposed to the tissue field effect, so
+    # Low_signal sitting ABOVE reference within a tumour region is tumour-specific signal.
+    if sig_summary is not None:
+        cls_arr = obs["class"].to_numpy()
+        is_ls = ct == args.lowsignal_label
+        sig_all = obs["mal_sig"].to_numpy()
+        panel = [(CONTRALATERAL, "contralateral"), (INFILTRATING_EDGE, "infiltrating edge"),
+                 (TUMOR_BULK, "tumor bulk")]
+        fig, axes = plt.subplots(1, len(panel), figsize=(4 * len(panel), 5), sharey=True)
+        for ax, (r, title) in zip(np.atleast_1d(axes), panel):
+            in_r = region == r
+            groups_pc = [("reference", cls_arr == "reference"), ("Low_signal", is_ls),
+                         ("malignant", cls_arr == "malignant")]
+            data = []
+            for _, m in groups_pc:
+                v = sig_all[in_r & m]
+                v = v[np.isfinite(v)]
+                data.append(v if v.size else np.array([np.nan]))
+            bp = ax.boxplot(data, showfliers=False, patch_artist=True,
+                            medianprops=dict(color="black"))
+            for box, col in zip(bp["boxes"], ["#2c7fb8", "#d95f0e", "#c51b8a"]):
+                box.set_facecolor(col)
+            ax.set_xticklabels([g for g, _ in groups_pc], fontsize=8, rotation=20)
+            ax.set_title(title, fontsize=10)
+        np.atleast_1d(axes)[0].set_ylabel("malignant-signature (cosine)")
+        fig.suptitle("Within-region signature: Low_signal vs reference vs malignant "
+                     "(field-effect control)")
+        fig.tight_layout()
+        fig.savefig(args.output_dir / "within_region_signature.png", dpi=180, bbox_inches="tight")
+        plt.close(fig)
+
     # ============================== VERDICT ========================================
     lines = []
     lines.append(f"InSituCNV group comparison — {X.shape[0]:,} cells, {len(order)} groups "
@@ -328,6 +362,47 @@ def main() -> None:
             fa = sig_summary.loc[g, "frac_above"] if g in sig_summary.index else float("nan")
             md = sig_summary.loc[g, "median"] if g in sig_summary.index else float("nan")
             lines.append(f"    {g:<34} sig-high={fa:.1%}  median={md:+.3f}  (n={int(counts[g]):,})")
+        lines.append("")
+
+        # WITHIN-REGION contrast: Low_signal vs REFERENCE in the SAME region. Both are equally
+        # exposed to the tissue field effect (ambient tumour RNA bleeding into reference cells
+        # inside the tumour), so the fraction of Low_signal above the SAME-region reference
+        # 95th pct is a FIELD-CORRECTED malignant estimate; malignant-in-region is the ceiling.
+        cls_arr = obs["class"].to_numpy()
+        sig_arr = obs["mal_sig"].to_numpy()
+        is_ls = ct == args.lowsignal_label
+        wr_rows = []
+        for r in (TUMOR_BULK, INFILTRATING_EDGE, CONTRALATERAL):
+            in_r = region == r
+            ref_r = sig_arr[in_r & (cls_arr == "reference")]
+            ls_r = sig_arr[in_r & is_ls]
+            mal_r = sig_arr[in_r & (cls_arr == "malignant")]
+            ref_r, ls_r, mal_r = (v[np.isfinite(v)] for v in (ref_r, ls_r, mal_r))
+            if not ref_r.size or not ls_r.size:
+                continue
+            thr_r = float(np.percentile(ref_r, 95))
+            wr_rows.append(dict(
+                region=r, n_ref=int(ref_r.size), n_lowsignal=int(ls_r.size),
+                n_malignant=int(mal_r.size),
+                ref_median=float(np.median(ref_r)), lowsignal_median=float(np.median(ls_r)),
+                malignant_median=float(np.median(mal_r)) if mal_r.size else float("nan"),
+                same_region_thr=thr_r,
+                lowsignal_above_ref=float(np.mean(ls_r > thr_r)),
+                malignant_above_ref=float(np.mean(mal_r > thr_r)) if mal_r.size else float("nan")))
+        if wr_rows:
+            pd.DataFrame(wr_rows).to_csv(args.output_dir / "within_region_contrast.csv",
+                                         index=False)
+            lines.append("  WITHIN-REGION contrast — Low_signal vs REFERENCE in the SAME region "
+                         "(field-effect control; above-ref = fraction over the same-region "
+                         "reference 95th pct):")
+            for x in wr_rows:
+                lines.append(
+                    f"    {x['region']:<26} ref_med={x['ref_median']:+.3f}  "
+                    f"LS_med={x['lowsignal_median']:+.3f}  mal_med={x['malignant_median']:+.3f}"
+                    f"  | LS above-ref={x['lowsignal_above_ref']:.1%}  "
+                    f"mal above-ref={x['malignant_above_ref']:.1%}")
+            lines.append("    (LS above-ref >> 5% => tumour-region Low_signal is malignant "
+                         "BEYOND the field effect; mal above-ref = positive-control ceiling.)")
         lines.append("")
 
     # SECONDARY: chromosome-arm means (losses are the detectable GBM signal on this panel).
