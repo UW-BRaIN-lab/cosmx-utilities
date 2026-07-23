@@ -58,13 +58,21 @@ export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 echo "Staging per-section CNV results from Kopah (${STAGE5}/persection)..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/persection/*" "$WORK/persection/"
 
+# Optional: an additional per-donor heatmap at a chosen malignant cutoff (e.g. the bimodal
+# trough ~0.45), written to *_thr<val> files alongside the strict version (not overwriting it).
+DONOR_THR_ARGS=()
+if [[ -n "${DONOR_THRESHOLD:-}" ]]; then
+    DONOR_THR_ARGS=(--donor-threshold "${DONOR_THRESHOLD}")
+fi
+
 apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/compare_insitucnv_groups.py" \
         --cnv-dir "$WORK/persection" \
         --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
         --output-dir "$WORK/out" \
-        --min-cells "${MIN_CELLS:-200}"
+        --min-cells "${MIN_CELLS:-200}" \
+        "${DONOR_THR_ARGS[@]+"${DONOR_THR_ARGS[@]}"}"
 
 echo "Uploading comparison tables + plots to Kopah (${STAGE5}/compare)..."
 s5cmd cp "$WORK/out/*" "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/compare/"
