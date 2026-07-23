@@ -126,10 +126,14 @@ def main() -> None:
         edge_wins += int(win)
         lines.append(f"  {str(b):<26} {bb.median():>9.3f} {len(bb):>9,} "
                      f"{ee.median():>9.3f} {len(ee):>9,}  {'YES' if win else 'no'}")
-    verdict = ("edge > bulk at EVERY matched depth bin -> the gap is BIOLOGICAL, not a "
-               "depth artifact." if edge_wins == len([b for b in bins]) else
-               f"edge > bulk in {edge_wins}/{len(bins)} depth bins -> partly depth-driven; "
-               "inspect the bins where bulk catches up.")
+    if edge_wins == len(bins):
+        verdict = ("depth RULED OUT — edge > bulk holds at every matched depth bin, so the "
+                   "difference is not degraded-RNA. BUT these bins are POOLED across donors "
+                   "(Simpson's risk); check the per-donor table below before calling it "
+                   "biological — a few high-signature, edge-heavy donors can drive a pooled gap.")
+    else:
+        verdict = (f"edge > bulk in {edge_wins}/{len(bins)} pooled depth bins — partly "
+                   "depth-driven; inspect the bins where bulk catches up.")
     lines.append(f"  => {verdict}")
 
     # ---- per-donor consistency -------------------------------------------------------
