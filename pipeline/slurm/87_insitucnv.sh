@@ -75,11 +75,26 @@ echo "Array task ${SLURM_ARRAY_TASK_ID}/${N_SECTIONS}: section '${SECTION}'"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections/${SECTION}.h5ad" \
     "$WORK/section.h5ad"
 
+# Use the pooled global diploid reference if 86b built one (avoids per-section reference
+# contamination in tumor-bulk sections). Falls back to the per-section reference_cat path
+# if no vector is present. Set REFERENCE_VECTOR=none to force the fallback.
+REFVEC_ARGS=()
+REFVEC_BASENAME="${REFERENCE_VECTOR:-reference_vector.csv}"
+if [[ "$REFVEC_BASENAME" != "none" ]] && \
+   s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/${REFVEC_BASENAME}" \
+       "$WORK/reference_vector.csv" 2>/dev/null; then
+    REFVEC_ARGS=(--reference-vector "$WORK/reference_vector.csv")
+    echo "Using global diploid reference ${REFVEC_BASENAME}."
+else
+    echo "No global reference vector; using per-section reference_cat."
+fi
+
 apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/run_insitucnv.py" \
         --input "$WORK/section.h5ad" \
         --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
+        "${REFVEC_ARGS[@]+"${REFVEC_ARGS[@]}"}" \
         --output "$WORK/${SECTION}_cnv.h5ad" \
         --n-neighbors "${N_NEIGHBORS:-100}" \
         --window-size "${WINDOW_SIZE:-200}" \
