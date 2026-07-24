@@ -374,6 +374,53 @@ def main() -> None:
         fig.savefig(args.output_dir / "within_region_signature.png", dpi=180, bbox_inches="tight")
         plt.close(fig)
 
+    # Low_signal CNV resolution by region: splits each region into typed / Low_signal-CNV-
+    # normal / Low_signal-CNV-malignant — layers the malignant call onto the region typing so
+    # you see how much of each region is transcriptionally-flat-but-CNV-malignant tumor.
+    if sig_summary is not None:
+        r_order = [r for r in (CONTRALATERAL, INFILTRATING_EDGE, TUMOR_BULK) if r in set(region)]
+        is_ls = ct == args.lowsignal_label
+        sig_all = obs["mal_sig"].to_numpy()
+
+        def region_cnv_breakdown(thr, suffix):
+            rows = []
+            for r in r_order:
+                in_r = region == r
+                n_tot = int(in_r.sum())
+                ls_r = in_r & is_ls
+                sig_r = sig_all[ls_r]
+                sig_r = sig_r[np.isfinite(sig_r)]
+                n_ls, n_mal = int(ls_r.sum()), int((sig_r > thr).sum())
+                rows.append(dict(region=r, total=n_tot, typed=n_tot - n_ls,
+                                 ls_normal=n_ls - n_mal, ls_malignant=n_mal,
+                                 malignant_pct_of_region=(n_mal / n_tot if n_tot else 0.0),
+                                 malignant_pct_of_lowsignal=(n_mal / n_ls if n_ls else 0.0)))
+            rcn = pd.DataFrame(rows)
+            rcn.to_csv(args.output_dir / f"lowsignal_cnv_by_region{suffix}.csv", index=False)
+            fig, ax = plt.subplots(figsize=(7, 5))
+            x = np.arange(len(r_order))
+            typed, lsn, lsm = (rcn[c].to_numpy() for c in ("typed", "ls_normal", "ls_malignant"))
+            ax.bar(x, typed, color="#bdbdbd", label="typed")
+            ax.bar(x, lsn, bottom=typed, color="#4575b4", label="Low_signal · CNV-normal")
+            ax.bar(x, lsm, bottom=typed + lsn, color="#d73027",
+                   label="Low_signal · CNV-malignant")
+            for i in range(len(r_order)):
+                ax.text(i, rcn["total"][i], f"{rcn['malignant_pct_of_region'][i]:.0%} malig\n"
+                        f"({int(lsm[i]):,})", ha="center", va="bottom", fontsize=8)
+            ax.set_xticks(x); ax.set_xticklabels(r_order, rotation=15, fontsize=9)
+            ax.set_ylabel("cells"); ax.legend(loc="upper left")
+            ax.set_ylim(top=rcn["total"].max() * 1.18)
+            ax.set_title(f"Low_signal CNV resolution by region (malig thr {thr:.3g})")
+            fig.tight_layout()
+            fig.savefig(args.output_dir / f"lowsignal_cnv_by_region{suffix}.png", dpi=180,
+                        bbox_inches="tight")
+            plt.close(fig)
+
+        if r_order:
+            region_cnv_breakdown(sig_thr, "")           # strict / conservative call
+            if args.donor_threshold is not None:        # sensitive (e.g. bimodal trough)
+                region_cnv_breakdown(args.donor_threshold, f"_thr{args.donor_threshold:g}")
+
     # ============================== VERDICT ========================================
     lines = []
     lines.append(f"InSituCNV group comparison — {X.shape[0]:,} cells, {len(order)} groups "
