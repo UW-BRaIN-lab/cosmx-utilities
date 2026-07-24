@@ -1,0 +1,32 @@
+# IMMUNE-FREE diploid reference — sensitivity analysis for Stage-5 InSituCNV.
+#
+# Same conservative diploid reference as insitucnv_reference_types.txt, but with ALL immune
+# cell types removed (myeloid: TAM/Mono/DC/Mast/pDC; lymphoid: T/B/NK/Plasma). Motivation:
+# a reviewer/PI concern that tumor-associated immune cells might carry (or appear to carry)
+# CNV in GBM and so bias the baseline. This drops them entirely, keeping only non-immune,
+# non-neoplastic lineages, and is meant to be run ALONGSIDE the primary (immune-inclusive)
+# reference to show the result is robust to the choice — NOT as the default.
+#
+# Note the reference is sourced from CONTRALATERAL-uninvolved tissue regardless, where the
+# field effect is absent, so immune cells there are already flat; this run tests robustness,
+# not a known bias. Oligodendrocyte alone contributes ~45k contralateral cells, so cell
+# counts remain ample. Names must match obs['cell_type'] exactly.
+
+# --- Oligodendrocyte lineage (mature; classic diploid GBM reference) ---
+Oligodendrocyte
+
+# --- Neuron ---
+Neuron
+
+# --- Vascular / stroma (endothelial, mural, fibroblast) ---
+Endo_arterial
+Endo_capilar
+Scavenging_endothelial
+Tip-like
+Pericyte
+Scavenging_pericyte
+SMC
+SMC_COL
+SMC_prolif
+Perivascular_fibroblast
+VLMC

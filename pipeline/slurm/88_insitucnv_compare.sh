@@ -45,6 +45,8 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE5="${STAGE5_DIR:-stage5_insitucnv}"
+# Which diploid reference type list to use for classification (default = immune-inclusive).
+REF_TYPES="${REF_TYPES_BASENAME:-insitucnv_reference_types.txt}"
 : "${APPTAINER_INSITUCNV:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_insitucnv_compare_${SLURM_JOB_ID:-local}"
@@ -69,7 +71,7 @@ apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}"
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/compare_insitucnv_groups.py" \
         --cnv-dir "$WORK/persection" \
-        --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
+        --reference-file "${PIPELINE_DIR}/reference/${REF_TYPES}" \
         --output-dir "$WORK/out" \
         --min-cells "${MIN_CELLS:-200}" \
         "${DONOR_THR_ARGS[@]+"${DONOR_THR_ARGS[@]}"}"
