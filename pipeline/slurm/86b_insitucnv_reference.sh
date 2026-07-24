@@ -45,6 +45,11 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE5="${STAGE5_DIR:-stage5_insitucnv}"
+# Read the per-section inputs from here (defaults to STAGE5); lets a variant run (e.g. an
+# immune-free reference into a separate STAGE5_DIR) reuse the primary run's sections.
+SECTIONS="${SECTIONS_DIR:-$STAGE5}"
+# Which diploid reference type list to use (default = immune-inclusive).
+REF_TYPES="${REF_TYPES_BASENAME:-insitucnv_reference_types.txt}"
 : "${APPTAINER_INSITUCNV:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_insitucnv_ref_${SLURM_JOB_ID:-local}"
@@ -57,14 +62,14 @@ export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
-echo "Staging section inputs from Kopah (${STAGE5}/sections)..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections/*" "$WORK/sections/"
+echo "Staging section inputs from Kopah (${SECTIONS}/sections)..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${SECTIONS}/sections/*" "$WORK/sections/"
 
 apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/build_insitucnv_reference.py" \
         --sections-dir "$WORK/sections" \
-        --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
+        --reference-file "${PIPELINE_DIR}/reference/${REF_TYPES}" \
         --output "$WORK/reference_vector.csv" \
         --n-neighbors "${N_NEIGHBORS:-20}"
 

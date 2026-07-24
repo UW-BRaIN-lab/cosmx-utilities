@@ -49,6 +49,11 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE5="${STAGE5_DIR:-stage5_insitucnv}"
+# Read per-section inputs + sections.txt from here (defaults to STAGE5); a variant run
+# reuses the primary run's sections while writing results to its own STAGE5_DIR.
+SECTIONS="${SECTIONS_DIR:-$STAGE5}"
+# Which diploid reference type list to use (default = immune-inclusive).
+REF_TYPES="${REF_TYPES_BASENAME:-insitucnv_reference_types.txt}"
 : "${APPTAINER_INSITUCNV:?must be set in pipeline/.env}"
 : "${SLURM_ARRAY_TASK_ID:?run this as a Slurm array job (see header)}"
 
@@ -63,7 +68,7 @@ export OPENBLAS_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
 # Map this array index -> a section id from the prep manifest.
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections.txt" "$WORK/sections.txt"
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${SECTIONS}/sections.txt" "$WORK/sections.txt"
 N_SECTIONS=$(wc -l < "$WORK/sections.txt")
 if (( SLURM_ARRAY_TASK_ID >= N_SECTIONS )); then
     echo "Array index ${SLURM_ARRAY_TASK_ID} >= ${N_SECTIONS} sections; nothing to do."
@@ -72,7 +77,7 @@ fi
 SECTION=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "$WORK/sections.txt")
 echo "Array task ${SLURM_ARRAY_TASK_ID}/${N_SECTIONS}: section '${SECTION}'"
 
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/sections/${SECTION}.h5ad" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${SECTIONS}/sections/${SECTION}.h5ad" \
     "$WORK/section.h5ad"
 
 # Use the pooled global diploid reference if 86b built one (avoids per-section reference
@@ -93,7 +98,7 @@ apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}"
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/run_insitucnv.py" \
         --input "$WORK/section.h5ad" \
-        --reference-file "${PIPELINE_DIR}/reference/insitucnv_reference_types.txt" \
+        --reference-file "${PIPELINE_DIR}/reference/${REF_TYPES}" \
         "${REFVEC_ARGS[@]+"${REFVEC_ARGS[@]}"}" \
         --output "$WORK/${SECTION}_cnv.h5ad" \
         --n-neighbors "${N_NEIGHBORS:-100}" \
