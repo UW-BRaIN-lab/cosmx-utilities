@@ -310,6 +310,38 @@ def main() -> None:
     fig.savefig(args.output_dir / "cnv_score.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
 
+    # Low_signal rate + magnitude by region (typing-level; where the flat fraction comes
+    # from). Bar height = total cells in the region, split typed vs Low_signal.
+    region_order = [r for r in (CONTRALATERAL, INFILTRATING_EDGE, TUMOR_BULK) if r in set(region)]
+    if region_order and args.lowsignal_label in set(ct):
+        is_ls_all = ct == args.lowsignal_label
+        rc = pd.DataFrame({
+            "region": region_order,
+            "total_cells": [int((region == r).sum()) for r in region_order],
+            "low_signal": [int((is_ls_all & (region == r)).sum()) for r in region_order],
+        })
+        rc["typed"] = rc["total_cells"] - rc["low_signal"]
+        rc["ls_rate"] = rc["low_signal"] / rc["total_cells"]
+        tot_ls = int(rc["low_signal"].sum())
+        rc["pct_of_all_lowsignal"] = rc["low_signal"] / tot_ls if tot_ls else 0.0
+        rc.to_csv(args.output_dir / "lowsignal_by_region.csv", index=False)
+
+        fig, ax = plt.subplots(figsize=(7, 5))
+        x = np.arange(len(region_order))
+        ax.bar(x, rc["typed"], color="#bdbdbd", label="typed")
+        ax.bar(x, rc["low_signal"], bottom=rc["typed"], color="#d95f0e", label="Low_signal")
+        for i in range(len(region_order)):
+            ax.text(i, rc["total_cells"][i], f"{rc['ls_rate'][i]:.0%} LS\n"
+                    f"({int(rc['low_signal'][i]):,} / {int(rc['pct_of_all_lowsignal'][i] * 100)}% of LS)",
+                    ha="center", va="bottom", fontsize=8)
+        ax.set_xticks(x); ax.set_xticklabels(region_order, rotation=15, fontsize=9)
+        ax.set_ylabel("cells"); ax.legend(loc="upper left")
+        ax.set_ylim(top=rc["total_cells"].max() * 1.18)
+        ax.set_title("Low_signal rate & magnitude by region")
+        fig.tight_layout()
+        fig.savefig(args.output_dir / "lowsignal_by_region.png", dpi=180, bbox_inches="tight")
+        plt.close(fig)
+
     # within-region signature: reference vs Low_signal vs malignant, per region. Both
     # reference and Low_signal cells here are equally exposed to the tissue field effect, so
     # Low_signal sitting ABOVE reference within a tumour region is tumour-specific signal.
