@@ -35,7 +35,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from compare_insitucnv_groups import CONTRALATERAL, DEFAULT_MALIGNANT, load_concat
+from compare_insitucnv_groups import (
+    CONTRALATERAL, DEFAULT_MALIGNANT, load_concat, malignant_signature)
 
 BULK, EDGE = "Tumor bulk", "Infiltrating edge"
 DEPTH_CANDIDATES = ["total_counts", "nCount_RNA", "nCount", "qc_gene_counts"]
@@ -58,22 +59,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def malignant_signature(X, obs, malignant_types, celltype_key):
-    """Per-cell cosine to the mean CNV profile of the confidently-malignant cells."""
-    mal = np.flatnonzero(obs[celltype_key].astype(str).isin(malignant_types).to_numpy())
-    if not mal.size:
-        sys.exit("ERROR: no malignant-class cells to build the consensus.")
-    centroid = np.asarray(X[mal].mean(axis=0)).ravel()
-    cnorm = float(np.linalg.norm(centroid))
-    if cnorm == 0:
-        sys.exit("ERROR: malignant centroid is all-zero.")
-    unit = centroid / cnorm
-    dots = np.asarray(X @ unit).ravel()
-    rn = np.sqrt(np.asarray(X.multiply(X).sum(axis=1)).ravel())
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return np.where(rn > 0, dots / rn, 0.0)
-
-
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -82,7 +67,10 @@ def main() -> None:
     X, obs, _ = load_concat(args.cnv_dir, args.celltype_key, args.region_key)
     if not sp.issparse(X):
         X = sp.csr_matrix(X)
-    obs["mal_sig"] = malignant_signature(X, obs, malignant_types, args.celltype_key)
+    sig = malignant_signature(X, obs, malignant_types, args.celltype_key)
+    if sig is None:
+        sys.exit("ERROR: no usable malignant consensus (no malignant cells or zero centroid).")
+    obs["mal_sig"] = sig
 
     # join per-cell RNA depth from the typed cohort (obs-only, backed)
     tobs = ad.read_h5ad(args.typed_h5ad, backed="r").obs

@@ -86,8 +86,34 @@ def read_reference_types(path: Path) -> list[str]:
             if ln.split("#", 1)[0].strip()]
 
 
-def load_concat(cnv_dir: Path, celltype_key: str, region_key: str):
-    """Concatenate per-section CNV results into arrays (no full AnnData needed downstream)."""
+def malignant_signature(X, obs, malignant_types, celltype_key="cell_type"):
+    """Per-cell cosine similarity to the mean CNV profile of the confidently-malignant
+    cells (the directional chr-loss discriminator; expression-based CNV on a targeted panel
+    detects losses far better than gains, and the non-directional L2 burden barely separates
+    tumour from normal). Returns a float array aligned to X's rows, or ``None`` when there is
+    no usable malignant consensus (no malignant cells, or an all-zero centroid)."""
+    mal = np.flatnonzero(obs[celltype_key].astype(str).isin(malignant_types).to_numpy())
+    if not mal.size:
+        return None
+    centroid = np.asarray(X[mal].mean(axis=0)).ravel()
+    cnorm = float(np.linalg.norm(centroid))
+    if cnorm == 0:
+        return None
+    unit = centroid / cnorm
+    dots = np.asarray(X @ unit).ravel()
+    xsq = X.multiply(X) if hasattr(X, "multiply") else np.square(X)
+    rn = np.sqrt(np.asarray(xsq.sum(axis=1)).ravel())
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(rn > 0, dots / rn, 0.0)
+
+
+def load_concat(cnv_dir: Path, celltype_key: str, region_key: str, with_spatial: bool = False):
+    """Concatenate per-section CNV results into arrays (no full AnnData needed downstream).
+
+    Carries the small set of obs columns downstream code needs (typing/region/donor/block/
+    slide + cnv_score + tissue_section). When ``with_spatial`` and the section h5ads have
+    ``obsm['spatial']``, the per-cell centroid is added to obs as ``spatial_x``/``spatial_y``
+    (per-slide global-px, so only meaningful WITHIN a tissue_section)."""
     files = sorted(cnv_dir.glob("*_cnv.h5ad"))
     if not files:
         sys.exit(f"ERROR: no *_cnv.h5ad in {cnv_dir}")
@@ -108,8 +134,13 @@ def load_concat(cnv_dir: Path, celltype_key: str, region_key: str):
             continue
         xs.append(x)
         cols = {c: a.obs[c].astype(str).to_numpy() for c in
-                (celltype_key, region_key, "cnv_score", "tissue_section") if c in a.obs}
-        obs_parts.append(pd.DataFrame(cols, index=a.obs.index))
+                (celltype_key, region_key, "cnv_score", "tissue_section",
+                 "Case", "Block", "slide_id") if c in a.obs}
+        part = pd.DataFrame(cols, index=a.obs.index)
+        if with_spatial and "spatial" in a.obsm:
+            xy = np.asarray(a.obsm["spatial"], dtype=np.float64)
+            part["spatial_x"], part["spatial_y"] = xy[:, 0], xy[:, 1]
+        obs_parts.append(part)
         print(f"  {f.name}: {a.n_obs:,} cells")
     if not xs:
         sys.exit("ERROR: no usable CNV sections.")
@@ -250,14 +281,9 @@ def main() -> None:
     mal_rows = np.flatnonzero((obs["class"] == "malignant").to_numpy())
     sig_thr, sig_summary = float("nan"), None
     if mal_rows.size:
-        centroid = np.asarray(X[mal_rows].mean(axis=0)).ravel()
-        cnorm = float(np.linalg.norm(centroid))
-        if cnorm > 0:
-            unit = centroid / cnorm
-            dots = np.asarray(X @ unit).ravel()
-            rn = np.sqrt(np.asarray(X.multiply(X).sum(axis=1)).ravel())
-            with np.errstate(divide="ignore", invalid="ignore"):
-                obs["mal_sig"] = np.where(rn > 0, dots / rn, 0.0)
+        sig = malignant_signature(X, obs, malignant_types, args.celltype_key)
+        if sig is not None:
+            obs["mal_sig"] = sig
             neg_sig = obs.loc[neg_mask, "mal_sig"].dropna()
             sig_thr = float(np.percentile(neg_sig, 95)) if len(neg_sig) else float("nan")
             sig_summary = obs.groupby("group", observed=True)["mal_sig"].agg(
