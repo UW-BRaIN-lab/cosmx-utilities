@@ -421,6 +421,52 @@ def main() -> None:
             if args.donor_threshold is not None:        # sensitive (e.g. bimodal trough)
                 region_cnv_breakdown(args.donor_threshold, f"_thr{args.donor_threshold:g}")
 
+    # Field-effect check: median malignant-signature of each REFERENCE (non-malignant) cell
+    # type, split by region. Real CNV is a genotype property and can't depend on location; a
+    # field effect (ambient tumour RNA pulled in by spatial smoothing) does. So a reference
+    # type elevated in tumour regions but FLAT in contralateral proves its apparent CNV is
+    # neighbourhood contamination, not copy number — the direct rebuttal to "normal cells
+    # show CNV". Quiescent, dispersed normals stay flat everywhere; tumour-resident TME
+    # subsets (SMC_prolif, Mono_hypoxia, TAM-hypoxia, Tip-like) light up only in tumour.
+    if sig_summary is not None:
+        sig_all = obs["mal_sig"].to_numpy()
+        rcols = [r for r in (CONTRALATERAL, INFILTRATING_EDGE, TUMOR_BULK) if r in set(region)]
+        rows = []
+        for t in sorted(reference_types):
+            mt = ct == t
+            if int(mt.sum()) < args.min_cells:
+                continue
+            rec = {"cell_type": t}
+            for r in rcols:
+                v = sig_all[mt & (region == r)]
+                v = v[np.isfinite(v)]
+                rec[r] = float(np.median(v)) if v.size >= 50 else np.nan
+                rec[f"n_{r}"] = int(v.size)
+            rows.append(rec)
+        if rows:
+            nb = pd.DataFrame(rows)
+            nb["_srt"] = nb[[c for c in (INFILTRATING_EDGE, TUMOR_BULK) if c in nb]].max(axis=1)
+            nb = nb.sort_values("_srt", ascending=False).drop(columns="_srt")
+            nb.to_csv(args.output_dir / "normal_types_by_region.csv", index=False)
+            H = nb[rcols].to_numpy(dtype=float)
+            fig, ax = plt.subplots(figsize=(6.5, max(4, 0.34 * len(nb) + 1.5)))
+            im = ax.imshow(H, aspect="auto", cmap="Reds", vmin=0, vmax=0.6)
+            ax.set_xticks(range(len(rcols))); ax.set_xticklabels(rcols, rotation=20, fontsize=8)
+            ax.set_yticks(range(len(nb))); ax.set_yticklabels(nb["cell_type"], fontsize=7)
+            for i in range(H.shape[0]):
+                for j in range(H.shape[1]):
+                    if np.isfinite(H[i, j]):
+                        ax.text(j, i, f"{H[i, j]:+.2f}", ha="center", va="center", fontsize=6,
+                                color="white" if H[i, j] > 0.35 else "black")
+            ax.set_title("Reference (non-malignant) cell types: malignant-signature by region\n"
+                         "(flat in contralateral, elevated only in tumor = field effect, not CNV)",
+                         fontsize=9)
+            fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="median malignant-signature")
+            fig.tight_layout()
+            fig.savefig(args.output_dir / "normal_types_by_region.png", dpi=180,
+                        bbox_inches="tight")
+            plt.close(fig)
+
     # ============================== VERDICT ========================================
     lines = []
     lines.append(f"InSituCNV group comparison — {X.shape[0]:,} cells, {len(order)} groups "
