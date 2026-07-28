@@ -3,7 +3,11 @@
 # concordance. CPU-only; runs in the InSituCNV SIF.
 #
 # Submit AFTER 94 (rescue_lowsignal.csv) and 91 (cell_cnv_table.csv.gz) have uploaded:
-#   sbatch pipeline/slurm/95_compare_rescue.sh
+#   sbatch --dependency=afterok:<94-jobid> pipeline/slurm/95_compare_rescue.sh
+# This is a short job, so the ckpt defaults below are fine. If 94 was moved to our dedicated
+# allocation, only the dependency changes; to run 95 there too, add:
+#   --account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1
+# (carrolllab is a collaborator's allocation — do not use it. See memory: hyak-allocations.)
 #
 # Env knobs (KOPAH_*, APPTAINER_INSITUCNV from pipeline/.env):
 #   STAGE5_DIR          stage-5 sub-dir (default stage5_insitucnv; reads rescue/ + diagnostics/)
