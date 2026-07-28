@@ -13,6 +13,9 @@ or other. Per-group CNV is noisy on a targeted panel, so the readout is aggregat
 own guidance): mean profiles, their cosine similarity, chromosome-arm summaries, and a
 per-cell cnv_score compared against control-derived expectations.
 
+Full methods — design choices, the malignant-signature metric, thresholds, field-effect
+controls, and limitations — are documented in pipeline/INSITUCNV_METHODS.md.
+
 Reads (--cnv-dir): all *_cnv.h5ad from run_insitucnv.py (shared X_cnv windows + uns['cnv']).
 Writes (--output-dir):
   group_mean_cnv.csv          groups x genomic windows (mean CNV)
