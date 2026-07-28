@@ -138,3 +138,18 @@ Neuronal_NLGN3,ARC
 Neuronal_NLGN3,SCN2A
 Neuronal_NLGN3,CACNA1A
 Neuronal_NLGN3,CACNA1E
+# NLGN3_synaptic: a TIGHT subset (deliberately overlaps Neuronal_NLGN3) for the targeted
+# neuron-to-glioma synaptic-integration axis (Venkatesh 2019 / Monje) — NLGN3 + the AMPA/NMDA/
+# metabotropic glutamate-receptor machinery a glioma cell expresses when it forms neuron-glioma
+# synapses. Used only as a coupling robustness check, so the hybrid negative is not written off
+# as dilution by the broad 49-gene module.
+NLGN3_synaptic,NLGN3
+NLGN3_synaptic,GRIA1
+NLGN3_synaptic,GRIA2
+NLGN3_synaptic,GRIA3
+NLGN3_synaptic,GRIA4
+NLGN3_synaptic,GRIN1
+NLGN3_synaptic,GRIN2A
+NLGN3_synaptic,GRIN2B
+NLGN3_synaptic,GRM3
+NLGN3_synaptic,DLG4

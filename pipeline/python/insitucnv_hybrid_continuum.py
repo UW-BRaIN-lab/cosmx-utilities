@@ -67,6 +67,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--malignant-groups", default=",".join(DEFAULT_MALIGNANT))
     p.add_argument("--lowsignal-label", default="Low_signal")
     p.add_argument("--neuronal-module", default="Neuronal_NLGN3")
+    p.add_argument("--targeted-module", default="NLGN3_synaptic",
+                   help="Tight synaptic-integration subset re-tested for coupling as a "
+                        "robustness check (so a negative is not broad-module dilution). "
+                        "Set to '' to skip.")
     p.add_argument("--neuron-type", default="Neuron",
                    help="Profile/cell_type name of mature neurons (for the spatial null).")
     p.add_argument("--k-neighbors", type=int, default=30)
@@ -242,6 +246,29 @@ def main() -> None:
         hybrid_top = ws["toptwo_class"] == "hybrid_neuronal"
         lines.append(f"  (top-two 'hybrid_neuronal' candidates: {int(hybrid_top.sum()):,} cells — "
                      "the discrete cross-compartment count.)")
+
+        # targeted robustness check: re-test coupling on the tight synaptic-integration receptor
+        # subset alone, so a broad-module negative can't be dismissed as gene-set dilution.
+        targeted_col = f"score_{args.targeted_module}"
+        if args.targeted_module and targeted_col in ws.columns:
+            tmod = ws[targeted_col]
+            t_thr = float(np.nanpercentile(df[targeted_col], args.score_percentile))
+            tvalid = mal_score.notna() & tmod.notna()
+            t_rho = float(spearmanr(mal_score[tvalid], tmod[tvalid]).statistic) \
+                if tvalid.sum() else float("nan")
+            t_obs = float(((mal_score > mal_hi_thr) & (tmod > t_thr)).mean())
+            t_exp = float((mal_score > mal_hi_thr).mean()) * float((tmod > t_thr).mean())
+            t_enr = t_obs / t_exp if t_exp > 0 else float("nan")
+            t_coupled = np.isfinite(t_rho) and t_rho > 0.10 and np.isfinite(t_enr) and t_enr > 1.5
+            coupled = coupled or t_coupled
+            lines.append(f"  TARGETED {args.targeted_module} axis (NLGN3 + AMPA/NMDA/mGluR "
+                         f"receptors only): rho={t_rho:+.3f}, both-high {t_obs:.1%} vs "
+                         f"{t_exp:.1%} expected => {t_enr:.2f}x")
+            lines.append("    => " + ("POSITIVE — the narrow synaptic axis IS coupled to the "
+                                      "malignant program; pursue despite the broad-module null."
+                                      if t_coupled else
+                                      "also NO coupling — the hybrid negative is NOT a broad-module "
+                                      "dilution artifact."))
 
         fig, ax = plt.subplots(figsize=(6.5, 6))
         sub = ws.dropna(subset=["malignant_module_max", "neuronal_module"])
