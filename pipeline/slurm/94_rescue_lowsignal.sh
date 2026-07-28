@@ -5,6 +5,14 @@
 #
 #   sbatch pipeline/slurm/94_rescue_lowsignal.sh
 #
+# LONG / non-checkpointing run: the ckpt defaults in the #SBATCH block below are PREEMPTIBLE, and
+# this ~12 h InSituType job has no mid-run checkpoint — a preemption requeues it from scratch and
+# it can thrash. Run it on our dedicated, non-preemptible allocation instead (claims one idle
+# L40S so the gpu partition accepts the CPU-only job; the GPU goes unused):
+#   sbatch --account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1 \
+#       pipeline/slurm/94_rescue_lowsignal.sh
+# (carrolllab is a collaborator's allocation — do not use it. See memory: hyak-allocations.)
+#
 # Env knobs (KOPAH_*, APPTAINER_INSITUTYPE from pipeline/.env):
 #   INPUT_DIR          insitutype_input.h5 sub-dir (default stage4, shared).
 #   STAGE4_DIR         insitutree_result.h5 sub-dir (labels; default stage4_insitutree).
