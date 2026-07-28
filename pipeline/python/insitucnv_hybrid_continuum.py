@@ -47,6 +47,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
+from scipy.stats import spearmanr
 from sklearn.neighbors import NearestNeighbors
 
 from compare_insitucnv_groups import DEFAULT_MALIGNANT
@@ -205,6 +206,7 @@ def main() -> None:
     for k, v in struct.items():
         lines.append(f"  {k:<22} {v:>8,}  ({v / len(ws):.1%})")
 
+    coupled = False  # set True only if the malignant + neuronal modules are positively coupled
     have_scores = neuro_col in ws.columns and any(m in ws.columns for m in mal_modules)
     if have_scores:
         mal_score = ws[[m for m in mal_modules if m in ws.columns]].max(axis=1)
@@ -216,14 +218,30 @@ def main() -> None:
         ws["neuronal_module"] = neuro_score
         ws["coexpressing"] = (mal_score > mal_hi_thr) & (neuro_score > neuro_hi_thr)
         n_co = int(ws["coexpressing"].sum())
-        lines.append(f"\nCO-EXPRESSION (malignant module AND {args.neuronal_module} both above "
-                     f"cohort {args.score_percentile:g}th pct):")
-        lines.append(f"  co-expressing cells: {n_co:,} ({n_co / len(ws):.1%} of working set)")
+        # A raw both-high count is meaningless without a chance baseline: if the two programs
+        # are independent, P(both high) = P(mal high) x P(neuro high). A genuine hybrid program
+        # shows POSITIVE correlation and an enrichment >> 1 over that product; chance-level
+        # overlap (enrichment ~1, correlation ~0) is the null and means NO coupled program.
+        valid = mal_score.notna() & neuro_score.notna()
+        rho = float(spearmanr(mal_score[valid], neuro_score[valid]).statistic) if valid.sum() else float("nan")
+        p_mal = float((mal_score > mal_hi_thr).mean())
+        p_neuro = float((neuro_score > neuro_hi_thr).mean())
+        expected = p_mal * p_neuro
+        obs = n_co / len(ws)
+        enrichment = obs / expected if expected > 0 else float("nan")
+        lines.append(f"\nCO-EXPRESSION (malignant module AND {args.neuronal_module}):")
+        lines.append(f"  Spearman(malignant, neuronal) within the working set: rho = {rho:+.3f}")
+        lines.append(f"  both-high (> cohort {args.score_percentile:g}th pct): observed {obs:.1%} "
+                     f"vs {expected:.1%} expected if independent  =>  enrichment {enrichment:.2f}x")
+        coupled = np.isfinite(rho) and rho > 0.10 and np.isfinite(enrichment) and enrichment > 1.5
+        lines.append("  => " + ("POSITIVE coupling — a coordinated malignant+neuronal program "
+                                "worth pursuing as a hybrid state."
+                                if coupled else
+                                "NO coupling — the two programs are independent and the both-high "
+                                "cells are chance overlap, NOT a coordinated hybrid program."))
         hybrid_top = ws["toptwo_class"] == "hybrid_neuronal"
-        if hybrid_top.any():
-            conf = float((ws.loc[hybrid_top, "coexpressing"]).mean())
-            lines.append(f"  of the top-two 'hybrid_neuronal' candidates, {conf:.1%} also "
-                         "co-express by module score (confirmation rate).")
+        lines.append(f"  (top-two 'hybrid_neuronal' candidates: {int(hybrid_top.sum()):,} cells — "
+                     "the discrete cross-compartment count.)")
 
         fig, ax = plt.subplots(figsize=(6.5, 6))
         sub = ws.dropna(subset=["malignant_module_max", "neuronal_module"])
@@ -252,16 +270,27 @@ def main() -> None:
         cand = ws[(ws["toptwo_class"] == "hybrid_neuronal") | ws["coexpressing"]]
     lines.append("\nSPATIAL NULL (local neuron-neighbour density; spillover sits next to neurons):")
     if len(cand) and cand["local_neuron_density"].notna().any():
-        cand_med = float(cand["local_neuron_density"].median())
-        bg_med = float(mal_bg.median()) if len(mal_bg) else float("nan")
-        lines.append(f"  hybrid candidates median neuron-neighbour frac: {cand_med:.3f}")
-        lines.append(f"  malignant-cell background median:               {bg_med:.3f}")
-        lines.append("  => " + ("candidates are ENRICHED for neuron neighbours vs background — "
-                                "spillover cannot be excluded for much of the signal."
-                                if np.isfinite(bg_med) and cand_med > 2 * max(bg_med, 1e-3)
-                                else "candidates are NOT preferentially adjacent to neurons — "
-                                "the neuronal co-expression is spatially dispersed / "
-                                "cell-intrinsic, consistent with a real hybrid state."))
+        cand_any = float((cand["local_neuron_density"] > 0).mean())
+        bg_any = float((mal_bg > 0).mean()) if len(mal_bg) else float("nan")
+        cand_mean = float(cand["local_neuron_density"].mean())
+        bg_mean = float(mal_bg.mean()) if len(mal_bg) else float("nan")
+        lines.append(f"  candidates with ANY neuron neighbour: {cand_any:.1%} "
+                     f"(mean neuron-frac {cand_mean:.4f});  malignant background: {bg_any:.1%} "
+                     f"(mean {bg_mean:.4f})")
+        # the metric is only informative if a non-trivial share of cells actually HAVE neuron
+        # neighbours; neurons are spatially sparse in tumour, so this null is often degenerate.
+        if np.isfinite(bg_any) and max(cand_any, bg_any) < 0.15:
+            lines.append("  => DEGENERATE — neurons are too spatially sparse (almost no cell of "
+                         "either group has a neuron neighbour), so this null cannot discriminate "
+                         "spillover from dispersed. Not evidence either way; moot given no "
+                         "coherent hybrid population by top-two / coupling above.")
+        elif np.isfinite(bg_mean) and cand_mean > 2 * max(bg_mean, 1e-4):
+            lines.append("  => candidates are ENRICHED for neuron neighbours vs background — "
+                         "spillover cannot be excluded for much of the signal.")
+        else:
+            lines.append("  => candidates are NOT preferentially adjacent to neurons — the "
+                         "neuronal co-expression (where present) is spatially dispersed / "
+                         "cell-intrinsic rather than boundary spillover.")
         fig, ax = plt.subplots(figsize=(7, 5))
         bins = np.linspace(0, max(0.05, float(np.nanmax(
             np.r_[cand["local_neuron_density"].to_numpy(), mal_bg.to_numpy()]))), 40)
@@ -277,6 +306,24 @@ def main() -> None:
         plt.close(fig)
     else:
         lines.append("  no hybrid candidates / neuron-density unavailable; skipped.")
+
+    # ---- overall interpretation --------------------------------------------------------
+    frac = lambda k: struct.get(k, 0) / len(ws)
+    hybrid_frac = frac("hybrid_neuronal")
+    lines.append("\nINTERPRETATION (CNV-high Low_signal):")
+    lines.append(f"  continuum (adjacent malignant states):    {frac('continuum'):.1%}")
+    lines.append(f"  ambiguous / reference-limited (iterate):  {frac('ambiguous_iterate'):.1%}")
+    lines.append(f"  cross-compartment w/ non-neuronal TME:    {frac('cross_other'):.1%}")
+    lines.append(f"  malignant+neuronal HYBRID (top-two):      {hybrid_frac:.2%}")
+    if coupled or hybrid_frac >= 0.02:
+        lines.append("  => a malignant+neuronal HYBRID population is present and worth pursuing.")
+    else:
+        lines.append("  => malignant+neuronal HYBRID is NOT supported (near-zero by top-two AND "
+                     "no module coupling): the Low_signal malignant cells are a malignant "
+                     "continuum + a large reference-limited fraction, not neuron-hybrids.")
+    lines.append("  The large ambiguous/reference-limited share makes the Phase-3 rescue the "
+                 "decisive next test: does it collapse (still transfer-limited) or barely move "
+                 "(irreducible core)?")
 
     ws.to_csv(args.output_dir / "hybrid_continuum_cells.csv.gz", index=True)
     (args.output_dir / "HYBRID_SUMMARY.txt").write_text("\n".join(lines) + "\n")
