@@ -367,9 +367,24 @@ def main() -> None:
                 box.set_facecolor(col)
             ax.set_xticklabels([g for g, _ in groups_pc], fontsize=8, rotation=20)
             ax.set_title(title, fontsize=10)
+            # field-effect floor for THIS region = median reference (diploid) signature;
+            # a Low_signal cell only reads as tumour if it clears this floor, not just >0.
+            ref_v = sig_all[in_r & (cls_arr == "reference")]
+            ref_v = ref_v[np.isfinite(ref_v)]
+            if ref_v.size:
+                ax.axhline(float(np.median(ref_v)), color="#2c7fb8", ls=":", lw=1.6,
+                           label="field-effect floor (ref median)")
+            # malignant call threshold(s): strict (sig_thr) + optional sensitive (trough)
+            ax.axhline(sig_thr, color="#c51b8a", ls="--", lw=1.1,
+                       label=f"malignant thr {sig_thr:.2f}")
+            if args.donor_threshold is not None:
+                ax.axhline(args.donor_threshold, color="#d95f0e", ls="--", lw=1.1,
+                           label=f"sensitive thr {args.donor_threshold:.2f}")
         np.atleast_1d(axes)[0].set_ylabel("malignant-signature (cosine)")
-        fig.suptitle("Within-region signature: Low_signal vs reference vs malignant "
-                     "(field-effect control)")
+        np.atleast_1d(axes)[-1].legend(fontsize=7, loc="upper right")
+        fig.suptitle("Within-region signature vs field-effect floor & malignant threshold\n"
+                     "(Low_signal is tumour only where it clears the region's reference floor)",
+                     fontsize=10)
         fig.tight_layout()
         fig.savefig(args.output_dir / "within_region_signature.png", dpi=180, bbox_inches="tight")
         plt.close(fig)
