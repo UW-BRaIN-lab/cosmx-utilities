@@ -56,21 +56,24 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging rescue labels + Phase-1 cell table from Kopah..."
+echo "Staging rescue labels + profiles + Phase-1 cell table from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/rescue/rescue_lowsignal.csv" \
     "$WORK/rescue_lowsignal.csv"
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/rescue/rescued_profiles.csv" \
+    "$WORK/rescued_profiles.csv" || echo "WARN: no rescued_profiles (de-novo marker check skipped)"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE5}/diagnostics/cell_cnv_table.csv.gz" \
     "$WORK/cell_cnv_table.csv.gz" || echo "WARN: no cell_cnv_table (CNV concordance skipped)"
 
-CELL_TABLE_ARG=()
-[[ -f "$WORK/cell_cnv_table.csv.gz" ]] && CELL_TABLE_ARG+=(--cell-table "$WORK/cell_cnv_table.csv.gz")
+OPT_ARGS=()
+[[ -f "$WORK/rescued_profiles.csv" ]] && OPT_ARGS+=(--profiles "$WORK/rescued_profiles.csv")
+[[ -f "$WORK/cell_cnv_table.csv.gz" ]] && OPT_ARGS+=(--cell-table "$WORK/cell_cnv_table.csv.gz")
 
 apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
     "$APPTAINER_INSITUCNV" \
     python -u "${PIPELINE_DIR}/python/compare_rescue.py" \
         --rescue "$WORK/rescue_lowsignal.csv" \
         --hierarchy "${PIPELINE_DIR}/reference/${HIERARCHY_BASENAME}" \
-        ${CELL_TABLE_ARG[@]+"${CELL_TABLE_ARG[@]}"} \
+        ${OPT_ARGS[@]+"${OPT_ARGS[@]}"} \
         --output-dir "$WORK/out"
 
 echo "Uploading rescue comparison to Kopah (${STAGE5}/rescue)..."
