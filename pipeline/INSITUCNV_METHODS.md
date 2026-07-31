@@ -121,30 +121,29 @@ our first attempt) failed to separate tumor from normal (malignant 4.5% vs refer
 it, normalizing away magnitude/depth. This is what made the positive control separate.
 (`cnv_score` is retained as a secondary output but is not the discriminator.)
 
-**Note on gains vs losses (nuanced).** Losses and gains are asymmetric for expression-based
-inference, but *signal magnitude* and *detectability* pull in opposite directions:
+**Gains vs losses.** The malignant-signature is a cosine to the FULL genome-wide consensus,
+so it uses coordinated **gains AND losses together** and privileges neither direction.
+Empirically, in our matched-reference results both are robustly detected in the malignant
+states and in tumor-region Low_signal, and **chr7 gain is as strong as or stronger than the
+chr10/arm losses**: malignant states chr7 ≈ +0.18 to +0.24 vs chr10 ≈ −0.08 to −0.17;
+Low_signal | infiltrating edge chr7 = +0.126 vs chr10 = −0.073; Low_signal | tumor bulk
+chr7 = +0.070 vs chr10 = −0.072; contralateral ≈ 0 for both (control holds).
 
-- *Signal magnitude* favors losses. A one-copy loss is a larger true fold-change (2→1,
-  log2 ≈ −1.0) than a one-copy gain (2→3, log2 ≈ +0.58), and gains are further attenuated by
-  dosage compensation.
-- *Detectability in sparse data* penalizes losses. A loss pushes genes *toward* the count
-  detection floor, where a genuine deletion is hard to distinguish from technical dropout
-  (low counts vs copy loss); and losses can concentrate in **gene-poor** genomic regions,
-  which a targeted panel under-samples (few probes per genomic window). Gains push genes
-  *away* from the floor — cleaner when present, but smaller. (See Schmid et al.,
-  *Benchmarking scRNA-seq copy number variation callers*, Nat. Commun. 2025, for caller-level
-  behavior; note it benchmarks droplet scRNA-seq, whereas CosMx is imaging-based/targeted, so
-  the dropout mechanism differs but the low-count ambiguity is analogous.)
-
-Net on this platform, the reliably-recovered signal is the **coordinated multi-arm loss
-pattern** (chr10 / chr9 / chr14 …), extracted by spatial smoothing (fills dropouts) + genomic
-windowing (averages many genes) + group-level aggregation, and captured by the
-cosine-to-consensus. Broad single-copy **gains** (e.g. chr7 trisomy) read weak — not
-necessarily absent genomically — whereas **high-amplitude focal amplifications** (e.g. EGFR)
-remain detectable because their fold-change is large. We verify empirically that the
-loss-carrying arms are well covered on the panel (`chr_coverage_vs_signal.{csv,png}`: panel
-gene count vs malignant-consensus CNV per chromosome), so the signal is not a gene-density
-artifact and chr7's weakness reflects gain-buffering, not poor coverage.
+This is consistent with the detection asymmetry on a sparse targeted panel: the expression
+**detection floor** compresses *loss* signal — a gene already near zero counts cannot drop
+further, so a hemizygous deletion is confounded with dropout — whereas *gains* have upward
+headroom and read cleanly, and high-level focal amplifications (e.g. EGFR) are the most
+detectable of all. Pure fold-change math favors losses (2→1 loss, log2 ≈ −1.0, vs 2→3 gain,
+≈ +0.58, with gains further buffered by dosage compensation), which is why losses are called
+cleanly on *deep whole-transcriptome* scRNA; on a *sparse* panel the floor effect offsets that
+advantage, so gains (and amplifications) tend to be the more robust signal. Because the
+signature integrates the whole pattern, the classification does not depend on this asymmetry.
+We additionally verify panel gene coverage per chromosome against the signal
+(`chr_coverage_vs_signal.{csv,png}`: panel gene count vs malignant-consensus CNV per
+chromosome), so no signal arm is a gene-density artifact. (See Schmid et al., *Benchmarking
+scRNA-seq copy number variation callers*, Nat. Commun. 2025; it benchmarks droplet scRNA-seq,
+whereas CosMx is imaging-based/targeted, so the dropout mechanism differs but the low-count /
+floor ambiguity is analogous.)
 
 ## 8. Thresholds and controls
 
@@ -207,11 +206,11 @@ Per section: `<section>_cnv.h5ad` (`obsm['X_cnv']`, `obs['cnv_score']`). Cohort 
 
 ## 12. Limitations
 
-- Targeted 6k panel → **arm-level, not focal** CNV. Gains vs losses are asymmetric (§7):
-  losses have larger true fold-change but, in sparse data, sit near the dropout floor and can
-  fall in gene-poor regions; broad single-copy gains (chr7) read weak while focal
-  high-amplitude amplifications (EGFR) stay detectable. The signal is anchored on the
-  coordinated multi-arm loss pattern, and panel coverage of the signal arms is verified.
+- Targeted 6k panel → **arm-level, not focal** CNV. Gains and losses are asymmetric on a
+  sparse panel (§7): the detection floor compresses single-copy losses while gains (and
+  amplifications) read more robustly. In our data both directions are detected (chr7 gain ≈
+  chr10 loss or stronger); the signature integrates the whole pattern, so the result does not
+  hinge on the asymmetry, and panel coverage of the signal arms is verified.
 - **Field effect** in dense tumor limits per-cell specificity there (§9); edge is the clean
   regime, bulk a lower bound.
 - Mild **depth-dependence** of the signature; contralateral cells are also shallower (median
