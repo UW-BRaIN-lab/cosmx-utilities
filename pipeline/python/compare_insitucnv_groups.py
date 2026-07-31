@@ -88,10 +88,11 @@ def read_reference_types(path: Path) -> list[str]:
 
 def malignant_signature(X, obs, malignant_types, celltype_key="cell_type"):
     """Per-cell cosine similarity to the mean CNV profile of the confidently-malignant
-    cells (the directional chr-loss discriminator; expression-based CNV on a targeted panel
-    detects losses far better than gains, and the non-directional L2 burden barely separates
-    tumour from normal). Returns a float array aligned to X's rows, or ``None`` when there is
-    no usable malignant consensus (no malignant cells, or an all-zero centroid)."""
+    cells (a directional discriminator that uses the coordinated pattern of gains AND losses
+    together, and separates tumour from normal where the non-directional L2 burden does not;
+    on this sparse targeted panel both directions are detected, e.g. chr7 gain and chr10/arm
+    losses). Returns a float array aligned to X's rows, or ``None`` when there is no usable
+    malignant consensus (no malignant cells, or an all-zero centroid)."""
     mal = np.flatnonzero(obs[celltype_key].astype(str).isin(malignant_types).to_numpy())
     if not mal.size:
         return None
