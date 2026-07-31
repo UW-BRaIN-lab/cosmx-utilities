@@ -189,8 +189,8 @@ def main() -> None:
     # Reviewer/PI point: losses can concentrate in gene-poor regions, so a targeted panel
     # might under-sample them. Cross the panel gene count per chromosome (from a section's
     # var; all sections share the gene set) against the malignant-consensus mean CNV per
-    # chromosome, to show the loss-carrying arms (chr10/9/14) are well covered — i.e. the
-    # signal is not a gene-density artifact, and chr7's weakness is buffering, not coverage.
+    # chromosome, to show the signal-carrying arms (chr7 gain, chr10/9/14 loss) are well
+    # covered — i.e. no arm's signal (or its absence) is a gene-density/coverage artifact.
     try:
         first_var = ad.read_h5ad(sorted(Path(args.cnv_dir).glob("*_cnv.h5ad"))[0],
                                  backed="r").var
