@@ -185,6 +185,45 @@ def main() -> None:
     arm.insert(1, "n_cells", counts.reindex(order).to_numpy())
     arm.to_csv(args.output_dir / "chr_arm_summary.csv")
 
+    # --- panel gene coverage per chromosome vs malignant signal ---------------------
+    # Reviewer/PI point: losses can concentrate in gene-poor regions, so a targeted panel
+    # might under-sample them. Cross the panel gene count per chromosome (from a section's
+    # var; all sections share the gene set) against the malignant-consensus mean CNV per
+    # chromosome, to show the loss-carrying arms (chr10/9/14) are well covered — i.e. the
+    # signal is not a gene-density artifact, and chr7's weakness is buffering, not coverage.
+    try:
+        first_var = ad.read_h5ad(sorted(Path(args.cnv_dir).glob("*_cnv.h5ad"))[0],
+                                 backed="r").var
+    except Exception:
+        first_var = None
+    mal_rows = np.flatnonzero(obs[args.celltype_key].astype(str).isin(malignant_types).to_numpy())
+    if first_var is not None and "chromosome" in first_var and mal_rows.size:
+        genes_per_chr = first_var["chromosome"].astype(str).value_counts()
+        centroid = np.asarray(X[mal_rows].mean(axis=0)).ravel()
+        cov = pd.DataFrame([
+            {"chromosome": c, "n_panel_genes": int(genes_per_chr.get(c, 0)),
+             "n_windows": int((win_chrom == c).sum()),
+             "malignant_mean_cnv": (float(centroid[win_chrom == c].mean())
+                                    if (win_chrom == c).any() else np.nan)}
+            for c in chrom_order])
+        cov.to_csv(args.output_dir / "chr_coverage_vs_signal.csv", index=False)
+        fig, ax = plt.subplots(figsize=(9, 6))
+        yy = np.arange(len(cov)); vals = cov["malignant_mean_cnv"].to_numpy()
+        ax.barh(yy, vals, color=["#d62728" if v > 0 else "#1f77b4" for v in vals])
+        for i, r in cov.iterrows():
+            v = r["malignant_mean_cnv"]
+            ax.text((0.0006 if v >= 0 else -0.0006), i, f"{int(r['n_panel_genes'])} genes",
+                    va="center", ha="left" if v >= 0 else "right", fontsize=7)
+        ax.set_yticks(yy); ax.set_yticklabels([c.replace("chr", "chr ") for c in cov["chromosome"]],
+                                              fontsize=8)
+        ax.invert_yaxis(); ax.axvline(0, color="k", lw=0.6)
+        ax.set_xlabel("malignant-consensus mean CNV  (red = gain, blue = loss)")
+        ax.set_title("Per-chromosome malignant signal vs panel gene coverage\n"
+                     "(panel gene count labelled on each bar)", fontsize=10)
+        fig.tight_layout()
+        fig.savefig(args.output_dir / "chr_coverage_vs_signal.png", dpi=180, bbox_inches="tight")
+        plt.close(fig)
+
     # --- cnv_score: threshold from controls, then score every group -----------------
     neg_mask = (obs["class"] == "reference").to_numpy() | \
                ((obs[args.celltype_key] == args.lowsignal_label).to_numpy() &
