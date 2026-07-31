@@ -376,6 +376,77 @@ def stage2_doublet_screen(obs, lowsignal_label, sig_thr, out_dir, lines, suffix=
     plt.close(fig)
 
 
+# ------------------------------------------------------------------ stage 2b ---------------
+def stage2b_density_screen(obs, lowsignal_label, out_dir, lines) -> None:
+    """Bloated / over-segmented mask screen — a failure mode ORTHOGONAL to doublets. Doublets sit
+    top-RIGHT of area x count (large + high count); a ballooned or over-segmented mask sits top-
+    LEFT (large area, low count), so it passes the doublet filter while carrying few transcripts
+    per unit area (background / debris / a sparse cell whose mask over-grew). Single-axis QC
+    (min counts, max area, max negprobe) cannot catch it — it is a JOINT area/count anomaly, i.e.
+    low transcript DENSITY = counts / area. Flags the suspects, checks whether they carry the same
+    malignant signature (a sensitivity on the CNV-high fraction), and emits their cell IDs for
+    mask-level (Napari) inspection."""
+    lines.append("\nSTAGE 2b — bloated-mask / low-transcript-density screen (orthogonal to doublets)")
+    if "density" not in obs or "area" not in obs:
+        lines.append("  density/area unavailable; skipped.")
+        return
+    ct = obs["cell_type"].astype(str).to_numpy()
+    typed = obs.loc[ct != lowsignal_label].dropna(subset=["area", "depth", "density"])
+    ws = obs.loc[(ct == lowsignal_label) & obs["is_malignant_call"].to_numpy()].dropna(
+        subset=["area", "depth", "density"])
+    if not len(typed) or not len(ws):
+        lines.append("  not enough cells with area+depth; skipped.")
+        return
+    area_hi = float(np.percentile(typed["area"], 95))
+    depth_hi = float(np.percentile(typed["depth"], 95))
+    dens_lo = float(np.percentile(typed["density"], 5))      # singlet low-density floor
+    large_lowcount = (ws["area"] > area_hi) & (ws["depth"] < depth_hi)   # the top-left cloud
+    low_density = ws["density"] < dens_lo
+    bloated = (ws["area"] > area_hi) & low_density           # strict large-and-low-density corner
+    flag = large_lowcount | bloated
+
+    def pct(m):
+        return f"{int(m.sum()):>7,} ({m.mean():.2%})"
+    lines.append(f"  typed-singlet density: median={typed['density'].median():.4f}, "
+                 f"5th pct={dens_lo:.4f}; CNV-high Low_signal median={ws['density'].median():.4f}")
+    lines.append(f"  large area (>{area_hi:.0f}) + low count (<{depth_hi:.0f}):  {pct(large_lowcount)}")
+    lines.append(f"  low transcript density (< singlet 5th pct):     {pct(low_density)}")
+    lines.append(f"  bloated-mask corner (large AND low-density):    {pct(bloated)}")
+    lines.append(f"  flagged mal_sig median={ws.loc[flag, 'mal_sig'].median():.3f} vs "
+                 f"rest={ws.loc[~flag, 'mal_sig'].median():.3f}  "
+                 f"(=> excluding them moves the CNV-high count by {flag.mean():.2%})")
+    if "Region" in ws:
+        rc = ws.loc[flag, "Region"].value_counts()
+        lines.append("  flagged region: " + ", ".join(f"{k} {int(v):,}" for k, v in rc.items()))
+    lines.append("  => a distinct QC flag (bloated/over-segmented masks); single-axis QC "
+                 "(min-count/max-area/negprobe) misses it because it is an area/count RATIO "
+                 "anomaly. Same malignant signature => set aside for mask-level review, not "
+                 "auto-excluded.")
+
+    cols = [c for c in ("cell_type", "Region", "Case", "slide_id", "tissue_section",
+                        "spatial_x", "spatial_y", "area", "depth", "density", "mal_sig")
+            if c in ws.columns]
+    flagged = ws.loc[flag, cols].copy()
+    flagged.index.name = "cell_id"
+    flagged.to_csv(out_dir / "flagged_lowdensity_cells.csv")
+    lines.append(f"  wrote {len(flagged):,} flagged cell IDs -> flagged_lowdensity_cells.csv "
+                 "(for mask-level / Napari inspection).")
+
+    fig, ax = plt.subplots(figsize=(7, 5))
+    bins = np.linspace(0, float(np.percentile(typed["density"], 99)), 60)
+    ax.hist(typed["density"], bins=bins, density=True, histtype="step", lw=2, color="#888888",
+            label=f"typed singlets (n={len(typed):,})")
+    ax.hist(ws["density"], bins=bins, density=True, histtype="step", lw=2, color="#d73027",
+            label=f"CNV-high Low_signal (n={len(ws):,})")
+    ax.axvline(dens_lo, color="k", ls="--", lw=1, label=f"singlet 5th pct ({dens_lo:.3f})")
+    ax.set_xlabel("transcript density (total counts / cell area)")
+    ax.set_ylabel("density"); ax.legend(fontsize=8)
+    ax.set_title("Stage 2b: transcript density — bloated / over-segmented masks (low = suspect)")
+    fig.tight_layout()
+    fig.savefig(out_dir / "density_screen.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 # ------------------------------------------------------------------ spatial map ------------
 def spatial_margin_map(obs, lowsignal_label, sig_thr, n_sections, out_dir, lines,
                        suffix="") -> None:
@@ -462,13 +533,15 @@ def main() -> None:
           f"({'user-supplied' if args.sig_threshold is not None else '95th pct of neg controls'}).")
 
     join_typed_obs(obs, args.typed_h5ad)
+    if {"area", "depth"}.issubset(obs.columns):  # transcript density (for the bloated-mask screen)
+        obs["density"] = (obs["depth"] / obs["area"]).replace([np.inf, -np.inf], np.nan)
     neigh = per_section_neighbor_stats(obs, args.k_neighbors)
     obs = obs.join(neigh)
 
     # ---- per-cell master table (reused by later phases) ----
     keep = ["cell_type", "class", "Region", "Case", "Block", "slide_id", "tissue_section",
             "spatial_x", "spatial_y", "cnv_score", "mal_sig", "is_malignant_call",
-            "is_malignant_class", "area", "depth", "typing_prob",
+            "is_malignant_class", "area", "depth", "density", "typing_prob",
             "local_mal_density", "local_call_density", "dist_to_malignant"]
     table = obs[[c for c in keep if c in obs.columns]].copy()
     table.index.name = "cell_id"
@@ -483,6 +556,7 @@ def main() -> None:
     stage1_edge_dilution(obs, args.lowsignal_label, args.output_dir, lines)
     chr_informative_genes(args.cnv_dir, args.output_dir, lines)
     stage2_doublet_screen(obs, args.lowsignal_label, sig_thr, args.output_dir, lines)
+    stage2b_density_screen(obs, args.lowsignal_label, args.output_dir, lines)
     spatial_margin_map(obs, args.lowsignal_label, sig_thr, args.map_sections,
                        args.output_dir, lines)
     if args.sensitive_threshold is not None:
