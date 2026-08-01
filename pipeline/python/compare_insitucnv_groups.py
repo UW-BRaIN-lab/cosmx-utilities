@@ -827,10 +827,12 @@ def main() -> None:
                          "BEYOND the field effect; mal above-ref = positive-control ceiling.)")
         lines.append("")
 
-    # SECONDARY: chromosome-arm means (losses are the detectable GBM signal on this panel).
+    # SECONDARY: chromosome-arm means. Both directions are detected on this panel — the canonical
+    # GBM chr7 GAIN is robust here (often >= the chr10 loss), alongside chr10 + arm losses; the
+    # malignant signature uses gains AND losses together (see malignant_signature()).
     loss_arms = [c for c in ("chr10", "chr14", "chr15", "chr22") if c in arm.columns]
-    lines.append(f"CHROMOSOME-ARM means (secondary; chr7 gain is weak by expression, loss "
-                 f"arms {loss_arms} carry the signal):")
+    lines.append(f"CHROMOSOME-ARM means (secondary; chr7 GAIN + chr10/arm LOSSES {loss_arms} "
+                 f"both carry the GBM signal):")
     for g in lsg:
         vals = "  ".join(f"{c}={arm.loc[g, c]:+.4f}"
                          for c in (["chr7"] + loss_arms) if c in arm.columns)
