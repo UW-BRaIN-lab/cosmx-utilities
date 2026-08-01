@@ -126,7 +126,10 @@ so it uses coordinated **gains AND losses together** and privileges neither dire
 Empirically, in our matched-reference results both are robustly detected in the malignant
 states and in tumor-region Low_signal, and **chr7 gain is as strong as or stronger than the
 chr10/arm losses** (numbers from the corrected n_neighbors=20 / window=100 run, ~390 windows):
-the malignant consensus averages chr7 ≈ +0.11 vs chr10 ≈ −0.04 as *whole-chromosome* means,
+across the core Neftel malignant states chr7 ≈ +0.06 to +0.22 (OPC-like +0.22, MES-like_denovo
++0.20, AC-like +0.17) vs chr10 ≈ −0.04 to −0.12 — lower (chr7 +0.02–0.04) only in the
+transcriptionally-flat de-novo stress/hypoxia states, which are CNV-shallow by nature. The
+malignant consensus averages chr7 ≈ +0.11 vs chr10 ≈ −0.04 as *whole-chromosome* means,
 but at window=100 the structure resolves — **chr7 is a broad both-arm gain** (peaks over the
 EGFR/p-arm region and the q-arm past MET, dip near CDK6), while the **chr10 loss is 10q-restricted**
 (p-arm near-neutral, q-arm deepening to ≈ −0.08 at the q-terminus through PTEN/MGMT), so the
