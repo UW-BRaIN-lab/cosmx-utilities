@@ -13,8 +13,8 @@
 #
 # Env knobs (KOPAH_*, APPTAINER_INSITUCNV from pipeline/.env):
 #   STAGE5_DIR    Kopah sub-dir for stage-5 (default stage5_insitucnv)
-#   N_NEIGHBORS   spatial smoothing neighbors (default 100)
-#   WINDOW_SIZE   infercnv window (default 200)   STEP (default 10)
+#   N_NEIGHBORS   spatial smoothing neighbors (default 20; MUST match 86b's reference build)
+#   WINDOW_SIZE   infercnv window (default 100)   STEP (default 10)
 #   DYNAMIC_THRESHOLD (default 1.5)
 
 #SBATCH --job-name=cosmx-insitucnv
@@ -101,8 +101,8 @@ apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}"
         --reference-file "${PIPELINE_DIR}/reference/${REF_TYPES}" \
         "${REFVEC_ARGS[@]+"${REFVEC_ARGS[@]}"}" \
         --output "$WORK/${SECTION}_cnv.h5ad" \
-        --n-neighbors "${N_NEIGHBORS:-100}" \
-        --window-size "${WINDOW_SIZE:-200}" \
+        --n-neighbors "${N_NEIGHBORS:-20}" \
+        --window-size "${WINDOW_SIZE:-100}" \
         --step "${STEP:-10}" \
         --dynamic-threshold "${DYNAMIC_THRESHOLD:-1.5}" \
         --n-jobs "${SLURM_CPUS_PER_TASK:-8}"
