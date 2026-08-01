@@ -32,7 +32,7 @@ Usage:
         --input sections/SLIDE__DONOR.h5ad \\
         --reference-file pipeline/reference/insitucnv_reference_types.txt \\
         --output SLIDE__DONOR_cnv.h5ad \\
-        --n-neighbors 100 --window-size 200 --step 10 --dynamic-threshold 1.5
+        --n-neighbors 20 --window-size 100 --step 10 --dynamic-threshold 1.5
 """
 from __future__ import annotations
 
@@ -70,9 +70,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--donor-key", default="Case",
                    help="obs column identifying the donor, to pick the matched reference column.")
     p.add_argument("--spatial-key", default="spatial")
-    p.add_argument("--n-neighbors", type=int, default=100,
-                   help="Spatial neighbors for the smoothing graph.")
-    p.add_argument("--window-size", type=int, default=200, help="infercnv window size.")
+    p.add_argument("--n-neighbors", type=int, default=20,
+                   help="Spatial neighbors for the smoothing graph (MUST match the reference "
+                        "build in build_insitucnv_reference.py / 86b).")
+    p.add_argument("--window-size", type=int, default=100, help="infercnv window size.")
     p.add_argument("--step", type=int, default=10, help="infercnv step.")
     p.add_argument("--dynamic-threshold", type=float, default=1.5,
                    help="infercnv denoising threshold (SDs).")
