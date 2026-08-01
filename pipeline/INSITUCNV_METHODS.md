@@ -67,7 +67,7 @@ Following the Moldia manuscript recipe (`run_insitucnv.py`):
    neighborhood pooling to recover depth).
 3. `normalize_total(target_sum=1e4)` + `log1p` on the smoothed layer → `layers['M_log1p']`.
 4. `infercnvpy.tl.infercnv(layer='M_log1p', reference=<see §6>, window_size=100, step=10,
-   dynamic_threshold=1.5)` → `obsm['X_cnv']` (cells × ~214 genomic windows).
+   dynamic_threshold=1.5)` → `obsm['X_cnv']` (cells × ~390 genomic windows).
 
 **Smoothing strength (`n_neighbors=20`).** Reduced from InSituCNV's default (100). Heavy
 smoothing over-blends in diffusely-infiltrating GBM: it flattens tumor–normal contrast and
@@ -102,7 +102,7 @@ in the baseline (they are contralateral-sourced and flat). Including immune, if 
 
 ## 7. Malignant-signature (primary per-cell metric)
 
-Each cell's genome-wide CNV profile `X_cnv_i` (∈ ℝ^~214 windows; + = gain, − = loss) is scored
+Each cell's genome-wide CNV profile `X_cnv_i` (∈ ℝ^~390 windows; + = gain, − = loss) is scored
 by **cosine similarity to the malignant consensus**:
 
 ```
@@ -125,9 +125,14 @@ it, normalizing away magnitude/depth. This is what made the positive control sep
 so it uses coordinated **gains AND losses together** and privileges neither direction.
 Empirically, in our matched-reference results both are robustly detected in the malignant
 states and in tumor-region Low_signal, and **chr7 gain is as strong as or stronger than the
-chr10/arm losses**: malignant states chr7 ≈ +0.18 to +0.24 vs chr10 ≈ −0.08 to −0.17;
-Low_signal | infiltrating edge chr7 = +0.126 vs chr10 = −0.073; Low_signal | tumor bulk
-chr7 = +0.070 vs chr10 = −0.072; contralateral ≈ 0 for both (control holds).
+chr10/arm losses** (numbers from the corrected n_neighbors=20 / window=100 run, ~390 windows):
+the malignant consensus averages chr7 ≈ +0.11 vs chr10 ≈ −0.04 as *whole-chromosome* means,
+but at window=100 the structure resolves — **chr7 is a broad both-arm gain** (peaks over the
+EGFR/p-arm region and the q-arm past MET, dip near CDK6), while the **chr10 loss is 10q-restricted**
+(p-arm near-neutral, q-arm deepening to ≈ −0.08 at the q-terminus through PTEN/MGMT), so the
+whole-chromosome chr10 mean understates the actual loss. Low_signal | infiltrating edge
+chr7 = +0.113 vs chr10 = −0.047; Low_signal | tumor bulk chr7 = +0.068 vs chr10 = −0.045;
+contralateral ≈ 0 for both (chr7 = +0.003, chr10 = +0.001 — control holds).
 
 This is consistent with the detection asymmetry on a sparse targeted panel: the expression
 **detection floor** compresses *loss* signal — a gene already near zero counts cannot drop
@@ -199,7 +204,9 @@ contamination) while lowering it adds per-cell noise.
 
 Per section: `<section>_cnv.h5ad` (`obsm['X_cnv']`, `obs['cnv_score']`). Cohort (`compare/`):
 `SUMMARY.txt`, `group_mean_cnv.csv`, `cosine_similarity.{csv,png}`, `chr_arm_summary.csv`,
-`chr7_chr10.png`, `chromosome_heatmap.png`, `cnv_score_by_group.csv`, `mal_signature_by_group.csv`,
+`chr7_chr10.png`, `chr7_chr10_gene_positions.{png,csv}` + `chr7_chr10_windows.csv` (panel gene
+positions + malignant-consensus CNV localized along chr7/chr10), `chr_coverage_vs_signal.{csv,png}`,
+`chromosome_heatmap.png`, `cnv_score_by_group.csv`, `mal_signature_by_group.csv`,
 `within_region_contrast.csv`, `within_region_signature.png`, `normal_types_by_region.{csv,png}`,
 `lowsignal_by_region.{csv,png}`, `lowsignal_cnv_by_region[_thr<t>].{csv,png}`,
 `lowsignal_by_donor[_thr<t>].{csv,png}`, `mal_signature`/edge-vs-bulk diagnostics.
