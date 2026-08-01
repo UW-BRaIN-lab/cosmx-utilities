@@ -59,6 +59,15 @@ CONTRALATERAL = "Contralateral uninvolved"  # obs['Region'] value marking uninvo
 TUMOR_BULK = "Tumor bulk"
 INFILTRATING_EDGE = "Infiltrating edge"
 
+# Canonical GBM loci for annotating the chr7/chr10 position figure. Coordinates are GRCh38/hg38
+# gene starts (Mb) — the assembly prep_insitucnv_input.py annotates panel genes against — so
+# they line up with var['start']. p-arm sits below the centromere, q-arm above.
+GBM_LOCI = {
+    "chr7": [("EGFR", 55.0), ("CDK6", 92.6), ("MET", 116.7)],   # 7p11.2 amp focus; 7q
+    "chr10": [("PTEN", 87.9), ("MGMT", 129.5)],                 # 10q23.31 loss; 10q26.3
+}
+CENTROMERE_MB = {"chr7": 60.1, "chr10": 39.8}  # approx GRCh38 centromere (p|q boundary)
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
@@ -164,6 +173,196 @@ def window_chromosomes(chr_pos: dict, n_windows: int) -> np.ndarray:
     return labels
 
 
+def read_gene_positions(cnv_dir: Path):
+    """Per-gene genomic positions (chromosome, start bp) from the FIRST section's ``var``.
+
+    prep_insitucnv_input.py annotates and freezes an identical gene set across every section,
+    so one section's ``var`` is the exact gene set inferCNV windowed over. Returns a DataFrame
+    indexed by gene symbol with columns ``chromosome`` / ``start`` (int bp), or ``None`` if the
+    positions were not annotated. Read backed so only ``var`` is loaded, not the matrices."""
+    files = sorted(cnv_dir.glob("*_cnv.h5ad"))
+    if not files:
+        return None
+    a = ad.read_h5ad(files[0], backed="r")
+    var = a.var
+    if not {"chromosome", "start"}.issubset(var.columns):
+        return None
+    return pd.DataFrame(
+        {"chromosome": var["chromosome"].astype(str).to_numpy(),
+         "start": pd.to_numeric(var["start"], errors="coerce").to_numpy()},
+        index=np.asarray(var.index),
+    )
+
+
+def infer_window_step(gene_counts: dict, window_counts: dict):
+    """Recover inferCNV's (window_size, step) in GENES from per-chromosome (n_genes, n_windows).
+
+    inferCNV tiles each chromosome with a gene-count running mean: when a chromosome has
+    ``G > window_size`` genes it yields ``n = (G - window_size) // step + 1`` windows (stepping
+    the window start by ``step`` genes), else a single whole-chromosome window. ``window_size``
+    and ``step`` are global constants, so the 22 autosomes over-determine them. Grid-search the
+    integer pair minimising the total window-count mismatch; require a near-exact fit (the model
+    is exact if it holds) else return ``(None, None)`` so the caller falls back to a
+    parameter-free mapping. Multi-window chromosomes pin ``step`` (the dominant term); the
+    single-window ones bound ``window_size`` from below."""
+    pairs = [(gene_counts[c], window_counts[c]) for c in gene_counts if c in window_counts]
+    if not any(w >= 2 for _, w in pairs):
+        return None, None
+    best, best_err = (None, None), None
+    for window in range(10, 401):
+        for step in range(1, 51):
+            err = sum(abs((((g - window) // step + 1) if g > window else 1) - w)
+                      for g, w in pairs)
+            if best_err is None or err < best_err:
+                best_err, best = err, (window, step)
+            if err == 0:
+                break
+        if best_err == 0:
+            break
+    return best if (best_err is not None and best_err <= len(pairs)) else (None, None)
+
+
+def window_bp_centers(starts_sorted: np.ndarray, n_windows: int,
+                      window_size: int | None = None, step: int | None = None) -> np.ndarray:
+    """bp center of each inferCNV window along one chromosome (genes sorted by start).
+
+    inferCNV window *i* spans genes ``[i*step : i*step+window_size]``, so its center gene index
+    is ``i*step + (window_size-1)/2`` and its bp center is that gene's start (interpolated). When
+    ``window_size``/``step`` are known (inferred once from the cohort) this is faithful. Without
+    them, fall back to placing window *i* at the ``(i+0.5)/n_windows`` quantile of the sorted
+    starts — monotonic and exact in the interior but stretched by up to half a window at the ends
+    (material when ``window_size`` is large relative to a chromosome's gene count). The panel-gene
+    rug is plotted from ``var['start']`` directly, so only this signal mapping is windowed."""
+    G = int(len(starts_sorted))
+    starts = np.asarray(starts_sorted, dtype=float)
+    if n_windows <= 0 or G == 0:
+        return np.array([])
+    if n_windows == 1:
+        return np.array([float(np.median(starts))])
+    if window_size is not None and step is not None and G > window_size:
+        centers_idx = np.clip(np.arange(n_windows) * step + (window_size - 1) / 2.0, 0, G - 1)
+    else:
+        centers_idx = np.clip((np.arange(n_windows) + 0.5) / n_windows * G - 0.5, 0, G - 1)
+    return np.interp(centers_idx, np.arange(G), starts)
+
+
+def _group_window_means(X, rows: np.ndarray, cols: np.ndarray) -> np.ndarray:
+    """Mean CNV of ``rows`` (cells) over ``cols`` (one chromosome's windows); NaN if no cells."""
+    if rows.size == 0:
+        return np.full(cols.size, np.nan)
+    sub = X[rows][:, cols]
+    return np.asarray(sub.mean(axis=0)).ravel()
+
+
+def plot_chr7_chr10_positions(X, obs, win_chrom, chr_pos, gene_pos, malignant_types,
+                              celltype_key, region_key, lowsignal_label, out_dir) -> None:
+    """Localize the malignant CNV signal along chr7 and chr10, over the panel's gene coverage.
+
+    For each of chr7/chr10: (top) a histogram of where the panel's genes sit on the chromosome
+    (coverage/density; is the whole arm sampled, and is the EGFR/PTEN neighbourhood covered?);
+    (bottom) the consensus CNV per genomic window vs position for the malignant positive control
+    (filled red gain / blue loss), the tumour-region Low_signal groups, and the diploid reference
+    (should hug 0). Centromere and key GBM loci (EGFR, PTEN, ...) are marked. Answers whether
+    chr7 gain is broad-arm vs EGFR-focal and whether chr10 loss spans the whole chromosome."""
+    present = set(np.unique(win_chrom))
+    chroms = [c for c in ("chr7", "chr10")
+              if c in present and (gene_pos["chromosome"] == c).any()]
+    if not chroms:
+        print("  chr7_chr10 figure: chr7/chr10 not present in windows or var; skipped.")
+        return
+
+    # Recover inferCNV's gene-window geometry ONCE from all chromosomes, so windows map to bp
+    # faithfully (not just chr7/chr10 — every autosome constrains the global window/step).
+    gene_counts = {c: int((gene_pos["chromosome"] == c).sum())
+                   for c in np.unique(gene_pos["chromosome"])}
+    window_counts = {c: int((win_chrom == c).sum()) for c in np.unique(win_chrom)}
+    window_size, step = infer_window_step(gene_counts, window_counts)
+    if window_size is not None:
+        print(f"  chr7_chr10 figure: inferred inferCNV geometry window={window_size} genes, "
+              f"step={step} genes (faithful bp mapping).")
+    else:
+        print("  chr7_chr10 figure: could not infer window/step; using quantile bp mapping "
+              "(approximate at chromosome ends).")
+
+    ct = obs[celltype_key].to_numpy()
+    region = obs[region_key].to_numpy() if region_key in obs else np.array([""] * len(obs))
+    cls = obs["class"].to_numpy()
+    is_ls = ct == lowsignal_label
+    # (label, row mask, colour, filled?) — malignant is the filled consensus; the rest overlay.
+    series = [
+        ("malignant (positive control)", cls == "malignant", "#c51b8a", True),
+        (f"{lowsignal_label} | {INFILTRATING_EDGE}", is_ls & (region == INFILTRATING_EDGE),
+         "#d95f0e", False),
+        (f"{lowsignal_label} | {TUMOR_BULK}", is_ls & (region == TUMOR_BULK), "#8c510a", False),
+        ("reference (diploid)", cls == "reference", "#4d4d4d", False),
+    ]
+
+    csv_rows, gene_csv = [], []
+    fig, axes = plt.subplots(2, len(chroms), figsize=(7 * len(chroms), 7.5),
+                             sharex="col", squeeze=False,
+                             gridspec_kw=dict(height_ratios=[1, 3]))
+    for j, c in enumerate(chroms):
+        cols = np.flatnonzero(win_chrom == c)
+        starts = np.sort(gene_pos.loc[gene_pos["chromosome"] == c, "start"].dropna().to_numpy())
+        gene_csv.append(pd.DataFrame({"gene": gene_pos.index[gene_pos["chromosome"] == c],
+                                      "chromosome": c,
+                                      "start": gene_pos.loc[gene_pos["chromosome"] == c, "start"]}))
+        bp_mb = window_bp_centers(starts, cols.size, window_size, step) / 1e6
+        ax_cov, ax_sig = axes[0, j], axes[1, j]
+
+        # top: panel-gene coverage (exact positions from var)
+        starts_mb = starts / 1e6
+        ax_cov.hist(starts_mb, bins=60, color="#7fbf7b", alpha=0.85)
+        ax_cov.set_ylabel("panel genes", fontsize=9)
+        ax_cov.set_title(f"{c}: {starts.size} panel genes", fontsize=11)
+
+        # bottom: consensus CNV per window vs position
+        for name, mask, colour, filled in series:
+            rows = np.flatnonzero(mask)
+            vals = _group_window_means(X, rows, cols)
+            for k in range(cols.size):
+                csv_rows.append(dict(chromosome=c, window_col=int(cols[k]),
+                                     bp_center_mb=float(bp_mb[k]), group=name,
+                                     cnv=float(vals[k])))
+            if np.all(np.isnan(vals)):
+                continue
+            if filled:
+                ax_sig.fill_between(bp_mb, 0, vals, where=vals >= 0, step="mid",
+                                    color="#d6604d", alpha=0.55)
+                ax_sig.fill_between(bp_mb, 0, vals, where=vals < 0, step="mid",
+                                    color="#4393c3", alpha=0.55)
+                ax_sig.step(bp_mb, vals, where="mid", color=colour, lw=1.6, label=name)
+            else:
+                ax_sig.step(bp_mb, vals, where="mid", color=colour, lw=1.1, alpha=0.9,
+                            ls="--" if name.startswith("reference") else "-", label=name)
+        ax_sig.axhline(0, color="k", lw=0.6)
+
+        # centromere (p|q split) + GBM loci
+        for ax in (ax_cov, ax_sig):
+            if c in CENTROMERE_MB:
+                ax.axvline(CENTROMERE_MB[c], color="gray", ls=":", lw=1)
+        for gname, gmb in GBM_LOCI.get(c, []):
+            ax_sig.axvline(gmb, color="k", lw=0.7, alpha=0.45)
+            ax_sig.annotate(gname, xy=(gmb, 1.0), xycoords=("data", "axes fraction"),
+                            xytext=(0, -2), textcoords="offset points", rotation=90,
+                            va="top", ha="right", fontsize=7, color="#333")
+        ax_sig.set_xlabel(f"{c} position (Mb)")
+        if j == 0:
+            ax_sig.set_ylabel("mean CNV  (red gain / blue loss)")
+        ax_sig.legend(fontsize=7, loc="best", framealpha=0.9)
+
+    fig.suptitle("Panel gene coverage & malignant CNV signal along chr7 and chr10\n"
+                 "(top: where the 6k panel samples the chromosome; bottom: consensus CNV vs "
+                 "position — gray dotted = centromere)")
+    fig.tight_layout()
+    fig.savefig(out_dir / "chr7_chr10_gene_positions.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+    pd.DataFrame(csv_rows).to_csv(out_dir / "chr7_chr10_windows.csv", index=False)
+    pd.concat(gene_csv).sort_values(["chromosome", "start"]).to_csv(
+        out_dir / "chr7_chr10_gene_positions.csv", index=False)
+    print(f"  chr7_chr10 figure: wrote chr7_chr10_gene_positions.png (+ 2 CSVs) for {chroms}.")
+
+
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -173,6 +372,7 @@ def main() -> None:
 
     X, obs, chr_pos = load_concat(args.cnv_dir, args.celltype_key, args.region_key)
     win_chrom = window_chromosomes(chr_pos, X.shape[1])
+    gene_pos = read_gene_positions(args.cnv_dir)  # per-gene bp for the chr7/chr10 position figure
 
     # --- group + class labels -------------------------------------------------------
     ct = obs[args.celltype_key].to_numpy()
@@ -358,6 +558,15 @@ def main() -> None:
         fig.tight_layout()
         fig.savefig(args.output_dir / "chr7_chr10.png", dpi=180, bbox_inches="tight")
         plt.close(fig)
+
+    # chr7/chr10 gene POSITIONS + malignant CNV signal along the chromosome (sub-chromosome
+    # resolution: where the panel samples chr7/chr10 and where the gain/loss localizes).
+    if gene_pos is not None:
+        plot_chr7_chr10_positions(X, obs, win_chrom, chr_pos, gene_pos, malignant_types,
+                                  args.celltype_key, args.region_key, args.lowsignal_label,
+                                  args.output_dir)
+    else:
+        print("  chr7_chr10 figure: no var['chromosome','start'] in sections; skipped.")
 
     # cnv_score by class
     fig, ax = plt.subplots(figsize=(7, 5))
