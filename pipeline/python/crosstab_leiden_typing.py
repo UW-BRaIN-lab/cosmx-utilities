@@ -21,7 +21,10 @@ present), in backed mode (obs/obsm load to memory; the big X stays on disk). Emi
   leiden_celltype_heatmap.png      composition heatmap (leiden x top cell types)
   lowsignal_neighbours.png         Low_signal count per cluster, annotated with the dominant
                                    co-resident typed identity
-  lowsignal_umap.png               (if obsm['X_umap']) UMAP with Low_signal highlighted
+  lowsignal_umap.png               (if obsm['X_umap']) UMAP, Low_signal vs typed (InSituTree call)
+  leiden_umap.png                  (if obsm['X_umap']) same UMAP coloured by Leiden cluster, labelled
+  flatcore_umap.png                (if obsm['X_umap']) largest-Low_signal Leiden cluster highlighted —
+                                   shows the flat core is one contiguous cluster
 
 Usage:
     uv run python pipeline/python/crosstab_leiden_typing.py \\
@@ -43,6 +46,7 @@ import pandas as pd
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.patheffects as pe  # noqa: E402
 
 LOW_SIGNAL_LABEL = "Low_signal"
 UMAP_PLOT_MAX = 400_000   # subsample cap for the scatter PNG (7.5M points don't render)
@@ -204,6 +208,78 @@ def _umap_highlight(umap: np.ndarray, df: pd.DataFrame, out_path: Path, low_labe
     plt.close(fig)
 
 
+def _plot_subsample(umap: np.ndarray, n: int) -> np.ndarray:
+    rng = np.random.default_rng(UMAP_SEED)
+    return (rng.choice(n, size=UMAP_PLOT_MAX, replace=False) if n > UMAP_PLOT_MAX
+            else np.arange(n))
+
+
+def _umap_leiden(umap: np.ndarray, df: pd.DataFrame, out_path: Path) -> None:
+    """Cohort UMAP coloured by Leiden cluster, each cluster labelled at its centroid — shows the
+    unsupervised cluster structure the crosstab is built on (so 'the flat core is cluster N' is
+    visible, not just tabulated)."""
+    n = len(df)
+    idx = _plot_subsample(umap, n)
+    su = umap[idx]
+    le = df["leiden"].to_numpy()[idx]
+    # Order clusters numerically when possible so colours/labels are stable across runs.
+    def _key(c):
+        try:
+            return (0, int(c))
+        except ValueError:
+            return (1, c)
+    cats = sorted(pd.unique(df["leiden"]), key=_key)
+    base = list(plt.get_cmap("tab20").colors) + list(plt.get_cmap("tab20b").colors)
+    cmap = {c: base[i % len(base)] for i, c in enumerate(cats)}
+    fig, ax = plt.subplots(figsize=(8, 8))
+    for c in cats:
+        m = le == c
+        if m.any():
+            ax.scatter(su[m, 0], su[m, 1], s=1, c=[cmap[c]], linewidths=0)
+    # Centroid labels (computed on the full data, not the subsample, so they sit true).
+    le_full = df["leiden"].to_numpy()
+    for c in cats:
+        m = le_full == c
+        if m.any():
+            ax.text(umap[m, 0].mean(), umap[m, 1].mean(), str(c),
+                    fontsize=8, fontweight="bold", ha="center", va="center",
+                    color="black",
+                    path_effects=[pe.withStroke(linewidth=2, foreground="white")])
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title(f"Cohort UMAP by Leiden cluster ({len(cats)} clusters)")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
+def _umap_flatcore(umap: np.ndarray, df: pd.DataFrame, cluster: str, out_path: Path,
+                   low_label: str, ls_frac: float) -> None:
+    """Highlight the single largest-Low_signal Leiden cluster (the 'flat core') in red, the rest of
+    the Low_signal pool in salmon, and typed cells in grey — the direct visual answer to 'is the
+    flat core one contiguous Leiden cluster?'."""
+    n = len(df)
+    idx = _plot_subsample(umap, n)
+    su = umap[idx]
+    le = df["leiden"].to_numpy()[idx]
+    is_low = (df["cell_type"].to_numpy()[idx] == low_label)
+    core = le == cluster
+    other_low = is_low & ~core
+    typed = ~is_low & ~core
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.scatter(su[typed, 0], su[typed, 1], s=1, c="#d2d5da", linewidths=0, label="typed")
+    ax.scatter(su[other_low, 0], su[other_low, 1], s=1, c="#f0a58f", linewidths=0,
+               label=f"other {low_label}")
+    ax.scatter(su[core, 0], su[core, 1], s=1, c="#c0392b", linewidths=0,
+               label=f"Leiden {cluster} — flat core")
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title(f"Flat core = Leiden cluster {cluster} "
+                 f"({100 * ls_frac:.0f}% {low_label}, one contiguous region)")
+    ax.legend(markerscale=6, loc="best", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -226,7 +302,14 @@ def main() -> None:
     _lowsignal_bar(diag, args.output_dir / "lowsignal_neighbours.png", args.low_signal_label)
     if umap is not None:
         _umap_highlight(umap, df, args.output_dir / "lowsignal_umap.png", args.low_signal_label)
-        print("Wrote lowsignal_umap.png")
+        _umap_leiden(umap, df, args.output_dir / "leiden_umap.png")
+        # diag is sorted by Low_signal count desc, so row 0 is the largest-Low_signal cluster.
+        core = diag.iloc[0]
+        _umap_flatcore(umap, df, core["leiden"], args.output_dir / "flatcore_umap.png",
+                       args.low_signal_label, core["frac_cluster_low_signal"])
+        print(f"Wrote lowsignal_umap.png, leiden_umap.png, flatcore_umap.png "
+              f"(flat core = leiden {core['leiden']}, "
+              f"{100 * core['frac_cluster_low_signal']:.0f}% {args.low_signal_label})")
 
     print(f"\nDone. Crosstab + diagnosis in {args.output_dir}")
 
