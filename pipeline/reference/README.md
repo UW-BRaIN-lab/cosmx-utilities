@@ -16,10 +16,10 @@ The full ~28k-gene GBmap export is **not** committed (~23 MB; mixes HGNC symbols
 Ensembl IDs). The committed CSV is the panel-restricted subset only.
 
 - `gene_signatures.csv` — gene-signature modules (`module,gene`) for the Stage-5 Phase-2
-  hybrid-vs-continuum scoring (`python/insitucnv_hybrid_continuum.py`): the four Neftel-like
-  malignant modules (AC/MES/OPC/NPC-like) + Cycling, and the non-malignant **Neuronal_NLGN3**
-  synaptic / neuron-to-glioma program (Venkatesh/Monje). Canonical literature signatures
-  intersected with the CosMx 6k panel (off-panel genes dropped).
+  continuum-vs-hybrid scoring (`python/insitucnv_hybrid_continuum.py`): the four Neftel GBM
+  malignant-state modules (AC/MES/OPC/NPC-like) + Cycling. The two axes (AC↔MES, OPC↔NPC) let the
+  script test within-axis co-expression (continuum) vs cross-axis co-expression (two-state hybrid).
+  Canonical literature signatures intersected with the CosMx 6k panel (off-panel genes dropped).
 
 ## Provenance / how to regenerate
 
