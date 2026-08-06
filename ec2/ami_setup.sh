@@ -1,6 +1,8 @@
 #!/bin/bash
 # Cloud-init user-data script for CosMx EC2 instances.
 # Installs DCV, UV, Python environments, and (in analytics mode) R/RStudio.
+# On instances with an NVIDIA GPU it also installs the NVIDIA driver + DCV GL
+# so DCV virtual sessions render on the GPU (else Mesa software rendering).
 # EC2_MODE controls what gets installed: "analytics" (default) or "napari".
 # Run by create_ami.py or start_ec2.py --raw as user-data.
 set -euxo pipefail
@@ -71,8 +73,14 @@ rm -f rstudio-server-*.deb
 systemctl enable rstudio-server
 fi
 
-# ── NICE DCV (software rendering, no GPU) ───────────────────────────────
+# ── NICE DCV (GPU-accelerated when an NVIDIA GPU is present, else Mesa) ──
 cd /tmp
+# Detect an NVIDIA GPU: present on the g4dn napari instances, absent on the
+# r5a analytics instances. Drives the GPU driver + DCV GL setup further down.
+HAS_GPU=0
+if lspci 2>/dev/null | grep -qi 'NVIDIA'; then HAS_GPU=1; fi
+echo "HAS_GPU=$HAS_GPU"
+
 OS_VERSION=$(. /etc/os-release; echo "$VERSION_ID" | sed 's/\\.//g')
 ARCH=$(arch)
 DCV_TGZ="nice-dcv-ubuntu${OS_VERSION}-${ARCH}.tgz"
@@ -86,7 +94,12 @@ wget -q "https://d1uj6qtbmh3dt5.cloudfront.net/${DCV_TGZ}" || {
 tar xzf "$DCV_TGZ"
 cd nice-dcv-*-"${ARCH}"
 apt-get install -y ./nice-dcv-server_*.deb ./nice-dcv-web-viewer_*.deb ./nice-xdcv_*.deb
-cd /tmp && rm -rf nice-dcv-* "$DCV_TGZ"
+# Stash the DCV GL interposer for the GPU block below; it must be installed
+# after the NVIDIA driver. Copied out so the cleanup below doesn't remove it.
+if [ "$HAS_GPU" = 1 ] && ls ./nice-dcv-gl_*.deb >/dev/null 2>&1; then
+    mkdir -p /tmp/dcvgl && cp ./nice-dcv-gl_*.deb /tmp/dcvgl/
+fi
+cd /tmp && rm -rf nice-dcv-*-"${ARCH}" "$DCV_TGZ"
 
 # Configure DCV for virtual sessions (no display manager needed)
 cat > /etc/dcv/dcv.conf << 'DCVCONF'
@@ -99,11 +112,14 @@ DCVCONF
 
 systemctl enable dcvserver
 
-# Systemd service to auto-create a DCV virtual session on boot
+# Systemd service to auto-create a DCV virtual session on boot.
+# After=dcvstartx.service so that, on GPU instances, the X server backing
+# GPU sharing is up first (the dcvstartx unit only exists when a GPU is
+# present; ordering against a missing unit is a harmless no-op).
 cat > /etc/systemd/system/dcv-virtual-session.service << 'UNIT'
 [Unit]
 Description=Create DCV virtual session
-After=dcvserver.service
+After=dcvserver.service dcvstartx.service
 Requires=dcvserver.service
 
 [Service]
@@ -146,9 +162,77 @@ mkdir -p /mnt/cosmx
 chown ubuntu:ubuntu /mnt/cosmx
 fi
 
+# ── GPU-accelerated rendering for DCV virtual sessions (NVIDIA only) ─────
+# napari renders via OpenGL. Without a GPU driver it falls back to Mesa
+# llvmpipe (CPU) rendering, which is slow for one slide and cannot drive
+# several viewers at once. On the g4dn napari instances we install the
+# NVIDIA driver + DCV GL so virtual sessions render on the T4.
+#
+# The whole block is gated on an NVIDIA GPU being present (skipped on the
+# r5a analytics instances) and wrapped so ANY failure degrades to Mesa
+# software rendering instead of aborting the setup — i.e. worst case is the
+# current behaviour, never a broken instance. No reboot is needed: nouveau
+# is swapped for nvidia live because no X server is running yet (DCV starts
+# below). VALIDATE on a fresh `--raw` launch — see PR notes.
+if [ "$HAS_GPU" = 1 ]; then
+  echo "=== Configuring GPU-accelerated rendering ==="
+  install_gpu() {
+    set -e
+    apt-get install -y --no-install-recommends \
+        "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
+    # NVIDIA driver from the Ubuntu archive — no S3 bucket / IAM / EULA
+    # dependency (unlike the AWS GRID driver). Provides OpenGL + EGL, which
+    # is what napari needs. ubuntu-drivers picks the archive-recommended
+    # version; fall back to explicit server packages if it is unavailable.
+    apt-get install -y --no-install-recommends ubuntu-drivers-common
+    ubuntu-drivers install \
+        || apt-get install -y --no-install-recommends nvidia-driver-570-server \
+        || apt-get install -y --no-install-recommends nvidia-driver-550-server
+    # Replace nouveau with nvidia without a reboot (safe: no X running yet).
+    printf 'blacklist nouveau\noptions nouveau modeset=0\n' \
+        > /etc/modprobe.d/blacklist-nouveau.conf
+    update-initramfs -u || true
+    modprobe -r nouveau 2>/dev/null || true
+    modprobe nvidia
+    nvidia-smi -L
+    # Xorg config bound to the GPU — required for virtual-session GPU sharing.
+    rm -f /etc/X11/XF86Config*
+    nvidia-xconfig --preserve-busid --enable-all-gpus
+    # DCV GL interposer: routes virtual-session OpenGL to the GPU.
+    if ls /tmp/dcvgl/nice-dcv-gl_*.deb >/dev/null 2>&1; then
+        apt-get install -y /tmp/dcvgl/nice-dcv-gl_*.deb
+    fi
+    command -v dcvgladmin >/dev/null 2>&1 && dcvgladmin enable || true
+    # An X server must run on the GPU before virtual sessions are created so
+    # they can share it (Amazon DCV "GPU sharing"). dcvstartx does exactly this.
+    cat > /etc/systemd/system/dcvstartx.service << 'UNIT'
+[Unit]
+Description=Start an X server on the GPU for DCV virtual-session GPU sharing
+After=dcvserver.service
+Before=dcv-virtual-session.service
+[Service]
+Type=simple
+ExecStart=/usr/bin/dcvstartx
+Restart=on-failure
+RestartSec=2
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    systemctl enable dcvstartx.service
+  }
+  install_gpu || echo "WARNING: GPU setup failed — DCV will use Mesa software rendering"
+fi
+
 # ── Start DCV now (services are enabled for future boots) ─────────────
 systemctl start dcvserver
 sleep 2
+# On GPU instances, bring up the GPU X server before the virtual session so
+# the session shares the GPU. Non-fatal if it fails (falls back to Mesa).
+if [ "$HAS_GPU" = 1 ] && systemctl list-unit-files | grep -q '^dcvstartx.service'; then
+    systemctl start dcvstartx.service || echo "WARNING: dcvstartx failed to start"
+    sleep 2
+fi
 systemctl start dcv-virtual-session
 
 # ── Sentinel: signal setup completion ────────────────────────────────────
