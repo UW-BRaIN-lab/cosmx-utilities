@@ -8,12 +8,29 @@ This script finds the correct metadata source by matching the
 cellSegmentationSetId UUID and produces a _metadata.csv whose cell IDs align
 with the CellLabels TIFFs selected by the stitcher.
 
-Usage (called from process-slide.py):
+The output always begins with a cell_ID column, followed by one or more
+categorical annotation columns. Each annotation column is paired with a
+`<name>_color` column holding a deterministic per-value hex color, so the same
+category gets the same color across every slide (and across annotation columns
+that share label names, e.g. two cell-typing runs). The napari-cosmx reader
+prefers `<name>_color` for a column and falls back to a generic `hex_color`
+column for legacy single-annotation files.
+
+Usage (single cell-type column, legacy — writes cell_type + hex_color):
     uv run python scripts/generate-slide-metadata.py \
         --bucket my-bucket \
         --experiment-prefix CosMx-GBM/CosMx-GBM-segmentation-test-1.9.26 \
         --slide-name UWA7522G2G5Glioblastoma \
         --seg-id 12d18c13-3b25-4cbf-be1a-24d6c24703d5 \
+        --output /tmp/slide/output/_metadata.csv
+
+Usage (multiple annotation columns — writes <name> + <name>_color per column):
+    uv run python scripts/generate-slide-metadata.py \
+        --bucket my-bucket \
+        --experiment-prefix CosMx-retina/... \
+        --slide-name UWA7575eyes \
+        --column celltype_norefit='RNA_RNA_Cell.Typing.InSituType.No.Refit_1_clusters' \
+        --column Region=Region \
         --output /tmp/slide/output/_metadata.csv
 
     When --seg-id is omitted, all cells from the first metadata file found are
@@ -27,10 +44,25 @@ import os
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
 
 import boto3
 import duckdb
 from botocore.exceptions import ClientError
+
+CELL_ID_COLUMN = "cell_ID"
+SEG_ID_COLUMN = "cellSegmentationSetId"
+LEGACY_OUTPUT_NAME = "cell_type"
+LEGACY_COLOR_COLUMN = "hex_color"
+
+
+@dataclass(frozen=True)
+class ColumnSpec:
+    """One output annotation column: `out` holds the source column `src`'s value,
+    and `color_col` holds its deterministic per-value hex color."""
+    out: str
+    src: str
+    color_col: str
 
 
 def s3_ls_prefixes(s3, bucket: str, prefix: str) -> list[str]:
@@ -102,67 +134,114 @@ def _detect_cell_type_column(headers: list[str]) -> str | None:
     return None
 
 
-def generate_metadata(
+def read_rows(
     input_path: str,
-    output_path: str,
-    seg_id: str | None,
-    cell_type_column: str | None,
-) -> dict:
-    """Read a gzipped metadata CSV, filter by segmentation ID, and write
-    _metadata.csv.
+    seg_id_set: set[str] | None,
+    specs: list[ColumnSpec],
+) -> tuple[list[tuple[str, list[str]]], set[str]]:
+    """Read a gzipped metadata CSV, optionally filtering by segmentation ID.
 
-    Returns a dict with statistics.
+    Returns (rows, seg_ids_seen), where each row is
+    (cell_id, [value for each spec, in spec order]). A source column absent from
+    this file yields an empty string for that spec (with a one-time warning).
     """
-    # Read and filter
-    rows = []
-    total_read = 0
-    seg_ids_seen = set()
-    # Support multiple comma-separated UUIDs
-    seg_id_set = set(s.strip() for s in seg_id.split(",")) if seg_id else None
+    rows: list[tuple[str, list[str]]] = []
+    seg_ids_seen: set[str] = set()
 
     with gzip.open(input_path, "rt") as f:
         reader = csv.DictReader(f)
-
-        # Auto-detect cell type column if not specified
-        if cell_type_column is None:
-            cell_type_column = _detect_cell_type_column(reader.fieldnames or [])
-            if cell_type_column:
-                print(f"  Auto-detected cell type column: {cell_type_column}")
-            else:
-                print("  WARNING: No InSituType column found, cell_type will be empty")
+        headers = reader.fieldnames or []
+        missing = [spec for spec in specs if spec.src not in headers]
+        for spec in missing:
+            print(f"  WARNING: source column '{spec.src}' not found; "
+                  f"'{spec.out}' will be empty")
 
         for row in reader:
-            total_read += 1
-            row_seg_id = row.get("cellSegmentationSetId", "").strip()
+            row_seg_id = row.get(SEG_ID_COLUMN, "").strip()
             seg_ids_seen.add(row_seg_id)
-
             if seg_id_set is not None and row_seg_id not in seg_id_set:
                 continue
-
             cell_id = row.get("cell_id", "")
-            cell_type = row.get(cell_type_column, "") if cell_type_column else ""
-            rows.append((cell_id, cell_type))
+            values = [row.get(spec.src, "") for spec in specs]
+            rows.append((cell_id, values))
 
-    # Build color map (deterministic per cell type)
-    cell_types = sorted(set(ct for _, ct in rows if ct))
-    color_map = {ct: deterministic_color(ct) for ct in cell_types}
+    return rows, seg_ids_seen
 
-    # Write output
+
+def write_output(
+    output_path: str,
+    specs: list[ColumnSpec],
+    rows: list[tuple[str, list[str]]],
+) -> dict:
+    """Write cell_ID + (value, color) columns for each spec.
+
+    Colors are deterministic per value, built over the full set of collected
+    rows so they are stable across slides. Returns a stats dict.
+    """
+    # One color map per column, over that column's unique non-empty values.
+    color_maps: list[dict[str, str]] = []
+    for i, _spec in enumerate(specs):
+        values = sorted({r[1][i] for r in rows if r[1][i]})
+        color_maps.append({v: deterministic_color(v) for v in values})
+
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    header = [CELL_ID_COLUMN]
+    for spec in specs:
+        header += [spec.out, spec.color_col]
     with open(output_path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["cell_ID", "cell_type", "hex_color"])
-        for cell_id, cell_type in rows:
-            hex_color = color_map.get(cell_type, "")
-            writer.writerow([cell_id, cell_type, hex_color])
+        writer.writerow(header)
+        for cell_id, values in rows:
+            out_row = [cell_id]
+            for i, spec in enumerate(specs):
+                value = values[i]
+                out_row += [value, color_maps[i].get(value, "")]
+            writer.writerow(out_row)
 
     return {
-        "total_read": total_read,
         "total_written": len(rows),
-        "total_filtered": total_read - len(rows),
-        "cell_types": len(cell_types),
-        "seg_ids_seen": seg_ids_seen,
+        "value_counts": {spec.out: len(color_maps[i]) for i, spec in enumerate(specs)},
     }
+
+
+def build_specs(args) -> list[ColumnSpec]:
+    """Build the ordered list of output columns from CLI args.
+
+    --column OUT=SRC (repeatable) defines the new multi-column format, with each
+    column paired to a `<OUT>_color`. When no --column is given, fall back to the
+    legacy single cell_type column paired to `hex_color` (source column from
+    --cell-type-column, else auto-detected from the file).
+    """
+    if args.column:
+        specs = []
+        for item in args.column:
+            if "=" not in item:
+                print(f"ERROR: --column must be OUTNAME=SOURCE_HEADER, got '{item}'",
+                      file=sys.stderr)
+                sys.exit(2)
+            out, src = item.split("=", 1)
+            out, src = out.strip(), src.strip()
+            specs.append(ColumnSpec(out=out, src=src, color_col=f"{out}_color"))
+        return specs
+    # Legacy single-column mode; src resolved per-file if not given (None here).
+    return [ColumnSpec(out=LEGACY_OUTPUT_NAME, src=args.cell_type_column,
+                       color_col=LEGACY_COLOR_COLUMN)]
+
+
+def resolve_legacy_src(specs: list[ColumnSpec], input_path: str) -> list[ColumnSpec]:
+    """For legacy mode with no explicit --cell-type-column, auto-detect the source
+    column from the file header. No-op when a source is already set."""
+    if len(specs) == 1 and specs[0].src is None:
+        with gzip.open(input_path, "rt") as f:
+            reader = csv.DictReader(f)
+            detected = _detect_cell_type_column(reader.fieldnames or [])
+        if detected:
+            print(f"  Auto-detected cell type column: {detected}")
+        else:
+            print("  WARNING: No InSituType column found, cell_type will be empty")
+            detected = ""
+        return [ColumnSpec(out=specs[0].out, src=detected, color_col=specs[0].color_col)]
+    return specs
 
 
 def main() -> None:
@@ -189,8 +268,16 @@ def main() -> None:
     parser.add_argument(
         "--cell-type-column",
         default=None,
-        help="Column name for cell type annotations. Auto-detected from "
-             "InSituType columns if omitted.",
+        help="Legacy single-column mode: source column for cell type annotations. "
+             "Auto-detected from InSituType columns if omitted. Ignored when --column is used.",
+    )
+    parser.add_argument(
+        "--column",
+        action="append",
+        default=None,
+        metavar="OUTNAME=SOURCE_HEADER",
+        help="Add an output annotation column named OUTNAME sourced from SOURCE_HEADER "
+             "(repeatable). Each gets a deterministic <OUTNAME>_color column.",
     )
     parser.add_argument(
         "--output", required=True,
@@ -198,9 +285,10 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    specs = build_specs(args)
     print(f"  Slide:     {args.slide_name}")
     print(f"  Seg ID:    {args.seg_id or '(all)'}")
-    print(f"  Cell type: {args.cell_type_column}")
+    print(f"  Columns:   {', '.join(f'{s.out}<-{s.src}' for s in specs)}")
 
     s3 = boto3.client("s3")
 
@@ -218,61 +306,57 @@ def main() -> None:
     for run_name, key in sources:
         print(f"    - {run_name}")
 
-    # If we have a seg-id, try each source until we find one with matching cells.
-    # If no seg-id, just use the first source.
+    seg_id_set = (
+        set(s.strip() for s in args.seg_id.split(",")) if args.seg_id else None
+    )
+
     with tempfile.TemporaryDirectory() as tmpdir:
         local_gz = os.path.join(tmpdir, "metadata.csv.gz")
 
-        if args.seg_id is None:
-            # No filtering — use first source
+        if seg_id_set is None:
+            # No filtering — use the first source.
             run_name, s3_key = sources[0]
             print(f"  Downloading from: {run_name}")
             if not s3_download(s3, args.bucket, s3_key, local_gz):
                 print(f"ERROR: Failed to download s3://{args.bucket}/{s3_key}", file=sys.stderr)
                 sys.exit(1)
-
-            stats = generate_metadata(
-                local_gz, args.output, None, args.cell_type_column,
-            )
-            print(f"  Generated: {stats['total_written']} cells, {stats['cell_types']} types")
+            specs = resolve_legacy_src(specs, local_gz)
+            rows, _ = read_rows(local_gz, None, specs)
+            stats = write_output(args.output, specs, rows)
+            print(f"  Generated: {stats['total_written']} cells, "
+                  f"value counts {stats['value_counts']}")
             return
 
         # Multiple seg IDs may span multiple AtoMx runs (e.g. two-step
-        # resegmentation). Collect matching rows from ALL sources, then
-        # write a single merged _metadata.csv.
-        seg_ids_requested = set(s.strip() for s in args.seg_id.split(","))
-        seg_ids_found = set()
-        all_rows = []
-        all_seg_ids_seen = set()
+        # resegmentation). Collect matching rows from ALL sources, then write a
+        # single merged _metadata.csv with colors built over the full set.
+        seg_ids_requested = set(seg_id_set)
+        seg_ids_found: set[str] = set()
+        all_rows: list[tuple[str, list[str]]] = []
+        all_seg_ids_seen: set[str] = set()
+        specs_resolved = False
 
         for run_name, s3_key in sources:
             print(f"  Trying: {run_name} ...")
             if not s3_download(s3, args.bucket, s3_key, local_gz):
                 print(f"    Download failed, skipping")
                 continue
+            if not specs_resolved:
+                specs = resolve_legacy_src(specs, local_gz)
+                specs_resolved = True
 
-            stats = generate_metadata(
-                local_gz, args.output, args.seg_id, args.cell_type_column,
-            )
-            all_seg_ids_seen.update(stats["seg_ids_seen"])
+            rows, seg_ids_seen = read_rows(local_gz, seg_id_set, specs)
+            all_seg_ids_seen.update(seg_ids_seen)
 
-            if stats["total_written"] > 0:
-                # Read back the rows we just wrote (generate_metadata wrote to output)
-                with open(args.output) as f:
-                    reader = csv.DictReader(f)
-                    new_rows = [(r["cell_ID"], r["cell_type"], r.get("hex_color", ""))
-                                for r in reader]
-                all_rows += new_rows
-                matched_ids = seg_ids_requested & stats["seg_ids_seen"]
+            if rows:
+                all_rows += rows
+                matched_ids = seg_ids_requested & seg_ids_seen
                 seg_ids_found.update(matched_ids)
-                print(f"    Matched {stats['total_written']} cells "
-                      f"(seg IDs: {matched_ids})")
-
-                # If we've found all requested seg IDs, stop early
+                print(f"    Matched {len(rows)} cells (seg IDs: {matched_ids})")
                 if seg_ids_found >= seg_ids_requested:
                     break
             else:
-                print(f"    No matching cells (seg IDs in file: {stats['seg_ids_seen']})")
+                print(f"    No matching cells (seg IDs in file: {seg_ids_seen})")
 
         if not all_rows:
             print(f"ERROR: No metadata source contains cells for "
@@ -281,20 +365,9 @@ def main() -> None:
                   file=sys.stderr)
             sys.exit(1)
 
-        # Write merged output
-        # Rebuild color map across all collected cell types
-        cell_types = sorted(set(ct for _, ct, _ in all_rows if ct))
-        color_map = {ct: deterministic_color(ct) for ct in cell_types}
-
-        os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-        with open(args.output, "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["cell_ID", "cell_type", "hex_color"])
-            for cell_id, cell_type, _ in all_rows:
-                hex_color = color_map.get(cell_type, "")
-                writer.writerow([cell_id, cell_type, hex_color])
-
-        print(f"  Merged metadata: {len(all_rows)} cells, {len(cell_types)} types "
+        stats = write_output(args.output, specs, all_rows)
+        print(f"  Merged metadata: {stats['total_written']} cells, "
+              f"value counts {stats['value_counts']} "
               f"from {len(seg_ids_found)} segmentation(s)")
 
 

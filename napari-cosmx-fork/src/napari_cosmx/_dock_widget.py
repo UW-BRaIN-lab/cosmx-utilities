@@ -35,6 +35,7 @@ from napari.experimental import link_layers
 from napari.layers import Labels, Image
 from napari.utils.colormaps import AVAILABLE_COLORMAPS, label_colormap
 from napari.utils.colormaps.vendored import colors as color_utils
+from napari_cosmx._colors import categorical_color_map, colorable_columns
 import numpy as np
 import pandas as pd
 from os import path, listdir, system, sep, name
@@ -258,7 +259,7 @@ class GeminiQWidget(QWidget):
         self.gem.read_metadata(path)
         if self.gem.metadata is not None:
             self.metaComboBox.clear()
-            self.metaComboBox.addItems([i for i in self.gem.metadata.columns if i not in ['cell_ID', 'fov', 'CellId']])
+            self.metaComboBox.addItems(colorable_columns(self.gem.metadata.columns))
 
     def createMorphologyImageWidget(self):
         groupBox = QGroupBox(self, title="Morphology Images")
@@ -360,7 +361,7 @@ class GeminiQWidget(QWidget):
         boxc = QComboBox(groupBox)
         boxc.toolTip = "Open a _metadata.csv file to populate dropdown"
         if self.gem.metadata is not None:
-            boxc.addItems([i for i in self.gem.metadata.columns if i not in ['cell_ID', 'fov', 'CellId']])
+            boxc.addItems(colorable_columns(self.gem.metadata.columns))
         else:
             boxc.addItems([])
 
@@ -458,13 +459,15 @@ class GeminiQWidget(QWidget):
             color = dict(zip(self.gem.adata.obs[meta_col].cat.categories, self.gem.adata.uns[meta_col + "_colors"]))
             cols = np.vstack((np.zeros(4, dtype='float64'),
                 color_utils.to_rgba_array([color[i] for i in vals])))
-        elif 'hex_color' in self.gem.metadata.columns:
-            # use hex_color from _metadata.csv for consistent legend colors across slides
-            hex_map = dict(self.gem.metadata[[meta_col, 'hex_color']].drop_duplicates(subset=[meta_col]).values)
-            cols = np.vstack((np.zeros(4, dtype='float64'),
-                color_utils.to_rgba_array([hex_map.get(v, '#808080') for v in vals])))
         else:
-            cols = label_colormap(len(vals)+1).colors
+            # Prefer a per-column '<col>_color' then legacy 'hex_color' for
+            # consistent legend colors across slides; otherwise auto-generate.
+            hex_map = categorical_color_map(self.gem.metadata, meta_col)
+            if hex_map is not None:
+                cols = np.vstack((np.zeros(4, dtype='float64'),
+                    color_utils.to_rgba_array([hex_map.get(v, '#808080') for v in vals])))
+            else:
+                cols = label_colormap(len(vals)+1).colors
         for i,n in enumerate(vals):
             pmap = QPixmap(24, 24)
             rgba = cols[i+1]

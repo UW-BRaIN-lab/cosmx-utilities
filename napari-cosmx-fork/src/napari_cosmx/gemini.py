@@ -18,6 +18,7 @@ import vaex
 import dask.array as da
 import pickle
 from napari_cosmx.pairing import unpair, pair
+from napari_cosmx._colors import categorical_color_map
 from napari_cosmx._dock_widget import GeminiQWidget
 from sklearn import preprocessing
 from skimage.draw import polygon, ellipse
@@ -691,15 +692,17 @@ class Gemini:
                             categories = self.adata.obs[col_name].cat.categories
                             cat_colors = [transform_color(i)[0] for i in self.adata.uns[col_name + "_colors"]]
                             color = dict(zip(categories, cat_colors))
-                        elif 'hex_color' in self.metadata.columns:
-                            # use hex_color column from _metadata.csv for consistent colors across slides
-                            color_map = self.metadata[[col_name, 'hex_color']].drop_duplicates(subset=[col_name])
-                            color = {row[col_name]: transform_color(row['hex_color'])[0]
-                                     for _, row in color_map.iterrows() if pd.notna(row[col_name])}
                         else:
-                            vals = np.unique(self.metadata[col_name])
-                            cm = label_colormap(len(vals)+1)
-                            color = dict(zip(vals, cm.colors[1:]))
+                            # Prefer a per-column '<col>_color' (multi-annotation
+                            # _metadata.csv), then legacy 'hex_color', for consistent
+                            # colors across slides; otherwise auto-generate.
+                            hex_map = categorical_color_map(self.metadata, col_name)
+                            if hex_map is not None:
+                                color = {k: transform_color(v)[0] for k, v in hex_map.items()}
+                            else:
+                                vals = np.unique(self.metadata[col_name])
+                                cm = label_colormap(len(vals)+1)
+                                color = dict(zip(vals, cm.colors[1:]))
                     else:
                         assert isinstance(color, dict), "color needs to be dict for categorical metadata"
                         color = {k:transform_color(v)[0] for k,v in color.items()}
