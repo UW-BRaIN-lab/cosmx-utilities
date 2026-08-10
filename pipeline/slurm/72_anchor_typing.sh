@@ -23,7 +23,9 @@
 #SBATCH --qos=normal
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=320G
+# 256G matches the pilot's 2.33M InSituType rescale; keeps the request under the
+# glioblastoma/gpu-l40s association memory cap (320G + a co-running job hit AssocGrpMemLimit).
+#SBATCH --mem=256G
 #SBATCH --time=24:00:00
 #SBATCH --output=pipeline/logs/anchor_typing_%j.out
 #SBATCH --error=pipeline/logs/anchor_typing_%j.err
