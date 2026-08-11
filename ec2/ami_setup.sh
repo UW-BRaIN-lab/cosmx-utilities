@@ -1,8 +1,10 @@
 #!/bin/bash
 # Cloud-init user-data script for CosMx EC2 instances.
 # Installs DCV, UV, Python environments, and (in analytics mode) R/RStudio.
-# On instances with an NVIDIA GPU it also installs the NVIDIA driver + DCV GL
-# so DCV virtual sessions render on the GPU (else Mesa software rendering).
+# DCV runs a CONSOLE session on a real Xorg :0 (GDM3-managed, dummy software
+# driver) so multiple Napari OpenGL windows render — unlike virtual Xdcv
+# sessions, which could not. Software rendering; GPU acceleration is a
+# follow-up (Phase 2).
 # EC2_MODE controls what gets installed: "analytics" (default) or "napari".
 # Run by create_ami.py or start_ec2.py --raw as user-data.
 set -euxo pipefail
@@ -28,9 +30,16 @@ unzip -q /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install
 rm -rf /tmp/aws /tmp/awscliv2.zip
 
-# ── Desktop environment (lightweight, for DCV) ──────────────────────────
+# ── Desktop environment (for a DCV console session) ─────────────────────
+# We run a real Xorg on :0 (dummy software driver) managed by GDM3, and DCV
+# attaches a CONSOLE session to it. This mirrors the pre-e4926e7 setup that
+# handled multiple Napari windows, but uses GDM3 (AWS's recommended display
+# manager for Ubuntu 24.04) instead of LightDM, which is what broke before.
+# gdm3 + xserver-xorg-video-dummy give the :0 Xorg; x11-xserver-utils = xrandr.
 apt-get install -y --no-install-recommends \
     xfce4 xfce4-terminal \
+    gdm3 \
+    xserver-xorg-core xserver-xorg-video-dummy x11-xserver-utils \
     xfonts-base \
     desktop-file-utils \
     mesa-utils \
@@ -73,14 +82,8 @@ rm -f rstudio-server-*.deb
 systemctl enable rstudio-server
 fi
 
-# ── NICE DCV (GPU-accelerated when an NVIDIA GPU is present, else Mesa) ──
+# ── NICE DCV (console session on a real Xorg :0, software rendering) ─────
 cd /tmp
-# Detect an NVIDIA GPU: present on the g4dn napari instances, absent on the
-# r5a analytics instances. Drives the GPU driver + DCV GL setup further down.
-HAS_GPU=0
-if lspci 2>/dev/null | grep -qi 'NVIDIA'; then HAS_GPU=1; fi
-echo "HAS_GPU=$HAS_GPU"
-
 OS_VERSION=$(. /etc/os-release; echo "$VERSION_ID" | sed 's/\\.//g')
 ARCH=$(arch)
 DCV_TGZ="nice-dcv-ubuntu${OS_VERSION}-${ARCH}.tgz"
@@ -93,18 +96,26 @@ wget -q "https://d1uj6qtbmh3dt5.cloudfront.net/${DCV_TGZ}" || {
 
 tar xzf "$DCV_TGZ"
 cd nice-dcv-*-"${ARCH}"
-apt-get install -y ./nice-dcv-server_*.deb ./nice-dcv-web-viewer_*.deb ./nice-xdcv_*.deb
-# Stash the DCV GL interposer for the GPU block below; it must be installed
-# after the NVIDIA driver. Copied out so the cleanup below doesn't remove it.
-if [ "$HAS_GPU" = 1 ] && ls ./nice-dcv-gl_*.deb >/dev/null 2>&1; then
-    mkdir -p /tmp/dcvgl && cp ./nice-dcv-gl_*.deb /tmp/dcvgl/
-fi
+# Console sessions use the system Xorg, so nice-xdcv (DCV's own X server for
+# virtual sessions) is not needed.
+apt-get install -y ./nice-dcv-server_*.deb ./nice-dcv-web-viewer_*.deb
 cd /tmp && rm -rf nice-dcv-*-"${ARCH}" "$DCV_TGZ"
 
-# Configure DCV for virtual sessions (no display manager needed)
+# Configure DCV to auto-create a CONSOLE session owned by ubuntu, attached to
+# the Xorg running on :0 (started by GDM3 below). A console session uses a
+# real Xorg + window manager, which — unlike a virtual Xdcv session — happily
+# drives several Napari OpenGL windows at once (the workflow that regressed
+# when we moved to virtual sessions).
 cat > /etc/dcv/dcv.conf << 'DCVCONF'
 [display]
 target-fps = 30
+
+[session-management]
+create-session = true
+
+[session-management/automatic-console-session]
+owner = "ubuntu"
+storage-root = "%home%"
 
 [connectivity]
 web-port = 8443
@@ -112,26 +123,55 @@ DCVCONF
 
 systemctl enable dcvserver
 
-# Systemd service to auto-create a DCV virtual session on boot.
-# After=dcvstartx.service so that, on GPU instances, the X server backing
-# GPU sharing is up first (the dcvstartx unit only exists when a GPU is
-# present; ordering against a missing unit is a harmless no-op).
-cat > /etc/systemd/system/dcv-virtual-session.service << 'UNIT'
-[Unit]
-Description=Create DCV virtual session
-After=dcvserver.service dcvstartx.service
-Requires=dcvserver.service
+# ── Xorg on :0 via GDM3 (no LightDM — that's what broke on Ubuntu 20.x+) ──
+# Software framebuffer via the dummy driver at a large virtual resolution.
+cat > /etc/X11/xorg.conf << 'XORGCONF'
+Section "Device"
+    Identifier "DummyDevice"
+    Driver "dummy"
+    Option "UseEDID" "false"
+    VideoRam 512000
+EndSection
 
-[Service]
-Type=oneshot
-ExecStartPre=/bin/sleep 2
-ExecStart=/usr/bin/dcv create-session --type virtual --owner ubuntu main
-RemainAfterExit=yes
+Section "Monitor"
+    Identifier "DummyMonitor"
+    HorizSync   5.0 - 1000.0
+    VertRefresh 5.0 - 200.0
+    Option "ReducedBlanking"
+EndSection
 
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl enable dcv-virtual-session
+Section "Screen"
+    Identifier "DummyScreen"
+    Device "DummyDevice"
+    Monitor "DummyMonitor"
+    DefaultDepth 24
+    SubSection "Display"
+        Viewport 0 0
+        Depth 24
+        Virtual 3840 2160
+    EndSubSection
+EndSection
+XORGCONF
+
+# GDM3: force Xorg (DCV can't use Wayland), and auto-login ubuntu into an Xfce
+# session so a desktop is running on :0 for DCV's console session to attach to.
+echo "/usr/sbin/gdm3" > /etc/X11/default-display-manager
+cat > /etc/gdm3/custom.conf << 'GDMCONF'
+[daemon]
+WaylandEnable=false
+AutomaticLoginEnable=true
+AutomaticLogin=ubuntu
+GDMCONF
+# Make the auto-login session Xfce.
+mkdir -p /var/lib/AccountsService/users
+cat > /var/lib/AccountsService/users/ubuntu << 'ACCT'
+[User]
+Session=xfce
+XSession=xfce
+SystemAccount=false
+ACCT
+systemctl enable gdm3
+systemctl set-default graphical.target
 
 # ── rclone (fast parallel S3 transfers) ─────────────────────────────────
 curl -sSL https://rclone.org/install.sh | bash
@@ -162,78 +202,12 @@ mkdir -p /mnt/cosmx
 chown ubuntu:ubuntu /mnt/cosmx
 fi
 
-# ── GPU-accelerated rendering for DCV virtual sessions (NVIDIA only) ─────
-# napari renders via OpenGL. Without a GPU driver it falls back to Mesa
-# llvmpipe (CPU) rendering, which is slow for one slide and cannot drive
-# several viewers at once. On the g4dn napari instances we install the
-# NVIDIA driver + DCV GL so virtual sessions render on the T4.
-#
-# The whole block is gated on an NVIDIA GPU being present (skipped on the
-# r5a analytics instances) and wrapped so ANY failure degrades to Mesa
-# software rendering instead of aborting the setup — i.e. worst case is the
-# current behaviour, never a broken instance. No reboot is needed: nouveau
-# is swapped for nvidia live because no X server is running yet (DCV starts
-# below). VALIDATE on a fresh `--raw` launch — see PR notes.
-if [ "$HAS_GPU" = 1 ]; then
-  echo "=== Configuring GPU-accelerated rendering ==="
-  install_gpu() {
-    set -e
-    apt-get install -y --no-install-recommends \
-        "linux-headers-$(uname -r)" "linux-modules-extra-$(uname -r)"
-    # NVIDIA driver from the Ubuntu archive — no S3 bucket / IAM / EULA
-    # dependency (unlike the AWS GRID driver). Provides OpenGL + EGL, which
-    # is what napari needs. ubuntu-drivers picks the archive-recommended
-    # version; fall back to explicit server packages if it is unavailable.
-    apt-get install -y --no-install-recommends ubuntu-drivers-common
-    ubuntu-drivers install \
-        || apt-get install -y --no-install-recommends nvidia-driver-570-server \
-        || apt-get install -y --no-install-recommends nvidia-driver-550-server
-    # Replace nouveau with nvidia without a reboot (safe: no X running yet).
-    printf 'blacklist nouveau\noptions nouveau modeset=0\n' \
-        > /etc/modprobe.d/blacklist-nouveau.conf
-    update-initramfs -u || true
-    modprobe -r nouveau 2>/dev/null || true
-    modprobe nvidia
-    nvidia-smi -L
-    # Xorg config bound to the GPU — required for virtual-session GPU sharing.
-    rm -f /etc/X11/XF86Config*
-    nvidia-xconfig --preserve-busid --enable-all-gpus
-    # DCV GL interposer: routes virtual-session OpenGL to the GPU.
-    if ls /tmp/dcvgl/nice-dcv-gl_*.deb >/dev/null 2>&1; then
-        apt-get install -y /tmp/dcvgl/nice-dcv-gl_*.deb
-    fi
-    command -v dcvgladmin >/dev/null 2>&1 && dcvgladmin enable || true
-    # An X server must run on the GPU before virtual sessions are created so
-    # they can share it (Amazon DCV "GPU sharing"). dcvstartx does exactly this.
-    cat > /etc/systemd/system/dcvstartx.service << 'UNIT'
-[Unit]
-Description=Start an X server on the GPU for DCV virtual-session GPU sharing
-After=dcvserver.service
-Before=dcv-virtual-session.service
-[Service]
-Type=simple
-ExecStart=/usr/bin/dcvstartx
-Restart=on-failure
-RestartSec=2
-[Install]
-WantedBy=multi-user.target
-UNIT
-    systemctl daemon-reload
-    systemctl enable dcvstartx.service
-  }
-  install_gpu || echo "WARNING: GPU setup failed — DCV will use Mesa software rendering"
-fi
-
-# ── Start DCV now (services are enabled for future boots) ─────────────
+# ── Bring up the graphical target: GDM3 starts Xorg :0, autologin ubuntu, ─
+#    then DCV auto-creates the console session against it. ─────────────────
 systemctl start dcvserver
-sleep 2
-# On GPU instances, bring up the GPU X server before the virtual session so
-# the session shares the GPU. Non-fatal if it fails (falls back to Mesa).
-if [ "$HAS_GPU" = 1 ] && systemctl list-unit-files | grep -q '^dcvstartx.service'; then
-    systemctl start dcvstartx.service || echo "WARNING: dcvstartx failed to start"
-    sleep 2
-fi
-systemctl start dcv-virtual-session
+# Switch to graphical.target so GDM3 starts the :0 Xorg + Xfce session now
+# (idempotent on future boots via the enabled units above).
+systemctl isolate graphical.target || echo "WARNING: could not isolate graphical.target"
 
 # ── Sentinel: signal setup completion ────────────────────────────────────
 touch /var/lib/cloud/instance/ami-setup-complete
