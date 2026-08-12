@@ -104,7 +104,8 @@ cosmx-utilities/
 │   ├── process-slide.py     # Single slide: detect segmentation version, download, stitch, upload
 │   ├── process-slides.py    # Discover all slides in S3 and launch Fargate tasks
 │   ├── generate-slide-metadata.py  # Generate _metadata.csv with cell metadata and deterministic colors
-│   └── compare-cell-typing.py  # Compare two cell-type columns per run: abundance bars + Sankey
+│   ├── compare-cell-typing.py  # Compare two cell-type columns per run: abundance bars + Sankey
+│   └── diagnose-cell-typing.py  # Characterize de-novo/low-signal clusters + gene-pruning + marker heatmap
 ├── fargate/                 # Fargate task definitions and IAM configuration
 ├── ec2/                     # EC2 auto-provisioning for analytics and Napari viewer instances
 │   ├── start_ec2.py         # Launch analytics (r5a) or Napari (g4dn GPU) instances
