@@ -72,8 +72,18 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/anchor/anchor_input.h5"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
     "$WORK/reference.csv"
 
-# n_clusts 10:20 (pilot setting): the de-novo EM discovers the tumor programs — both shared and
-# the 38-donor patient-private ones — that become the Malignant leaves of the rebuilt reference.
+# Optional FAQ pruned panel (73_select_genes.sh output). KEEP_GENES is a Kopah key under
+# ${KOPAH_PREFIX}/ to a kept_genes.txt; unset = full panel (pilot behavior).
+KEEP_ARG=()
+if [[ -n "${KEEP_GENES:-}" ]]; then
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${KEEP_GENES}" "$WORK/kept_genes.txt"
+    KEEP_ARG=(--keep-genes "$WORK/kept_genes.txt")
+    echo "Restricting anchor fit to pruned panel from ${KEEP_GENES}"
+fi
+
+# n_clusts default 10:20 (pilot); raise via N_CLUSTS to the de-novo K the 74 sweep found. The
+# de-novo EM discovers the tumor programs — shared and 38-donor patient-private — that become
+# the Malignant leaves of the rebuilt reference.
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -89,7 +99,8 @@ apptainer exec \
         --refit "${REFIT:-false}" \
         --refinement "${REFINEMENT:-false}" \
         --n-starts "${N_STARTS:-10}" \
-        --max-iters "${MAX_ITERS:-40}"
+        --max-iters "${MAX_ITERS:-40}" \
+        ${KEEP_ARG[@]+"${KEEP_ARG[@]}"}
 
 echo "Uploading anchor typing to Kopah..."
 s5cmd cp "$WORK/anchor_typing.h5" \
