@@ -86,6 +86,9 @@ refinement <- as_logical(opt$refinement %||% "false")
 n_starts <- as.integer(opt[["n-starts"]] %||% 10)
 max_iters <- as.integer(opt[["max-iters"]] %||% 40)
 seed <- as.integer(opt$seed %||% 0)
+# Optional 6k-panel gene restriction (FAQ subset from select_informative_genes.R). When
+# unset, the full shared panel is used (original behavior).
+keep_genes_path <- opt[["keep-genes"]]
 
 # --- read the stage-4a input -------------------------------------------------
 message(sprintf("%s, reading %s", Sys.time(), opt$input))
@@ -120,6 +123,16 @@ ref <- as.matrix(ref_dt[, -1L])
 rownames(ref) <- ref_genes
 storage.mode(ref) <- "double"
 message(sprintf("reference: %d genes x %d cell types", nrow(ref), ncol(ref)))
+
+# --- optional FAQ gene pruning (restrict the panel to a kept-gene subset) ------
+if (!is.null(keep_genes_path)) {
+  keep_genes <- readLines(keep_genes_path)
+  keep_genes <- intersect(keep_genes, colnames(x))
+  stopifnot("no --keep-genes overlap the panel" = length(keep_genes) > 0)
+  message(sprintf("gene pruning: restricting panel %d -> %d genes (--keep-genes %s)",
+                  ncol(x), length(keep_genes), keep_genes_path))
+  x <- x[, keep_genes, drop = FALSE]
+}
 
 # --- align genes (InSituType uses only the shared genes) ----------------------
 shared <- intersect(colnames(x), rownames(ref))
