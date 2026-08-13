@@ -84,7 +84,7 @@ apptainer exec \
         --n-reps "${K_SWEEP_REPS:-3}" \
         --max-iters "${K_SWEEP_MAX_ITERS:-20}" \
         --max-cells "${K_SWEEP_MAX_CELLS:-500000}" \
-        "${KEEP_ARG[@]}"
+        ${KEEP_ARG[@]+"${KEEP_ARG[@]}"}
 
 echo "Uploading K-sweep outputs to Kopah (${STAGE4}/${K_SWEEP_OUT})..."
 for f in k_sweep.csv k_sweep.png k_sweep_summary.txt; do
