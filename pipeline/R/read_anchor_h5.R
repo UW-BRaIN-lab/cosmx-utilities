@@ -38,19 +38,21 @@ read_anchor_h5 <- function(path, max_cells = NULL, seed = 0L) {
   neg <- f[["neg"]][]
   names(neg) <- cell_id
 
+  # Down-sample cells on the genes x cells CSC (cells are COLUMNS -> cheap column subset)
+  # BEFORE transposing, so the big anchor never materializes a full cells x genes copy.
+  if (!is.null(max_cells) && max_cells < ncol(counts_gxc)) {
+    n_before <- ncol(counts_gxc)
+    if (seed != 0L) set.seed(seed)
+    keep <- sort(sample.int(n_before, max_cells))
+    counts_gxc <- counts_gxc[, keep, drop = FALSE]
+    neg <- neg[keep]
+    message(sprintf("  down-sampled to %d of %d cells (max_cells=%d)",
+                    ncol(counts_gxc), n_before, max_cells))
+  }
+
   # cells x genes for InSituType.
   x <- Matrix::t(counts_gxc)
   rm(counts_gxc)
-
-  if (!is.null(max_cells) && max_cells < nrow(x)) {
-    n_before <- nrow(x)
-    if (seed != 0L) set.seed(seed)
-    keep <- sort(sample.int(n_before, max_cells))
-    x <- x[keep, , drop = FALSE]
-    neg <- neg[keep]
-    message(sprintf("  down-sampled to %d of %d cells (max_cells=%d)",
-                    nrow(x), n_before, max_cells))
-  }
 
   message(sprintf("counts: %d cells x %d genes; neg median %.4f",
                   nrow(x), ncol(x), stats::median(neg)))
