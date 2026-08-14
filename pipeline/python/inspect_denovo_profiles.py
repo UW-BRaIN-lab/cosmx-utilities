@@ -33,7 +33,10 @@ import h5py
 import numpy as np
 import pandas as pd
 
-DENOVO_RE = re.compile(r"^[a-z]$")   # de-novo clusters are single lowercase letters
+# De-novo clusters are named from InSituType's cluster_name_pool = c(letters, "aa","ab",...),
+# i.e. one or two lowercase letters (single letters for K<=26, then aa.. for K>26). Named GBmap
+# types always carry an uppercase letter, digit, or separator, so [a-z]{1,2} never collides.
+DENOVO_RE = re.compile(r"^[a-z]{1,2}$")
 
 
 def parse_args() -> argparse.Namespace:
