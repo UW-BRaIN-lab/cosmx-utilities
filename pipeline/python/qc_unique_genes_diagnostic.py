@@ -12,6 +12,10 @@ typing result h5 (/cell_id, /cell_type). An optional per-cell CNV table splits L
 malignant vs normal, which is the crux for the filter decision (the InSituCNV finding is that
 much of Low_signal is real low-transcript CNV-malignant tumour, [[project_insitucnv_lowsignal]]).
 
+The CNV table is InSituCNV's cell_cnv_table.csv.gz. Its malignant flag is `is_malignant_call`
+(= mal_sig > sig_thr, sig_thr = 95th pct of diploid-reference + contralateral-Low_signal cells);
+the continuous score is `mal_sig` (or `cnv_score`), usable via --cnv-score-col + --cnv-threshold.
+
 Reads obs in BACKED mode, so a 7.5M-cell h5ad only pulls its obs table, not X.
 
 Outputs (into --output-dir):
@@ -28,7 +32,8 @@ Usage:
         pipeline/python/qc_unique_genes_diagnostic.py \\
             --h5ad cosmx_clustered.h5ad --celltype-col cell_type \\
             [--typing insitutree_result.h5] \\
-            [--cnv cell_cnv_table.csv.gz --cnv-malignant-col malignant] \\
+            [--cnv cell_cnv_table.csv.gz --cnv-malignant-col is_malignant_call] \\
+            [ or  --cnv cell_cnv_table.csv.gz --cnv-score-col mal_sig --cnv-threshold <sig_thr> ] \\
             [--malignant-labels AC-like,MES-like,NPC-like,OPC-like,Hypoxia_denovo,...] \\
             --output-dir qc_unique_genes
 """
