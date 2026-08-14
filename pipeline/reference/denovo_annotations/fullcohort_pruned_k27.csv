@@ -1,0 +1,28 @@
+denovo_label,keep,new_name,annotation,top_markers,quality
+o,TRUE,Hypoxia_denovo,o - Hypoxia,"VEGFA,NDRG1,ATF3,HILPDA,DDIT3,HSPB1,CRYAB,PPP1R15A",clean; distinct (cos 0.71)
+m,TRUE,Hypoxia_stem_denovo,m - Hypoxia/stem,"VEGFA,IGFBP5,MT3,MT1X,PROM1,HILPDA,NTRK2",clean; merge-candidate with o (hypoxia group)
+t,TRUE,AClike_denovo,t - AC-like,"CRYAB,HSPB1,NTSR2,ACSBG1,PAX6,PDGFRA,SEMA3E,LANCL2",clean
+z,TRUE,Astrocytic_denovo,z - Astrocytic,"AQP1,AQP4,SLC1A2,GJA1,FGFR3,GPC5,NTSR2,ACSBG1",PI: reactive-astrocyte vs AC-like malignant?
+v,TRUE,AClike_II_denovo,v - AC-like (ALDH1L1),"ALDH1L1,SLC4A4,HOPX,MT3,CSPG5,DBI,SLC6A11",clean; merge-candidate with t (AC-like group)
+k,TRUE,AClike_EGFR_denovo,k - AC-like/EGFR,"ALDH1L1,MT3,S100B,EGFR,AQP1,RYR3,LPL",clean; merge-candidate with t/v (AC-like group)
+q,TRUE,MES_AClike_denovo,q - MES/hypoxic-AC,"EDN3,AGT,POSTN,VEGFA,PDPN,SEC61G,LANCL2,IL1RAP",clean
+w,TRUE,MES_inflammatory_denovo,w - MES-inflammatory,"LTF,CHI3L1,VCAM1,TGFB2,SOD2,CCL2,CSF1,TNC",clean
+a,TRUE,MES_invasive_denovo,a - MES-invasive,"HP,EGLN3,COL12A1,COL1A2,BGN,POSTN,C1R,NFKBIZ",clean; distinct (cos 0.65)
+p,TRUE,MES_ALDH1A3_denovo,p - MES (ALDH1A3),"ITGB4,ALDH1A3,MDK,GDF15,L1CAM,TMEFF2,TNFRSF12A,SERPINE1",clean; distinct (cos 0.62)
+i,TRUE,NPClike_MDM4_denovo,i - NPC-like/MDM4,"DLL3,GPR17,MDM4,BCAN,SEC61G,CNTN2,PIK3C2B",clean
+x,TRUE,MES_MDM4_denovo,x - MES/MDM4,"NFASC,SFRP4,SERPINA3,VCAM1,MDM4,TNC,TGFB2,AQP4",moderate; merge-candidate with i (MDM4)
+j,TRUE,OPClike_denovo,j - OPC/NPC-like,"PCDH15,GPR17,PROM1,NKX2-2,BCAS1,PDGFRA,CCND1,BAMBI",clean; high cos to NPC-like_OPC (0.89) - dup?
+d,TRUE,NPClike_prolif_denovo,d - NPC-like/prolif,"SOX10,CDK4,RXRG,COL21A1,ACVR1B,DTX3,ME1",clean; distinct (cos 0.61)
+y,TRUE,Interferon_denovo,y - Interferon-response,"IFI44L,OAS3,IFIT1,IFIT3,HUS1,SLIT1,PTCH1",NEW program; PI: keep as tumor-IFN state?
+b,TRUE,Low_signal_denovo,b - Low_signal sink,"CES3,F2RL3,A1BG,SNRPA1,GPX1,PTEN,HOXA3,SNAI1",flat/low-content sink (778k; InSituCNV real-but-flat)
+aa,FALSE,,aa - Oligodendrocyte,"MOBP,MAG,PLP1,MBP,MAL,UGT8,CNTN2,QDPR",DROP: conserved normal; dup of Oligodendrocyte (cos 0.89)
+n,FALSE,,n - Neuron (excitatory),"SV2B,SLC17A7,SYN3,CAMK2A,RYR2,NRGN,CHGA",DROP: conserved normal neuron
+l,FALSE,,l - Endothelial,"CLDN5,VWF,FLT1,CD34,NOTCH4,ROBO4,ESAM",DROP: conserved normal endothelium
+u,FALSE,,u - TAM/macrophage,"CD14,CD163,VSIG4,SPP1,OLR1,STAB1,SLC11A1",DROP: conserved normal; dup of TAM-MG (cos 0.93)
+e,FALSE,,e - Neuron (excitatory),"FABP3,SLC17A7,CHGA,SNAP25,SYN2,NRGN,KCNQ3",DROP: conserved normal neuron
+f,FALSE,,f - Neuron,"VSNL1,SNCA,SH3GL2,NEFL,SLC17A7,SNAP25,SYT1",DROP: conserved normal neuron
+s,FALSE,,s - Neuron (inhibitory),"GAD1,GAD2,SLC32A1,SST,PNOC,CPLX1,SNCG",DROP: conserved normal GABAergic neuron
+c,FALSE,,c - Mural/pericyte,"COL4A1,COL4A2,PDGFRB,NOTCH3,EDNRA,TAGLN,NID1",DROP: conserved normal mural
+g,FALSE,,g - Fibroblast/stroma,"SFRP2,LUM,COL3A1,DCN,COL1A1,OGN,COL6A3",DROP: conserved normal fibroblast
+h,FALSE,,h - junk (tiny),"POSTN,MOBP,LTF,S100A1,PLP1,MAG",DROP: 139 cells; incoherent mix
+r,FALSE,,r - junk (tiny),"CAV2,IFIT5,ERRFI1,TEK,TRIM13,RGMB",DROP: 1 cell
