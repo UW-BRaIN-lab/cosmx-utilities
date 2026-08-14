@@ -80,8 +80,8 @@ apptainer exec \
         --reference "$WORK/reference.csv" \
         --out-dir "$WORK/$K_SWEEP_OUT" \
         --n-clusts "${K_SWEEP_RANGE:-15:35}" \
-        --subset-size "${K_SWEEP_SUBSET:-20000}" \
-        --n-reps "${K_SWEEP_REPS:-3}" \
+        --subset-size "${K_SWEEP_SUBSET:-10000}" \
+        --n-reps "${K_SWEEP_REPS:-2}" \
         --max-iters "${K_SWEEP_MAX_ITERS:-20}" \
         --max-cells "${K_SWEEP_MAX_CELLS:-500000}" \
         ${KEEP_ARG[@]+"${KEEP_ARG[@]}"}
