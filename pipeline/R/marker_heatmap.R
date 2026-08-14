@@ -61,8 +61,12 @@ markers <- read.csv(mark_path, stringsAsFactors = FALSE)
 gene_to_cluster <- setNames(as.character(markers$cluster), markers$gene)
 
 # --- derive column (cluster, Region) metadata from the column names -----------
-col_cluster <- sub(" \\| .*", "", colnames(pb_z))
-col_region  <- sub(".* \\| ", "", colnames(pb_z))
+# Two input shapes: pseudobulk-by-region columns "<cluster> | <Region>" (marker_pseudobulk.py),
+# or plain per-type profile columns "<type>" (profile_marker_inputs.py) with no Region. In the
+# latter no-region mode we drop the Region annotation/split and just show the profile columns.
+has_region  <- any(grepl(" \\| ", colnames(pb_z), fixed = FALSE))
+col_cluster <- if (has_region) sub(" \\| .*", "", colnames(pb_z)) else colnames(pb_z)
+col_region  <- if (has_region) sub(".* \\| ", "", colnames(pb_z)) else rep(NA_character_, ncol(pb_z))
 
 # --- optional relabel of cluster ids (de novo letter -> annotation) -----------
 # Applied to both the column groups and the row-split labels so they stay aligned.
@@ -86,7 +90,7 @@ cl_levels <- tryCatch(as.character(sort(as.integer(uniq_cl))),
 region_levels <- intersect(REGION_ORDER, unique(col_region))
 
 col_cluster <- factor(col_cluster, levels = cl_levels)
-col_region  <- factor(col_region, levels = region_levels)
+col_region  <- if (has_region) factor(col_region, levels = region_levels) else NULL
 row_cluster <- factor(gene_to_cluster[rownames(pb_z)], levels = cl_levels)
 
 # --- palettes -----------------------------------------------------------------
@@ -102,7 +106,7 @@ heatmap_col <- colorRamp2(c(-3, 0, 3), c("navy", "white", "firebrick"))
 long_labels  <- max(nchar(cl_levels)) > 6
 col_title_rot <- if (long_labels) 90 else 0
 
-top_anno <- HeatmapAnnotation(
+top_anno <- if (has_region) HeatmapAnnotation(
   Region = col_region,
   col = list(Region = region_colors),
   show_annotation_name = FALSE,
@@ -110,7 +114,7 @@ top_anno <- HeatmapAnnotation(
     title = "Region", nrow = 1,
     labels_gp = gpar(fontsize = LEGEND_FONTSIZE),
     title_gp = gpar(fontsize = LEGEND_FONTSIZE, fontface = "bold")))
-)
+) else NULL
 left_anno <- rowAnnotation(
   cluster = row_cluster,
   col = list(cluster = cl_palette),
@@ -127,11 +131,11 @@ ht <- Heatmap(
   cluster_columns   = FALSE,
   show_row_names    = TRUE,
   show_column_names = TRUE,
-  column_labels     = as.character(col_region),
+  column_labels     = if (has_region) as.character(col_region) else as.character(col_cluster),
   column_names_rot  = 90,
   column_names_side = "top",
   column_names_gp   = gpar(fontsize = COL_FONTSIZE),
-  column_split      = col_cluster,
+  column_split      = if (has_region) col_cluster else NULL,
   cluster_column_slices = FALSE,
   column_title_side = "bottom",
   column_title_rot  = col_title_rot,
