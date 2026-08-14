@@ -25,18 +25,25 @@ Reads (stage the h5 down from Kopah first, e.g.:
     s5cmd cp s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage4/insitutype_result.h5 .):
   --profiles-h5   an InSituType run's result h5 (written by R/insitutype_typing.R) with
                   datasets /profiles (genes x types), /profile_genes, /profile_types.
-  --annotations   that run's de-novo annotation CSV (reference/denovo_annotations/*.csv):
-                  columns denovo_label, annotation, ... — used only to print/verify which
-                  identity each kept letter carries (the actual rename is DEFAULT_DENOVO_RENAME).
+  --annotations   that run's de-novo annotation CSV (reference/denovo_annotations/*.csv).
+                  Two schemas are supported:
+                    * DATA-DRIVEN (preferred): has `keep` + `new_name` columns — the kept
+                      de-novo clusters (keep truthy) are renamed to their new_name. This is
+                      the single source of truth; edit the CSV, not this file.
+                    * LEGACY: only denovo_label/annotation — falls back to the hardcoded
+                      DEFAULT_DENOVO_RENAME (the original Core-L4 pilot map).
 
 Writes:
   --output        genes x cell-types CSV (gene = row index), linear scale, ready as the
                   InSituTree `full_profiles`. Columns = all named types + renamed de-novo.
 
+The kept new_names are the LEAVES of the Malignant branch (+ Low_signal sink) in
+insitutree_hierarchy.json, so whatever this run keeps MUST be reflected there in lockstep.
+
 Usage:
     uv run python pipeline/python/prep_insitutree_profiles.py \\
-        --profiles-h5 insitutype_result.h5 \\
-        --annotations pipeline/reference/denovo_annotations/stage4.csv \\
+        --profiles-h5 anchor_typing.h5 \\
+        --annotations pipeline/reference/denovo_annotations/fullcohort_pruned_k27.csv \\
         --output pipeline/reference/insitutree_profiles.csv
 """
 
@@ -51,9 +58,9 @@ import h5py
 import numpy as np
 import pandas as pd
 
-# De-novo letters (from the Core-L4 rescale run, reference/denovo_annotations/stage4.csv)
-# to KEEP, mapped to stable leaf names for the InSituTree hierarchy. The `_denovo` suffix
-# guarantees no collision with any of the 54 Core-L4 named types. Keep in lockstep with
+# FALLBACK rename map for LEGACY annotation CSVs that lack keep/new_name columns (the original
+# Core-L4 pilot run). Preferred path is data-driven: a `keep`/`new_name` annotations CSV. The
+# `_denovo` suffix guarantees no collision with any Core-L4 named type. Keep in lockstep with
 # pipeline/reference/insitutree_hierarchy.json.
 DEFAULT_DENOVO_RENAME = {
     "b": "Stress_denovo",       # Heat-shock/stress (cross-cutting)
@@ -64,7 +71,50 @@ DEFAULT_DENOVO_RENAME = {
     "j": "Low_signal_denovo",   # Low-signal/generic sink (housekeeping only)
 }
 
-DENOVO_LABEL_RE = re.compile(r"^[a-z]$")  # de-novo clusters are single lowercase letters
+# De-novo clusters = InSituType cluster_name_pool = 1-2 lowercase letters (a..z, aa..; K>26
+# overflows into two letters). Named types always carry an uppercase/digit/separator.
+DENOVO_LABEL_RE = re.compile(r"^[a-z]{1,2}$")
+
+TRUTHY = {"true", "t", "1", "yes", "y"}
+
+
+def load_rename_map(annotations_path: Path, denovo_labels: list[str]) -> dict[str, str]:
+    """Return {denovo_label -> new_name} for the clusters to KEEP.
+
+    Data-driven when the CSV has keep + new_name columns (kept = keep truthy, renamed to
+    new_name); otherwise falls back to DEFAULT_DENOVO_RENAME. Validates that every kept label
+    exists in this run, has a non-empty unique new_name, and (data-driven) that at least one
+    row is kept.
+    """
+    ann = pd.read_csv(annotations_path)
+    if "denovo_label" not in ann.columns:
+        sys.exit(f"ERROR: {annotations_path} has no 'denovo_label' column.")
+    ann["denovo_label"] = ann["denovo_label"].astype(str).str.strip()
+
+    if {"keep", "new_name"}.issubset(ann.columns):
+        kept = ann[ann["keep"].astype(str).str.strip().str.lower().isin(TRUTHY)].copy()
+        kept["new_name"] = kept["new_name"].astype(str).str.strip()
+        blank = kept[kept["new_name"].isin(("", "nan"))]["denovo_label"].tolist()
+        if blank:
+            sys.exit(f"ERROR: kept de-novo {blank} have an empty new_name in {annotations_path}.")
+        rename = dict(zip(kept["denovo_label"], kept["new_name"]))
+        if not rename:
+            sys.exit(f"ERROR: no rows marked keep in {annotations_path}.")
+        print(f"Rename map: DATA-DRIVEN from {annotations_path.name} "
+              f"({len(rename)} keep, {len(ann) - len(rename)} drop)")
+    else:
+        rename = dict(DEFAULT_DENOVO_RENAME)
+        print(f"Rename map: FALLBACK DEFAULT_DENOVO_RENAME (no keep/new_name in "
+              f"{annotations_path.name}); {len(rename)} keep")
+
+    missing = sorted(set(rename) - set(denovo_labels))
+    if missing:
+        sys.exit(f"ERROR: kept de-novo {missing} absent from this run's de-novo {denovo_labels}. "
+                 f"Wrong run, or fix the annotations CSV.")
+    dups = [n for n in set(rename.values()) if list(rename.values()).count(n) > 1]
+    if dups:
+        sys.exit(f"ERROR: duplicate new_name(s) in the rename map: {sorted(dups)}.")
+    return rename
 
 
 def parse_args() -> argparse.Namespace:
@@ -127,34 +177,32 @@ def main() -> None:
     print(f"Profiles: {profiles.shape[0]:,} genes x {len(all_types)} types "
           f"({len(named)} named + {len(denovo)} de-novo {denovo})")
 
-    # Confirm every de-novo letter we intend to keep is actually in the run.
-    missing = sorted(set(DEFAULT_DENOVO_RENAME) - set(denovo))
-    if missing:
-        print(f"ERROR: de-novo letters {missing} requested but absent from this run's "
-              f"profile_types {denovo}. Wrong run, or edit DEFAULT_DENOVO_RENAME.",
-              file=sys.stderr)
-        sys.exit(1)
+    # Which de-novo to keep and what to rename them (data-driven from the annotations CSV).
+    rename = load_rename_map(args.annotations, denovo)
 
-    # Cross-check identities against the annotation table (informational).
-    ann = pd.read_csv(args.annotations).set_index("denovo_label")
-    for letter, new_name in DEFAULT_DENOVO_RENAME.items():
-        identity = ann.loc[letter, "annotation"] if letter in ann.index else "(no annotation)"
+    # Print each keep with its identity (annotation column, if present) for the run log.
+    ann = pd.read_csv(args.annotations)
+    ann["denovo_label"] = ann["denovo_label"].astype(str).str.strip()
+    ann_id = ann.set_index("denovo_label")["annotation"] if "annotation" in ann.columns else None
+    for letter, new_name in rename.items():
+        identity = ann_id.get(letter, "(no annotation)") if ann_id is not None else "(no annotation)"
         print(f"  keep de-novo '{letter}' -> '{new_name}'   [{identity}]")
-    dropped = sorted(set(denovo) - set(DEFAULT_DENOVO_RENAME))
-    print(f"  dropping de-novo {dropped} (conserved types better covered by GBmap)")
+    dropped = sorted(set(denovo) - set(rename))
+    print(f"  dropping de-novo {dropped} (conserved types better covered by GBmap, or junk)")
 
-    kept = named + list(DEFAULT_DENOVO_RENAME)
-    out = profiles[kept].rename(columns=DEFAULT_DENOVO_RENAME)
+    kept = named + list(rename)
+    out = profiles[kept].rename(columns=rename)
 
     # Guards: renamed de-novo must not collide with any named type, and no dup columns.
-    collisions = set(DEFAULT_DENOVO_RENAME.values()) & set(named)
+    collisions = set(rename.values()) & set(named)
     assert not collisions, f"renamed de-novo collide with named types: {collisions}"
     assert not out.columns.duplicated().any(), "duplicate columns in output profiles"
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.output)
     print(f"Wrote {args.output} ({out.shape[0]:,} genes x {out.shape[1]} cell types: "
-          f"{len(named)} named + {len(DEFAULT_DENOVO_RENAME)} de-novo)")
+          f"{len(named)} named + {len(rename)} de-novo)")
+    print("REMINDER: add the kept new_names as leaves in insitutree_hierarchy.json (lockstep).")
 
 
 if __name__ == "__main__":
