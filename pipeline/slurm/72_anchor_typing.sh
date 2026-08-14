@@ -51,6 +51,10 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 STAGE4="${STAGE4_DIR:-stage4_anchor}"
+# READ the anchor input from INPUT_DIR (default STAGE4), WRITE the typing to STAGE4. A variant
+# re-fit (e.g. pruned panel / new K) reuses the shared 9.6GB anchor_input.h5 in place and lands
+# its result under a fresh STAGE4_DIR, so it never clobbers the pilot's anchor_typing.h5.
+INPUT="${INPUT_DIR:-$STAGE4}"
 # Core GBmap level-4 (54 fine types) — the reference the InSituTree pilot validated. NOT the
 # Extended-L3 set the two-pass used (InSituTree's branch-local competition makes the fine types
 # safe). Swap this for a Neutrophil-augmented panel only if the PI wants neutrophils resolvable.
@@ -66,8 +70,8 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging anchor input + reference from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/anchor/anchor_input.h5" \
+echo "Staging anchor input (${INPUT}) + reference from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT}/anchor/anchor_input.h5" \
     "$WORK/anchor_input.h5"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
     "$WORK/reference.csv"
