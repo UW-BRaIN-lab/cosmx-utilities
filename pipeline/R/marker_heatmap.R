@@ -48,6 +48,9 @@ indir     <- if (length(args) >= 1) args[[1]] else "."
 outdir    <- if (length(args) >= 2) args[[2]] else indir
 label_map <- if (length(args) >= 3) args[[3]] else ""
 TOP_TITLE <- if (length(args) >= 4 && nzchar(args[[4]])) args[[4]] else DEFAULT_TITLE
+# 5th arg: cluster the columns and draw a relatedness dendrogram. "" / absent => auto
+# (on for the no-region profile view, off for the fixed-order region view).
+CLUSTER_COLS <- if (length(args) >= 5 && nzchar(args[[5]])) as.logical(args[[5]]) else NA
 
 zmat_path <- file.path(indir, "marker_heatmap_zmatrix.csv")
 mark_path <- file.path(indir, "top_markers_per_cluster.csv")
@@ -71,6 +74,7 @@ col_region  <- if (has_region) sub(".* \\| ", "", colnames(pb_z)) else rep(NA_ch
 # --- optional relabel of cluster ids (de novo letter -> annotation) -----------
 # Applied to both the column groups and the row-split labels so they stay aligned.
 # Unmapped clusters keep their original id.
+remap <- function(x) x
 if (nzchar(label_map)) {
   stopifnot("missing label_map csv" = file.exists(label_map))
   message("Relabeling clusters from ", label_map)
@@ -83,10 +87,23 @@ if (nzchar(label_map)) {
   gene_to_cluster <- setNames(remap(unname(gene_to_cluster)), names(gene_to_cluster))
 }
 
-# Cluster ordering: numeric when leiden-like, else lexical.
-uniq_cl <- unique(c(col_cluster, unname(gene_to_cluster)))
-cl_levels <- tryCatch(as.character(sort(as.integer(uniq_cl))),
-                      warning = function(w) sort(uniq_cl))
+# Column relatedness dendrogram: default on for the no-region profile view (columns are
+# cell types whose similarity is the point), off for the fixed-order region view.
+if (is.na(CLUSTER_COLS)) CLUSTER_COLS <- !has_region
+col_dend <- NULL
+uniq_cl  <- unique(c(col_cluster, unname(gene_to_cluster)))
+if (CLUSTER_COLS && !has_region && ncol(pb_z) > 2) {
+  message("Clustering columns for the relatedness dendrogram")
+  col_hc   <- stats::hclust(stats::dist(t(pb_z)), method = "average")
+  col_dend <- stats::as.dendrogram(col_hc)
+  # Order the row-split slices to follow the column dendrogram so the block diagonal aligns.
+  leaf_lab  <- remap(colnames(pb_z)[col_hc$order])
+  cl_levels <- c(leaf_lab, setdiff(uniq_cl, leaf_lab))
+} else {
+  # Cluster ordering: numeric when leiden-like, else lexical.
+  cl_levels <- tryCatch(as.character(sort(as.integer(uniq_cl))),
+                        warning = function(w) sort(uniq_cl))
+}
 region_levels <- intersect(REGION_ORDER, unique(col_region))
 
 col_cluster <- factor(col_cluster, levels = cl_levels)
@@ -128,7 +145,9 @@ ht <- Heatmap(
   name              = "z-score",
   col               = heatmap_col,
   cluster_rows      = FALSE,
-  cluster_columns   = FALSE,
+  cluster_columns   = if (!is.null(col_dend)) col_dend else FALSE,
+  show_column_dend  = !is.null(col_dend),
+  column_dend_height = unit(16, "mm"),
   show_row_names    = TRUE,
   show_column_names = TRUE,
   column_labels     = if (has_region) as.character(col_region) else as.character(col_cluster),
