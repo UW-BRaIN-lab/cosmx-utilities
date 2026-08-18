@@ -24,7 +24,10 @@ Outputs (into --output-dir):
   filter_collateral.csv          per candidate threshold: cells dropped, % Low_signal, and
                                   (with --cnv) % CNV-malignant among the dropped (answers Q2)
   lowsignal_by_cnv.csv           (with --cnv) unique-genes distribution of Low_signal split by CNV
+  unique_genes_by_celltype.csv   per cell type: n, quantiles of genes AND counts (genes_*/counts_*)
   unique_genes_by_celltype.png   box plot of unique genes per cell type (Low_signal highlighted)
+  counts_by_celltype.png         box plot of total gene counts per cell type (the depth axis)
+  genes_vs_counts.png            genes-vs-counts density with per-category medians (healthy on both)
   filter_collateral.png          (with --cnv) dropped-cell composition vs threshold
 
 Usage:
@@ -132,10 +135,10 @@ def main() -> None:
     df["is_lowsignal"] = df["cell_type"].str.contains(args.lowsignal_label, case=False, na=False)
     df["is_malignant_type"] = is_malignant(df["cell_type"], args.malignant_labels)
 
-    # --- Q1: unique genes by cell type -------------------------------------------------
-    by_type = (stats_frame(df.groupby("cell_type")["genes"])
-               .join(df.groupby("cell_type")["counts"].median().rename("counts_median"))
-               .sort_values("p50"))
+    # --- Q1: unique genes (and counts) by cell type ------------------------------------
+    by_type = (stats_frame(df.groupby("cell_type")["genes"]).add_prefix("genes_")
+               .join(stats_frame(df.groupby("cell_type")["counts"]).add_prefix("counts_"))
+               .sort_values("genes_p50"))
     by_type.to_csv(args.output_dir / "unique_genes_by_celltype.csv")
 
     df["category"] = np.where(df["is_lowsignal"], "Low_signal",
@@ -194,21 +197,41 @@ def _plot(df: pd.DataFrame, collateral: pd.DataFrame, have_cnv: bool, args) -> N
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    # box plot of unique genes per cell type (smallest-median first; Low_signal in red)
-    order = df.groupby("cell_type")["genes"].median().sort_values().index.tolist()
-    data = [df.loc[df["cell_type"] == t, "genes"].to_numpy() for t in order]
-    fig, ax = plt.subplots(figsize=(max(7, len(order) * 0.34), 6))
-    bp = ax.boxplot(data, vert=True, showfliers=False, patch_artist=True, widths=0.6)
-    for t, box in zip(order, bp["boxes"]):
-        ls = args.lowsignal_label.lower() in t.lower()
-        box.set(facecolor="#c0392b" if ls else "#4c78a8", alpha=0.85)
-    ax.set_xticks(range(1, len(order) + 1))
-    ax.set_xticklabels(order, rotation=90, fontsize=7)
-    ax.set_ylabel("unique genes per cell")
-    ax.set_title("Unique genes per cell by cell type (Low_signal in red)")
-    fig.tight_layout()
-    fig.savefig(args.output_dir / "unique_genes_by_celltype.png", dpi=130)
-    plt.close(fig)
+    ls_of = lambda t: args.lowsignal_label.lower() in t.lower()
+
+    # box plot per cell type (smallest-median first; Low_signal in red) — for genes AND counts,
+    # so the cohort is shown healthy on BOTH the diversity and depth axes.
+    def boxplot(valcol: str, ylabel: str, title: str, fname: str) -> None:
+        order = df.groupby("cell_type")[valcol].median().sort_values().index.tolist()
+        data = [df.loc[df["cell_type"] == t, valcol].to_numpy() for t in order]
+        fig, ax = plt.subplots(figsize=(max(7, len(order) * 0.34), 6))
+        bp = ax.boxplot(data, vert=True, showfliers=False, patch_artist=True, widths=0.6)
+        for t, box in zip(order, bp["boxes"]):
+            box.set(facecolor="#c0392b" if ls_of(t) else "#4c78a8", alpha=0.85)
+        ax.set_xticks(range(1, len(order) + 1))
+        ax.set_xticklabels(order, rotation=90, fontsize=7)
+        ax.set_ylabel(ylabel); ax.set_title(title)
+        fig.tight_layout(); fig.savefig(args.output_dir / fname, dpi=130); plt.close(fig)
+
+    boxplot("genes", "unique genes per cell",
+            "Unique genes per cell by cell type (Low_signal in red)", "unique_genes_by_celltype.png")
+    boxplot("counts", "gene counts per cell",
+            "Total gene counts per cell by cell type (Low_signal in red)", "counts_by_celltype.png")
+
+    # genes vs counts density over all cells, with each category's median overlaid: shows the
+    # Low_signal median sits inside the healthy cloud, not in a low-depth / low-diversity corner.
+    fig, ax = plt.subplots(figsize=(6.6, 5.6))
+    hb = ax.hexbin(df["counts"], df["genes"], gridsize=60, bins="log", mincnt=1, cmap="Greys")
+    for cat, col in {"other_named": "#4c78a8", "malignant": "#2ca25f", "Low_signal": "#c0392b"}.items():
+        sub = df[df["category"] == cat]
+        if len(sub):
+            ax.plot(sub["counts"].median(), sub["genes"].median(), "o", color=col,
+                    markersize=13, markeredgecolor="black", markeredgewidth=1.2, label=f"{cat} median")
+    ax.set_xlabel("total gene counts per cell"); ax.set_ylabel("unique genes per cell")
+    ax.set_title("Genes vs counts (all cells) — category medians overlaid")
+    ax.legend(loc="lower right", fontsize=8, framealpha=0.9)
+    fig.colorbar(hb, ax=ax, label="log10(cells per bin)")
+    fig.tight_layout(); fig.savefig(args.output_dir / "genes_vs_counts.png", dpi=130); plt.close(fig)
 
     if have_cnv:
         fig, ax = plt.subplots(figsize=(7, 5))
