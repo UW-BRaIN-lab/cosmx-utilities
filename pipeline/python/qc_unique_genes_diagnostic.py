@@ -52,7 +52,7 @@ import numpy as np
 import pandas as pd
 
 QUANTILES = [0.10, 0.25, 0.50, 0.75, 0.90]
-DEFAULT_THRESHOLDS = "10,20,30,50,75,100,150,200"
+DEFAULT_THRESHOLDS = "20,30,40,45,50,55,60,70,80,90,100,125,150,200"
 
 
 def parse_args() -> argparse.Namespace:
@@ -174,14 +174,20 @@ def main() -> None:
     thresholds = [int(t) for t in args.thresholds.split(",") if t.strip()]
     rows = []
     n_total = len(df)
+    n_lowsignal = int(df["is_lowsignal"].sum())
     for t in thresholds:
         dropped = df[df["genes"] < t]
-        row = {"min_genes": t, "cells_dropped": len(dropped),
+        ls_dropped = dropped[dropped["is_lowsignal"]]
+        row = {"min_genes": t,
+               "cells_dropped": len(dropped),
                "pct_of_all": round(100 * len(dropped) / n_total, 2),
-               "pct_dropped_lowsignal": round(100 * dropped["is_lowsignal"].mean(), 1) if len(dropped) else 0.0}
+               # how many Low_signal cells this cut removes, and what share of ALL Low_signal
+               "lowsignal_dropped": len(ls_dropped),
+               "pct_of_lowsignal": round(100 * len(ls_dropped) / n_lowsignal, 2) if n_lowsignal else 0.0}
         if have_cnv:
-            row["dropped_cnv_malignant"] = int(dropped["cnv_malignant"].sum())
-            row["pct_dropped_cnv_malignant"] = round(100 * dropped["cnv_malignant"].mean(), 1) if len(dropped) else 0.0
+            # of the dropped Low_signal cells, how many are confirmed CNV-malignant tumour
+            row["lowsignal_dropped_cnv_malignant"] = int(ls_dropped["cnv_malignant"].sum())
+            row["all_dropped_cnv_malignant"] = int(dropped["cnv_malignant"].sum())
         rows.append(row)
     collateral = pd.DataFrame(rows)
     collateral.to_csv(args.output_dir / "filter_collateral.csv", index=False)
@@ -236,10 +242,11 @@ def _plot(df: pd.DataFrame, collateral: pd.DataFrame, have_cnv: bool, args) -> N
     if have_cnv:
         fig, ax = plt.subplots(figsize=(7, 5))
         x = collateral["min_genes"]
-        ax.plot(x, collateral["cells_dropped"], "-o", color="#666", label="cells dropped")
-        ax.plot(x, collateral["dropped_cnv_malignant"], "-o", color="#c0392b",
-                label="of those, CNV-malignant")
-        ax.set_xlabel("min-genes filter threshold")
+        ax.plot(x, collateral["cells_dropped"], "-o", color="#666", label="all cells dropped")
+        ax.plot(x, collateral["lowsignal_dropped"], "-o", color="#e08214", label="Low_signal dropped")
+        ax.plot(x, collateral["all_dropped_cnv_malignant"], "-o", color="#c0392b",
+                label="of those, CNV-malignant tumour")
+        ax.set_xlabel("min unique-genes filter threshold")
         ax.set_ylabel("cells")
         ax.set_title("A min-genes filter deletes real (CNV-malignant) tumour")
         ax.legend()
