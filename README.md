@@ -145,6 +145,10 @@ uv run python scripts/process-slides.py s3://bucket/project/study/
 uv run python scripts/process-slides.py s3://bucket/project/study/ --skip
 ```
 
+The S3 URI may point at a whole study or at a single AtoMx run. Point it at one
+run when two studies cover the same slides but need different flags — a 3D
+resegmentation takes `--input-ndim 3` while the original 2D run does not.
+
 Each Fargate task runs `process-slide.py`, which:
 1. Queries segmentation manifests in S3 via DuckDB to find the correct segmentation version
 2. Downloads only the needed CellLabels, morphology images, and AnalysisResults
@@ -152,6 +156,47 @@ Each Fargate task runs `process-slide.py`, which:
 4. Decodes RNA transcript locations (`read-targets`)
 5. Generates `_metadata.csv` with metadata annotations such as cell type and assigns deterministic colors
 6. Uploads processed results back to S3
+
+#### Carrying annotations into Napari
+
+`--column OUTNAME=SOURCE_HEADER` (repeatable) selects which flatFiles columns
+become colorable annotations in `_metadata.csv`. `SOURCE_HEADER` may list
+fallbacks separated by `|`, taking the first header the file actually has — use
+this when a study renamed a column between AtoMx runs:
+
+```bash
+uv run python scripts/process-slides.py s3://bucket/study/atomx-run/ \
+    --column 'Cell Type=RNA_RNA_Cell.Typing.InSituType.2_1_clusters' \
+    --column 'Case Specific=Case_specific_SORL1|Case_specific'
+```
+
+When cell typing is re-run, AtoMx nests the new export under the original run
+(`<run>/flatFiles/<rerun>/flatFiles/<slide>/`). Both are discovered, and the one
+that actually has the requested columns is used — the segmentation ID cannot
+tell them apart, since a re-export carries the same segmentation.
+
+If AtoMx left annotations blank on one study but not on another covering the
+same physical slides, `--fill-from <experiment prefix>` transfers them by
+joining on FOV. Only blanks are filled, and only for columns constant within an
+FOV; per-cell columns such as cell typing belong to the segmentation that
+produced them and are refused, with a line saying which were skipped.
+
+#### 3D segmentation
+
+A 3D-resegmented slide has per-z CellLabels (`CellLabels_F#####_Z###.tif`).
+Pass `--input-ndim 3 --output-ndim 3` for a z-navigable labels layer in Napari.
+
+Such a slide is usually 3D labels over a **2D** morphology acquisition
+(`Morphology2D/`, no `_Z###` in the filenames). That is detected automatically,
+and the single morphology plane is stored once rather than copied to every z
+plane. This matters for more than tidiness: morphology dominates mosaic size, so
+duplicating it across 8 planes would take a ~30 GiB slide to ~230 GiB, past
+Fargate's 200 GiB ephemeral storage ceiling (which is also the Fargate maximum,
+so it cannot simply be raised). Stored once, a 3D mosaic costs only a few GiB
+more than the 2D one.
+
+Existing 2D mosaics are unaffected and need no re-stitching — they carry no
+`ndim` attribute, and the reader defaults to 2D.
 
 ### Docker images
 

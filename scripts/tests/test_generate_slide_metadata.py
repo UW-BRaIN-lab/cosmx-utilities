@@ -140,6 +140,193 @@ def test_legacy_autodetect_source():
         assert resolved[0].src == "RNA_RNA_Cell.Typing.InSituType.No.Refit_1_clusters"
 
 
+# ---- Nested exports, source ranking, and cross-study annotation fill --------
+
+class FakeS3:
+    """Minimal S3 stand-in backed by {key: bytes}, for discovery/ranking tests."""
+
+    def __init__(self, objects):
+        self.objects = objects
+
+    def list_objects_v2(self, Bucket, Prefix, Delimiter=None):
+        children = set()
+        for key in self.objects:
+            if not key.startswith(Prefix):
+                continue
+            rest = key[len(Prefix):]
+            if "/" in rest:
+                children.add(Prefix + rest.split("/", 1)[0] + "/")
+        return {"CommonPrefixes": [{"Prefix": p} for p in sorted(children)]}
+
+    def head_object(self, Bucket, Key):
+        if Key not in self.objects:
+            from botocore.exceptions import ClientError
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        return {"ContentLength": len(self.objects[Key])}
+
+    def get_object(self, Bucket, Key, Range=None):
+        import io
+        data = self.objects[Key]
+        if Range:
+            end = int(Range.split("-")[1])
+            data = data[:end + 1]
+        return {"Body": io.BytesIO(data)}
+
+
+def _gz_bytes(fieldnames, rows):
+    import io
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb") as gz:
+        text = io.StringIO()
+        w = csv.DictWriter(text, fieldnames=fieldnames)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+        gz.write(text.getvalue().encode())
+    return buf.getvalue()
+
+
+BUCKET = "test-bucket"
+STUDY = "CosMx-Maddie/RUN_3D"
+SLIDE = "UWA_599_657"
+NESTED_RUN = "RERUN_20260820"
+OUTER_KEY = f"{STUDY}/flatFiles/{SLIDE}/{SLIDE}_metadata_file.csv.gz"
+NESTED_KEY = (f"{STUDY}/flatFiles/{NESTED_RUN}/flatFiles/{SLIDE}/"
+              f"{SLIDE}_metadata_file.csv.gz")
+
+
+def test_find_metadata_file_discovers_nested_export():
+    """A re-run AtoMx export nests under the original run's flatFiles and must
+    still be found — and listed ahead of its parent."""
+    s3 = FakeS3({
+        OUTER_KEY: _gz_bytes(["cell_id"], [{"cell_id": "c_1_1_1"}]),
+        NESTED_KEY: _gz_bytes(["cell_id"], [{"cell_id": "c_1_1_1"}]),
+    })
+    found = gsm.find_metadata_file(s3, BUCKET, "CosMx-Maddie", SLIDE)
+    labels = [label for label, _key in found]
+    assert labels == [f"RUN_3D/{NESTED_RUN}", "RUN_3D"], labels
+
+
+def test_read_gz_header_from_ranged_get():
+    """Headers come back without pulling the whole object down."""
+    s3 = FakeS3({OUTER_KEY: _gz_bytes(
+        ["cell_id", "fov", "TypeA"],
+        [{"cell_id": "c_1_1_1", "fov": "1", "TypeA": "astrocyte"}])})
+    assert gsm.read_gz_header(s3, BUCKET, OUTER_KEY) == ["cell_id", "fov", "TypeA"]
+
+
+def test_rank_sources_prefers_file_with_requested_columns():
+    """Both exports share a segmentation ID, so the one holding the requested
+    typing column must win regardless of discovery order."""
+    wanted = "RNA_RNA_Cell.Typing.InSituType.2_1_clusters"
+    s3 = FakeS3({
+        OUTER_KEY: _gz_bytes(["cell_id", "fov"], [{"cell_id": "c", "fov": "1"}]),
+        NESTED_KEY: _gz_bytes(["cell_id", "fov", wanted],
+                              [{"cell_id": "c", "fov": "1", wanted: "Microglia.A"}]),
+    })
+    specs = [gsm.ColumnSpec("Cell Type", wanted, "Cell Type_color")]
+    # Deliberately hand them over in the "wrong" order.
+    ranked = gsm.rank_sources(s3, BUCKET, [("outer", OUTER_KEY), ("nested", NESTED_KEY)], specs)
+    assert [label for label, _ in ranked] == ["nested", "outer"]
+
+
+def test_column_source_fallback_picks_first_present_header():
+    """`A|B` takes whichever header the file actually has, so one command can
+    serve studies that renamed a column between runs."""
+    spec = gsm.ColumnSpec("Case Specific", "Case_specific_SORL1|Case_specific",
+                          "Case Specific_color")
+    assert spec.resolve(["cell_id", "Case_specific"]) == "Case_specific"
+    assert spec.resolve(["cell_id", "Case_specific_SORL1"]) == "Case_specific_SORL1"
+    # First listed wins when both are present.
+    assert spec.resolve(["Case_specific", "Case_specific_SORL1"]) == "Case_specific_SORL1"
+    assert spec.resolve(["cell_id"]) == ""
+
+
+FILL_FIELDS = ["cell_id", "fov", "cellSegmentationSetId", "UWA"]
+
+
+def test_fill_missing_annotations_joins_on_fov():
+    """Blank annotations are filled per-FOV from a donor study of the same slide;
+    values already present are never overwritten."""
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color")]
+    with tempfile.TemporaryDirectory() as d:
+        primary_gz = os.path.join(d, "primary.csv.gz")
+        donor_gz = os.path.join(d, "donor.csv.gz")
+        # Primary: FOV 1 blank, FOV 2 blank, FOV 3 already annotated.
+        _write_gz(primary_gz, FILL_FIELDS, [
+            {"cell_id": "c_1_1_1", "fov": "1", "cellSegmentationSetId": "s", "UWA": ""},
+            {"cell_id": "c_1_1_2", "fov": "1", "cellSegmentationSetId": "s", "UWA": ""},
+            {"cell_id": "c_1_2_1", "fov": "2", "cellSegmentationSetId": "s", "UWA": ""},
+            {"cell_id": "c_1_3_1", "fov": "3", "cellSegmentationSetId": "s", "UWA": "keep"},
+        ])
+        # Donor has different cell IDs (different segmentation) but the same FOVs.
+        _write_gz(donor_gz, FILL_FIELDS, [
+            {"cell_id": "d_9_1_7", "fov": "1", "cellSegmentationSetId": "t", "UWA": "7796"},
+            {"cell_id": "d_9_2_4", "fov": "2", "cellSegmentationSetId": "t", "UWA": "7665"},
+            {"cell_id": "d_9_3_2", "fov": "3", "cellSegmentationSetId": "t", "UWA": "other"},
+        ])
+        rows, _ = gsm.read_rows(primary_gz, None, specs)
+        donor_rows, _ = gsm.read_rows(donor_gz, None, specs)
+        filled, skipped = gsm.fill_missing_annotations(rows, donor_rows, specs)
+
+        assert filled == {"UWA": 3}, filled
+        assert skipped == [], skipped
+        by_cell = {cell_id: values[0] for cell_id, _fov, values in rows}
+        assert by_cell["c_1_1_1"] == "7796"
+        assert by_cell["c_1_1_2"] == "7796"
+        assert by_cell["c_1_2_1"] == "7665"
+        assert by_cell["c_1_3_1"] == "keep", "existing values must not be overwritten"
+
+
+def test_fill_leaves_fovs_the_donor_lacks_blank():
+    """An FOV absent from the donor stays blank rather than borrowing a neighbour."""
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color")]
+    with tempfile.TemporaryDirectory() as d:
+        primary_gz = os.path.join(d, "primary.csv.gz")
+        donor_gz = os.path.join(d, "donor.csv.gz")
+        _write_gz(primary_gz, FILL_FIELDS, [
+            {"cell_id": "c_1_9_1", "fov": "9", "cellSegmentationSetId": "s", "UWA": ""},
+        ])
+        _write_gz(donor_gz, FILL_FIELDS, [
+            {"cell_id": "d_1_1_1", "fov": "1", "cellSegmentationSetId": "t", "UWA": "7796"},
+        ])
+        rows, _ = gsm.read_rows(primary_gz, None, specs)
+        donor_rows, _ = gsm.read_rows(donor_gz, None, specs)
+        filled, _skipped = gsm.fill_missing_annotations(rows, donor_rows, specs)
+        assert filled == {}
+        assert rows[0][2][0] == ""
+
+
+def test_fill_refuses_per_cell_columns():
+    """A column that varies within an FOV is per-cell (e.g. cell typing, tied to
+    its own segmentation) and must never be transferred by FOV join."""
+    fields = ["cell_id", "fov", "cellSegmentationSetId", "UWA", "CellType"]
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color"),
+             gsm.ColumnSpec("Cell Type", "CellType", "Cell Type_color")]
+    with tempfile.TemporaryDirectory() as d:
+        primary_gz = os.path.join(d, "primary.csv.gz")
+        donor_gz = os.path.join(d, "donor.csv.gz")
+        _write_gz(primary_gz, fields, [
+            {"cell_id": "c_1_1_1", "fov": "1", "cellSegmentationSetId": "s",
+             "UWA": "", "CellType": ""},
+        ])
+        # Donor FOV 1 holds one case but several cell types.
+        _write_gz(donor_gz, fields, [
+            {"cell_id": "d_1_1_1", "fov": "1", "cellSegmentationSetId": "t",
+             "UWA": "7796", "CellType": "Microglia.A"},
+            {"cell_id": "d_1_1_2", "fov": "1", "cellSegmentationSetId": "t",
+             "UWA": "7796", "CellType": "Astrocyte.B"},
+        ])
+        rows, _ = gsm.read_rows(primary_gz, None, specs)
+        donor_rows, _ = gsm.read_rows(donor_gz, None, specs)
+        filled, skipped = gsm.fill_missing_annotations(rows, donor_rows, specs)
+
+        assert filled == {"UWA": 1}, filled
+        assert skipped == ["Cell Type"], skipped
+        assert rows[0][2][0] == "7796", "FOV-constant case annotation fills"
+        assert rows[0][2][1] == "", "per-cell typing must stay blank"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

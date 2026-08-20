@@ -573,6 +573,8 @@ def stitch_images(
     ctx: SlideContext,
     celllabels_subdirs: str,
     channel_names: list[str] | None = None,
+    input_ndim: int | None = None,
+    output_ndim: int | None = None,
 ) -> None:
     cmd = [
         "uv", "run", "stitch-images",
@@ -584,6 +586,10 @@ def stitch_images(
         cmd += ["--celllabels-subdir", celllabels_subdirs]
     for pair in channel_names or []:
         cmd += ["--channel-name", pair]
+    if input_ndim is not None:
+        cmd += ["--input-ndim", str(input_ndim)]
+    if output_ndim is not None:
+        cmd += ["--output-ndim", str(output_ndim)]
     run(cmd)
 
 
@@ -602,7 +608,12 @@ def read_targets(ctx: SlideContext, analysis_subdir: str) -> None:
 # ── Step 4: Generate metadata CSV ──────────────────────────────────────────
 
 
-def generate_metadata(ctx: SlideContext, seg_uuids: list[str]) -> None:
+def generate_metadata(
+    ctx: SlideContext,
+    seg_uuids: list[str],
+    columns: list[str] | None = None,
+    fill_from: str = "",
+) -> None:
     script_dir = Path(__file__).resolve().parent
     metadata_script = script_dir / "generate-slide-metadata.py"
     if not metadata_script.exists():
@@ -617,6 +628,10 @@ def generate_metadata(ctx: SlideContext, seg_uuids: list[str]) -> None:
     ]
     if seg_uuids:
         cmd += ["--seg-id", ",".join(seg_uuids)]
+    for column in columns or []:
+        cmd += ["--column", column]
+    if fill_from:
+        cmd += ["--fill-from", fill_from]
     run(cmd)
 
 
@@ -654,6 +669,10 @@ def process_slide(
     whatif: bool = False,
     seg_version_override: str = "",
     channel_names: list[str] | None = None,
+    input_ndim: int | None = None,
+    output_ndim: int | None = None,
+    columns: list[str] | None = None,
+    fill_from: str = "",
 ) -> None:
     bench = Benchmark(ctx=ctx, whatif=whatif)
 
@@ -707,7 +726,8 @@ def process_slide(
         else:
             bench.start("stitch")
             log(f"[{now_iso()}] Stitching images ...")
-            stitch_images(ctx, celllabels_subdirs, channel_names=channel_names)
+            stitch_images(ctx, celllabels_subdirs, channel_names=channel_names,
+                          input_ndim=input_ndim, output_ndim=output_ndim)
             bench.end("stitch")
             log(f"[{now_iso()}] Stitch complete ({bench._duration_seconds('stitch')}s)")
 
@@ -719,7 +739,7 @@ def process_slide(
 
             bench.start("metadata")
             log(f"[{now_iso()}] Generating metadata CSV ...")
-            generate_metadata(ctx, seg_uuids)
+            generate_metadata(ctx, seg_uuids, columns=columns, fill_from=fill_from)
             bench.end("metadata")
             log(f"[{now_iso()}] Metadata complete ({bench._duration_seconds('metadata')}s)")
 
@@ -770,6 +790,37 @@ def main() -> None:
              "Format: CH=MARKER (CH in B/G/Y/R/U). "
              "Example: --channel-name B=AT8 --channel-name G=6E10",
     )
+    parser.add_argument(
+        "--input-ndim",
+        type=int,
+        choices=[2, 3],
+        default=None,
+        help="Dimensionality of the CellLabels TIFFs. Use 3 for a 3D "
+             "resegmentation, whose labels are per-z (CellLabels_F###_Z###.tif).",
+    )
+    parser.add_argument(
+        "--output-ndim",
+        type=int,
+        choices=[2, 3],
+        default=None,
+        help="Dimensionality of the stitched output. Use 3 to give napari a "
+             "z-navigable labels layer; requires --input-ndim 3.",
+    )
+    parser.add_argument(
+        "--column",
+        action="append",
+        default=[],
+        metavar="OUTNAME=SOURCE_HEADER",
+        help="Annotation column to carry into _metadata.csv (repeatable). "
+             "SOURCE_HEADER may list fallbacks separated by '|'.",
+    )
+    parser.add_argument(
+        "--fill-from",
+        default="",
+        metavar="EXPERIMENT_PREFIX",
+        help="Fill annotation values AtoMx left blank from another study of the "
+             "same physical slide, joining on FOV.",
+    )
     args = parser.parse_args()
 
     ctx = SlideContext(bucket=args.s3_bucket, slide_base_path=args.slide_base_path)
@@ -778,6 +829,10 @@ def main() -> None:
         whatif=args.whatif,
         seg_version_override=args.segmentation_version,
         channel_names=args.channel_name,
+        input_ndim=args.input_ndim,
+        output_ndim=args.output_ndim,
+        columns=args.column,
+        fill_from=args.fill_from,
     )
 
 
