@@ -203,14 +203,15 @@ def _detect_z_slices(*tile_maps):
     return z_slices or [0]
 
 def _map_z_to_morphology(z_slices, morphology_z_slices):
-    """Map each output z plane to the morphology z plane to draw it from.
+    """Map each written morphology plane to the source z plane to draw it from.
 
-    Labels and morphology can differ in dimensionality: a 3D-resegmented slide
-    still carries a single 2D morphology acquisition (``Morphology2D``, no
-    ``_Z###`` suffix). There the one morphology plane is broadcast to every
-    output plane, so cells scroll through z against a constant image instead of
-    the image layers coming out empty. When both are 3D the planes match up
-    directly; anything unmatched falls back to the nearest available plane.
+    When both labels and morphology are 3D the planes match up directly, and
+    anything unmatched falls back to the nearest available plane — z sets are
+    not always contiguous or aligned.
+
+    A single 2D morphology acquisition under 3D labels is written once rather
+    than repeated per plane (see morphology_is_2d in main), so this is called
+    with just that one plane; napari draws it beneath the volumetric labels.
     """
     available = sorted(morphology_z_slices)
     if not available:
@@ -285,7 +286,7 @@ def main(args_list=None):
         help="Optional: Dimensionality to detect in morphology filenames.\n"
              "Defaults to auto-detect, since a 3D resegmentation is exported\n"
              "against the original 2D morphology acquisition. A single 2D\n"
-             "morphology plane is broadcast across all output z planes.",
+             "morphology plane is stored once, not repeated per z plane.",
         choices=[2, 3],
         default=None,
         type=int)
