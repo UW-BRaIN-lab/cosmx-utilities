@@ -122,12 +122,22 @@ def discover_slides(bucket: str, experiment_prefix: str) -> list[Slide]:
             AtoMxRun2/
                 DecodedFiles/
                     ...
+
+    The prefix may also point straight at a single AtoMx run (one that contains
+    DecodedFiles directly). Two studies of the same slides often need different
+    worker flags — a 3D resegmentation takes --input-ndim 3 while the original
+    2D run does not — so they have to be launched separately. Slide base paths,
+    and therefore output prefixes, are identical either way.
     """
     slides = []
-    atomx_runs = s3_ls(bucket, experiment_prefix)
+    children = s3_ls(bucket, experiment_prefix)
+    single_run = "DecodedFiles" in children
+    run_prefixes = [experiment_prefix] if single_run else [
+        f"{experiment_prefix}/{run}" for run in children
+    ]
 
-    for run in atomx_runs:
-        decoded_path = f"{experiment_prefix}/{run}/DecodedFiles"
+    for run_prefix in run_prefixes:
+        decoded_path = f"{run_prefix}/DecodedFiles"
         slide_names = s3_ls(bucket, decoded_path)
 
         for slide_name in slide_names:
@@ -136,7 +146,7 @@ def discover_slides(bucket: str, experiment_prefix: str) -> list[Slide]:
             slide_path = f"{decoded_path}/{slide_name}"
             scan_ids = [d for d in s3_ls(bucket, slide_path) if d != "Logs"]
             for scan_id in scan_ids:
-                base_path = f"{experiment_prefix}/{run}/DecodedFiles/{slide_name}/{scan_id}"
+                base_path = f"{decoded_path}/{slide_name}/{scan_id}"
                 slides.append(Slide(bucket=bucket, base_path=base_path))
 
     return slides
@@ -160,14 +170,34 @@ def _get_ecs():
     return _ecs
 
 
+def worker_flags(args) -> list[str]:
+    """Per-slide flags forwarded verbatim to process-slide.py.
+
+    Kept in one place so the Fargate and --local paths cannot drift apart.
+    """
+    flags: list[str] = []
+    if args.segmentation_version:
+        flags += ["--segmentation-version", args.segmentation_version]
+    for pair in args.channel_name or []:
+        flags += ["--channel-name", pair]
+    if args.input_ndim is not None:
+        flags += ["--input-ndim", str(args.input_ndim)]
+    if args.output_ndim is not None:
+        flags += ["--output-ndim", str(args.output_ndim)]
+    for column in args.column or []:
+        flags += ["--column", column]
+    if args.fill_from:
+        flags += ["--fill-from", args.fill_from]
+    return flags
+
+
 def launch_fargate_task(
     slide: Slide,
     whatif: bool,
     cpu: str | None = None,
     memory: str | None = None,
     spot: bool = False,
-    segmentation_version: str | None = None,
-    channel_names: list[str] | None = None,
+    extra_flags: list[str] | None = None,
 ) -> str | None:
     """Launch a Fargate task for a single slide. Returns task ID or None for whatif.
 
@@ -176,10 +206,7 @@ def launch_fargate_task(
     When spot is True, uses FARGATE_SPOT capacity provider instead of FARGATE.
     """
     command = ["uv", "run", "python", "/app/scripts/process-slide.py"]
-    if segmentation_version:
-        command += ["--segmentation-version", segmentation_version]
-    for pair in channel_names or []:
-        command += ["--channel-name", pair]
+    command += extra_flags or []
     command += [slide.bucket, slide.base_path]
 
     cluster = env("ECS_CLUSTER")
@@ -236,17 +263,13 @@ def launch_fargate_task(
 def process_slide_local(
     slide: Slide,
     whatif: bool,
-    segmentation_version: str | None = None,
-    channel_names: list[str] | None = None,
+    extra_flags: list[str] | None = None,
 ) -> None:
     """Run process-slide.py locally for a single slide."""
     cmd = ["uv", "run", "python", "scripts/process-slide.py"]
     if whatif:
         cmd.append("--whatif")
-    if segmentation_version:
-        cmd += ["--segmentation-version", segmentation_version]
-    for pair in channel_names or []:
-        cmd += ["--channel-name", pair]
+    cmd += extra_flags or []
     cmd += [slide.bucket, slide.base_path]
 
     if whatif:
@@ -317,6 +340,38 @@ def main() -> None:
              "Example: --channel-name B=AT8 --channel-name G=6E10. "
              "Use when MorphologyKit metadata in the TIFFs is wrong.",
     )
+    parser.add_argument(
+        "--input-ndim",
+        type=int,
+        choices=[2, 3],
+        default=None,
+        help="Dimensionality of the CellLabels TIFFs. Use 3 for a 3D "
+             "resegmentation, whose labels are per-z (CellLabels_F###_Z###.tif).",
+    )
+    parser.add_argument(
+        "--output-ndim",
+        type=int,
+        choices=[2, 3],
+        default=None,
+        help="Dimensionality of the stitched output. Use 3 to give napari a "
+             "z-navigable labels layer; requires --input-ndim 3.",
+    )
+    parser.add_argument(
+        "--column",
+        action="append",
+        default=[],
+        metavar="OUTNAME=SOURCE_HEADER",
+        help="Annotation column to carry into _metadata.csv (repeatable). "
+             "SOURCE_HEADER may list fallbacks separated by '|' for studies "
+             "that renamed a column between AtoMx runs.",
+    )
+    parser.add_argument(
+        "--fill-from",
+        default="",
+        metavar="EXPERIMENT_PREFIX",
+        help="Fill annotation values AtoMx left blank from another study of the "
+             "same physical slides, joining on FOV.",
+    )
     args = parser.parse_args()
 
     if not args.local:
@@ -325,6 +380,7 @@ def main() -> None:
             sys.exit(1)
         load_dotenv(ENV_PATH)
 
+    flags = worker_flags(args)
     bucket, prefix = parse_s3_uri(args.s3_uri)
 
     print(f"Discovering slides under s3://{bucket}/{prefix}/ ...")
@@ -359,7 +415,7 @@ def main() -> None:
             mem_gb = int(memory) // 1024
             label = f"{vcpu} vCPU / {mem_gb} GB"
             print(f"  {label}:")
-            task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=cpu, memory=memory, spot=args.spot, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
+            task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=cpu, memory=memory, spot=args.spot, extra_flags=flags)
             if task_id:
                 task_ids.append((label, task_id))
                 print(f"    Task: {task_id}")
@@ -379,13 +435,13 @@ def main() -> None:
         if args.local:
             for slide in slides:
                 print(f"Processing: {slide.atomx_run} / {slide.slide_name}")
-                process_slide_local(slide, whatif=args.whatif, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
+                process_slide_local(slide, whatif=args.whatif, extra_flags=flags)
                 print()
         else:
             task_ids = []
             for slide in slides:
                 print(f"Launching: {slide.atomx_run} / {slide.slide_name}")
-                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=args.cpu, memory=args.memory, spot=args.spot, segmentation_version=args.segmentation_version, channel_names=args.channel_name)
+                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=args.cpu, memory=args.memory, spot=args.spot, extra_flags=flags)
                 if task_id:
                     task_ids.append((slide, task_id))
                     print(f"  Task: {task_id}")
