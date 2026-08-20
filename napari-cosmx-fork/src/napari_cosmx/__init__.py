@@ -42,6 +42,11 @@ DASH_UM_PER_PX = 0.18
 DASH_MM_PER_PX = DASH_UM_PER_PX/1000
 DASH_PX_PER_MM = 1/DASH_MM_PER_PX
 
+DEFAULT_NDIM = 2
+DEFAULT_RNA_Z_STEP_UM = 0.8
+DEFAULT_PROTEIN_Z_STEP_UM = 1.0
+DEFAULT_Z_STEP_UM = DEFAULT_RNA_Z_STEP_UM
+
 DEFAULT_COLORMAPS = {
     'DAPI': 'blue',
     'DNA': 'blue',
@@ -53,12 +58,6 @@ DEFAULT_COLORMAPS = {
 
 OTHER_KEYS = ['labels', 'protein', 'composite', 'targets', 'fovgrid']
 
-try:
-    from ._reader import napari_get_reader
-except (ImportError, OSError):
-    napari_get_reader = None
+from ._reader import napari_get_reader
 
-try:
-    from ._function import napari_experimental_provide_function
-except (ImportError, OSError):
-    napari_experimental_provide_function = None
+from ._function import napari_experimental_provide_function

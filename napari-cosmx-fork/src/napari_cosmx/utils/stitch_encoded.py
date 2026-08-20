@@ -26,7 +26,7 @@ def main():
         help="Required: Where to create zarr output",
         default=".")
     parser.add_argument("-f", "--offsetsdir",
-        help="Required: Path to directory location containing a file ending in FOV_Locations.csv or legacy format latest.fovs.csv.",
+        help="Required: Path to directory location containing a file ending in fov_positions_file.csv.gz (AtoMx SIP exported format), FOV_Locations.csv or legacy format latest.fovs.csv.",
         default=".")
     parser.add_argument("-n", "--ncoder",
         help="Optional: Path to nCoder csv.",

@@ -14,6 +14,11 @@ def get_fov_number(filepath):
     m = fov_pattern.search(filename)
     return int(m['fov']) if m else None
 
+def get_zslice_number(filepath):
+    filename = Path(filepath).name
+    m = zslice_pattern.search(filename)
+    return int(m['zslice']) if m else None
+
 def convertLabels(x: str, labels: dict, to_name=True) -> str:
     """Finds the protein name or label
 
