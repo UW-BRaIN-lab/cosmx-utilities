@@ -29,6 +29,15 @@ From: rocker/r-ver:4.4.2
 #     apptainer build --fakeroot \
 #         /gscratch/glioblastoma/$USER/containers/scpearsonpca.sif \
 #         pipeline/containers/scpearsonpca.def
+#
+# Apptainer does NOT cache %post, so a failure in the last step costs a full rebuild of
+# every CRAN package. When iterating on this file, build to a --sandbox first, fix in place
+# with `apptainer exec --fakeroot --writable <sandbox> bash`, then convert:
+#     apptainer build --fakeroot --sandbox /gscratch/scrubbed/$USER/scpearson-sandbox \
+#         pipeline/containers/scpearsonpca.def
+#     apptainer build --fakeroot \
+#         /gscratch/glioblastoma/$USER/containers/scpearsonpca.sif \
+#         /gscratch/scrubbed/$USER/scpearson-sandbox
 
 %post -c /bin/bash
     set -euxo pipefail
@@ -40,6 +49,7 @@ From: rocker/r-ver:4.4.2
     apt-get update
     apt-get install -y --no-install-recommends \
         ca-certificates \
+        curl \
         git \
         libhdf5-dev \
         libxml2-dev \
@@ -55,11 +65,26 @@ From: rocker/r-ver:4.4.2
     # scPearsonPCA lives in a subdirectory of the CosMx Scratch Space repo and is
     # pinned to a commit SHA for reproducibility (see install issue #262 — pinning
     # avoids the moving-target install failures reported there).
+    #
+    # Fetched with curl from codeload rather than via remotes::install_github, which
+    # downloads through api.github.com using R's utils::download.file. Two problems with
+    # that path: the Scratch Space tarball is ~950MB (a docs repo full of images) while
+    # download.file defaults to a 60-SECOND timeout, so the build failed with an opaque
+    # "download ... failed" unless the node sustained ~16MB/s; and api.github.com is
+    # rate-limited to 60 requests/hour PER IP, which a shared klone login node can
+    # exhaust collectively. curl has no such timeout, retries on transient failures, and
+    # codeload is not API-rate-limited. Same SHA, same package.
+    SCRATCH_SPACE_SHA="20f7f485fc1d42e3e0390aec1496d81464531a28"
+    curl -fsSL --retry 5 --retry-delay 10 --retry-connrefused \
+        "https://codeload.github.com/Nanostring-Biostats/CosMx-Analysis-Scratch-Space/tar.gz/${SCRATCH_SPACE_SHA}" \
+        -o /tmp/scratch-space.tar.gz
+    mkdir -p /tmp/scratch-space
+    # Extract only the package subdirectory; the other ~950MB is website assets.
+    tar -xzf /tmp/scratch-space.tar.gz -C /tmp/scratch-space --strip-components=1 \
+        --wildcards '*/_code/scPearsonPCA/*'
     Rscript -e "options(repos = c(CRAN = '${CRAN_SNAPSHOT}')); \
-        remotes::install_github('Nanostring-Biostats/CosMx-Analysis-Scratch-Space', \
-            subdir = '_code/scPearsonPCA', \
-            ref = '20f7f485fc1d42e3e0390aec1496d81464531a28', \
-            upgrade = 'never')"
+        remotes::install_local('/tmp/scratch-space/_code/scPearsonPCA', upgrade = 'never')"
+    rm -rf /tmp/scratch-space /tmp/scratch-space.tar.gz
 
     # Build-time import check: load every package the stage-3b driver needs.
     Rscript -e "library(Matrix); library(data.table); library(RSpectra); \
