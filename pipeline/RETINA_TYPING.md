@@ -9,7 +9,11 @@ reference itself (and an important caveat about it) is documented in
 
 12 slides, **one donor per slide**. Every slide carries a cross-section of **retina +
 optic nerve + brain**, so the reference is a *combined* ocular/brain atlas
-(`retina_combined_panel.csv`, 5,993 genes × 68 types) rather than a single-tissue one.
+(`retina_combined_panel.csv`, 5,993 genes × 64 types) rather than a single-tissue one.
+Duplicate source types were reviewed by a count-discrimination test: oligodendrocyte and
+OPC were merged (only 10 and 7 of 400 expected counts distinguish the copies), the rest
+compete, and the Allen `Splatter`/`Miscellaneous` QC categories were dropped as
+generic-neuron attractors. See `pipeline/reference/README.md`.
 
 The flat-file metadata has a per-cell **`Region`** column — `Retina`, `Optic nerve`,
 `Gray matter`, `White matter`, `Adjacent soft tissue` — which stage 1 carries into `obs`
@@ -112,6 +116,8 @@ S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL" \
         "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/retina_combined_panel.csv"
 ```
 
+The hierarchy JSON is read from the repo, not Kopah, so it needs no upload.
+
 ## Stage 1 — flat files → per-slide AnnData
 
 12 slides, so override the array (the `#SBATCH --array=1-57` in the file is for GBM):
@@ -203,20 +209,51 @@ is the aggressive variant we avoid.
 
 ## After the fit — triage before anything else
 
-1. **Region concordance** — cross-tabulate `cell_type` × `Region`. This is the strongest
-   available check, and it needs no ground truth.
-2. **De novo characterisation** — `pipeline/python/inspect_denovo_profiles.py` on the
+1. **Region concordance** — cross-tabulate `cell_type` × `Region`. Strongest available
+   check, needs no ground truth: retinal types belong in `Retina`, Allen cortical types in
+   `Gray`/`White matter`, Mona optic-nerve types in `Optic nerve`.
+2. **Duplicate-copy adjudication** — for each surviving duplicate group (astrocyte ×3,
+   microglia ×3, endothelial, pericyte, vSMC, fibroblast, pigment epithelium),
+   cross-tabulate the copy assignment against `Region` **and** against `qc_area` /
+   `total_counts`. If it tracks `Region`, the distinction is plausibly real regional
+   biology and belongs in the hierarchy. If it tracks area or counts, it is the NEAT1
+   single-nucleus assay offset sorting cells by segmentation quality — collapse the group
+   to its parent. Only the second failure mode looks like success, so check both.
+3. **De novo characterisation** — `pipeline/python/inspect_denovo_profiles.py` on the
    result's `/profiles`: per de novo cluster, top specific markers, nearest named type by
    cosine, and size. Expect at least one flat low-signal sink; the question is how much
    smaller it is than the 66–74% seen in the AtoMx Refit=FALSE calls.
-3. **Marker heatmap** — `profile_marker_inputs.py` (compute on Klone) then
+4. **Marker heatmap** — `profile_marker_inputs.py` (compute on Klone) then
    `marker_heatmap.R` (render on the Mac — the InSituType SIF has no ComplexHeatmap).
 
-Then, and only then, design the InSituTree hierarchy. It is the real endpoint for this
-study: the combined reference has the same cell type once per source atlas at cosine
-0.96–0.99, plus fine types that are unresolvable at 6k depth, and branch-local
-competition is what makes those tractable. See the collinearity section of
+## Stage 4c — InSituTree
+
+`pipeline/reference/retina_hierarchy.json` is already built: 11 top-level branches over
+the 64 named types, depth 4. Two things must happen before `85_insitutree.sh` can run:
+
+1. **CosMx-scale profiles.** InSituTree does no platform rescaling, so its `--reference`
+   must come from the `RESCALE=true` InSituType run above, via
+   `python/prep_insitutree_profiles.py` — not from `retina_combined_panel.csv`.
+2. **De novo leaves added in lockstep.** Every hierarchy leaf must be a column of that
+   profile matrix and vice versa, so the kept de novo clusters from triage need leaves
+   (a `Low_signal` branch for the sink, and whichever real programs survive).
+
+Then:
+
+```bash
+REFERENCE_BASENAME=retina_insitutree_profiles.csv     HIERARCHY_BASENAME=retina_hierarchy.json     sbatch pipeline/slurm/85_insitutree.sh
+```
+
+What the hierarchy is *for* is worth being precise about: it does not decide that the
+three astrocyte copies are one thing. It makes the broad call first (robust at 400 counts),
+then defers the hard call to its own node where you can read the posterior — and a
+near-uniform posterior there is itself the answer. See
 `pipeline/reference/README.md`.
+
+Note the **regional astrocyte question is not answered by the typing at all**. Call
+astrocytes as one population, then test differential expression across `Region` within
+them: that uses our own tissue instead of three labs' protocols, has real spatial ground
+truth, and can discover regional programs rather than being limited to the atlases.
 
 ## Gotchas
 
