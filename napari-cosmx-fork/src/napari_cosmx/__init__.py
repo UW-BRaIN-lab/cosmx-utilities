@@ -58,6 +58,12 @@ DEFAULT_COLORMAPS = {
 
 OTHER_KEYS = ['labels', 'protein', 'composite', 'targets', 'fovgrid']
 
-from ._reader import napari_get_reader
+try:
+    from ._reader import napari_get_reader
+except (ImportError, OSError):
+    napari_get_reader = None
 
-from ._function import napari_experimental_provide_function
+try:
+    from ._function import napari_experimental_provide_function
+except (ImportError, OSError):
+    napari_experimental_provide_function = None

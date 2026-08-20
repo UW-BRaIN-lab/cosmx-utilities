@@ -3,6 +3,7 @@ Reader function for napari_cosmx plugin
 """
 import napari
 import os
+from qtpy.QtCore import QTimer
 from napari_cosmx.gemini import Gemini
 from ._dock_widget import GeminiQWidget
 
@@ -70,6 +71,8 @@ def reader_function(path):
     viewer.window.add_dock_widget(GeminiQWidget(viewer, gem, show_stitching_widget=False),
         area='right',
         name=gem.name)
+    # Defer title update so it applies after Napari's own title reset
+    QTimer.singleShot(0, lambda: setattr(viewer, 'title', gem.name))
     # labels layer added in Gemini instance initialization
     return [(None,)]
 

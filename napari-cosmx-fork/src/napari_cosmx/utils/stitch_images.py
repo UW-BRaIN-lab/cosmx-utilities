@@ -6,7 +6,7 @@ from napari_cosmx.utils import _stitch as stitch
 from napari_cosmx.utils._patterns import get_fov_number, get_zslice_number
 from napari_cosmx.utils._stitch import fov_tqdm
 from tqdm.auto import tqdm
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 import argparse
 import os
 import sys
@@ -21,6 +21,22 @@ LABELS_2D_PATTERN = re.compile(r"CELLLABELS_F[0-9]+\.TIF")
 LABELS_3D_PATTERN = re.compile(r"CELLLABELS_F[0-9]+_Z[0-9]+\.TIF")
 MORPHOLOGY_2D_PATTERN = re.compile(r".*C902_P99_N99_F[0-9]+\.TIF")
 MORPHOLOGY_3D_PATTERN = re.compile(r".*C902_P99_N99_F[0-9]+_Z[0-9]+\.TIF")
+
+
+# This fork ships under its own distribution name, so upstream's
+# version('napari_cosmx') lookup misses. Try the fork first, then upstream.
+PACKAGE_NAMES = ("napari-cosmx-fork", "napari_cosmx")
+
+
+def _package_version():
+    """Installed version string, or "unknown" when no distribution is found
+    (e.g. running straight from a source checkout)."""
+    for name in PACKAGE_NAMES:
+        try:
+            return version(name)
+        except PackageNotFoundError:
+            continue
+    return "unknown"
 
 
 def _integer_resize_nearest(tile, target_shape):
@@ -129,6 +145,50 @@ def _collect_label_tiles(inputdir, pattern):
             tile_map.setdefault(key, []).append(path)
     return tile_map, has_z_tokens
 
+def _collect_segmentation_label_tiles(inputdir, subdirs, pattern):
+    """Collect label tiles from explicit ``Segmentation_*`` subdirectories.
+
+    AtoMx writes one ``CellStatsDir/Segmentation_<uuid>_00N`` directory per
+    segmentation run, and a run's analysis is only valid against its own
+    segmentation. Subdirs are searched in the given order and claim whole FOVs
+    first-come-first-served, so the primary segmentation always wins and later
+    ones only gap-fill FOVs it does not cover. Any FOV still uncovered falls
+    back to the base ``FOV*/`` labels.
+
+    Claiming is per-FOV rather than per (FOV, z) so a 3D FOV always comes from
+    a single segmentation instead of being mixed plane-by-plane across versions.
+    """
+    tile_map = {}
+    has_z_tokens = False
+    covered_fovs = set()
+
+    for subdir in subdirs:
+        search_dir = os.path.join(inputdir, subdir)
+        if not os.path.isdir(search_dir):
+            sys.exit(f"ERROR: --celllabels-subdir not found: {search_dir}")
+        sub_tiles, sub_has_z = _collect_label_tiles(search_dir, pattern)
+        new_fovs = {fov for (fov, _z) in sub_tiles} - covered_fovs
+        for (fov, zslice), paths in sub_tiles.items():
+            if fov in new_fovs:
+                tile_map.setdefault((fov, zslice), []).extend(paths)
+        if new_fovs:
+            has_z_tokens = has_z_tokens or sub_has_z
+        covered_fovs |= new_fovs
+        print(f"  {subdir}: {len(new_fovs)} FOVs")
+
+    base_tiles, base_has_z = _collect_label_tiles(inputdir, pattern)
+    fallback_fovs = {fov for (fov, _z) in base_tiles} - covered_fovs
+    if fallback_fovs:
+        has_z_tokens = has_z_tokens or base_has_z
+        for (fov, zslice), paths in base_tiles.items():
+            if fov in fallback_fovs:
+                tile_map.setdefault((fov, zslice), []).extend(paths)
+        covered_fovs |= fallback_fovs
+        print(f"  Base CellLabels (fallback): {len(fallback_fovs)} FOVs")
+
+    print(f"Using CellLabels from: {', '.join(subdirs)} ({len(covered_fovs)} total FOVs)")
+    return tile_map, has_z_tokens
+
 def _resolve_tile(tile_map, fov, zslice, label):
     tile_path = tile_map.get((int(fov), int(zslice)), [])
     if len(tile_path) == 0:
@@ -142,16 +202,48 @@ def _detect_z_slices(*tile_maps):
     z_slices = sorted({key[1] for tile_map in tile_maps for key in tile_map})
     return z_slices or [0]
 
+def _map_z_to_morphology(z_slices, morphology_z_slices):
+    """Map each output z plane to the morphology z plane to draw it from.
+
+    Labels and morphology can differ in dimensionality: a 3D-resegmented slide
+    still carries a single 2D morphology acquisition (``Morphology2D``, no
+    ``_Z###`` suffix). There the one morphology plane is broadcast to every
+    output plane, so cells scroll through z against a constant image instead of
+    the image layers coming out empty. When both are 3D the planes match up
+    directly; anything unmatched falls back to the nearest available plane.
+    """
+    available = sorted(morphology_z_slices)
+    if not available:
+        return {z: None for z in z_slices}
+    if len(available) == 1:
+        return {z: available[0] for z in z_slices}
+    return {
+        z: (z if z in available else min(available, key=lambda a: abs(a - z)))
+        for z in z_slices
+    }
+
 def _pick_imagesdir(inputdir, input_ndim, imagesdir):
+    """Locate the morphology directory, tolerating a labels/morphology ndim mismatch.
+
+    Prefers ``Morphology<input_ndim>D`` but falls back to whichever
+    ``Morphology*D`` directory exists, since a 3D resegmentation is exported
+    alongside the original 2D morphology acquisition.
+    """
     if imagesdir is not None:
         return imagesdir
-    morphology_dir = os.path.join(inputdir, f"Morphology{input_ndim}D")
-    if not os.path.isdir(morphology_dir):
-        sys.exit(
-            f"Expected morphology images under {morphology_dir}. "
-            "Pass --imagesdir to use a custom morphology location."
-        )
-    return morphology_dir
+    preferred = os.path.join(inputdir, f"Morphology{input_ndim}D")
+    if os.path.isdir(preferred):
+        return preferred
+    for ndim in (2, 3):
+        candidate = os.path.join(inputdir, f"Morphology{ndim}D")
+        if os.path.isdir(candidate):
+            print(f"No Morphology{input_ndim}D directory; using "
+                  f"{os.path.basename(candidate)} instead.")
+            return candidate
+    sys.exit(
+        f"Expected morphology images under {preferred}. "
+        "Pass --imagesdir to use a custom morphology location."
+    )
 
 def main(args_list=None):
     parser = argparse.ArgumentParser(description='Tile CellLabels and morphology TIFFs.',
@@ -161,6 +253,13 @@ def main(args_list=None):
         default=".")
     parser.add_argument("--imagesdir",
         help="Optional: Path to morphology images, if different than inputdir.",
+        default=None)
+    parser.add_argument("--celllabels-subdir",
+        help="Optional: Subdirectory within inputdir containing CellLabels.\n"
+             "Use to select a specific segmentation version, e.g.\n"
+             "Segmentation_uuid_003. Repeat as a comma-separated list to let\n"
+             "older versions gap-fill FOVs the first one does not cover.\n"
+             "When omitted, searches the base FOV*/ directories of inputdir.",
         default=None)
     parser.add_argument("-o", "--outputdir",
         help="Required: Where to create zarr output.",
@@ -177,9 +276,18 @@ def main(args_list=None):
         default=None,
         type=float)
     parser.add_argument("--input-ndim",
-        help="Optional: Dimensionality to detect in input filenames (CellLabels_F###.tif vs CellLabels_F###_Z###.tif).",
+        help="Optional: Dimensionality to detect in CellLabels filenames\n"
+             "(CellLabels_F###.tif vs CellLabels_F###_Z###.tif).",
         choices=[2, 3],
         default=DEFAULT_NDIM,
+        type=int)
+    parser.add_argument("--morphology-ndim",
+        help="Optional: Dimensionality to detect in morphology filenames.\n"
+             "Defaults to auto-detect, since a 3D resegmentation is exported\n"
+             "against the original 2D morphology acquisition. A single 2D\n"
+             "morphology plane is broadcast across all output z planes.",
+        choices=[2, 3],
+        default=None,
         type=int)
     parser.add_argument("--output-ndim",
         help="Optional: Dimensionality of stitched output.",
@@ -202,6 +310,14 @@ def main(args_list=None):
     parser.add_argument("--dotzarr",
         help="\nOptional: Add .zarr extension on multiscale pyramids.",
         action='store_true')
+    parser.add_argument("--channel-name",
+        help="Override the kit's channel-to-marker mapping. Repeatable.\n"
+             "Format: CH=MARKER, where CH is one of B, G, Y, R, U.\n"
+             "Example: --channel-name B=AT8 --channel-name G=6E10\n"
+             "Used when the MorphologyKit metadata in the TIFFs is wrong or\n"
+             "inconsistent across studies for the same actual panel.",
+        action='append',
+        default=[])
     args = parser.parse_args(args=args_list)
 
     if args.ndim is not None:
@@ -228,9 +344,13 @@ def main(args_list=None):
     fov_offsets = stitch.offsets(args.offsetsdir)
 
     labels_pattern = LABELS_3D_PATTERN if args.input_ndim == 3 else LABELS_2D_PATTERN
-    morphology_pattern = MORPHOLOGY_3D_PATTERN if args.input_ndim == 3 else MORPHOLOGY_2D_PATTERN
 
-    labels_tiles, labels_have_z = _collect_label_tiles(args.inputdir, labels_pattern)
+    if args.celllabels_subdir:
+        subdirs = [s.strip() for s in args.celllabels_subdir.split(",") if s.strip()]
+        labels_tiles, labels_have_z = _collect_segmentation_label_tiles(
+            args.inputdir, subdirs, labels_pattern)
+    else:
+        labels_tiles, labels_have_z = _collect_label_tiles(args.inputdir, labels_pattern)
     labels_res = [path for paths in labels_tiles.values() for path in paths]
 
     # Check input directory for images and get image dimensions.
@@ -251,7 +371,25 @@ def main(args_list=None):
     ihc_res = []
     ihc_have_z = False
     if not args.labels:
-        ihc_tiles, ihc_have_z = _collect_tiles(args.imagesdir, morphology_pattern)
+        if args.morphology_ndim is not None:
+            morphology_ndim = args.morphology_ndim
+            morphology_pattern = (MORPHOLOGY_3D_PATTERN if morphology_ndim == 3
+                                  else MORPHOLOGY_2D_PATTERN)
+            ihc_tiles, ihc_have_z = _collect_tiles(args.imagesdir, morphology_pattern)
+        else:
+            # Auto-detect: labels and morphology can disagree, so try the
+            # dimensionality implied by the labels first and fall back.
+            morphology_ndim = args.input_ndim
+            for candidate in (args.input_ndim, 2 if args.input_ndim == 3 else 3):
+                morphology_pattern = (MORPHOLOGY_3D_PATTERN if candidate == 3
+                                      else MORPHOLOGY_2D_PATTERN)
+                ihc_tiles, ihc_have_z = _collect_tiles(args.imagesdir, morphology_pattern)
+                if ihc_tiles:
+                    morphology_ndim = candidate
+                    break
+            if morphology_ndim != args.input_ndim:
+                print(f"Detected {morphology_ndim}D morphology images alongside "
+                      f"{args.input_ndim}D CellLabels.")
         ihc_res = [path for paths in ihc_tiles.values() for path in paths]
         morphology_binning = 1
         morphology_native_shape = None
@@ -284,7 +422,9 @@ def main(args_list=None):
                 if label_shape is None:
                     sys.exit("No images found, exiting.")
             # get morphology kit metadata
-                channels = markers = ['B','G','Y','R','U']
+                channels = ['B','G','Y','R','U']
+                # Default channel names (B: Histone, G: Empty, Y: rRNA, R: GFAP, U: DAPI)
+                markers = ['Histone','Empty','rRNA','GFAP','DAPI']
                 tif_tags = {}
                 try:
                     for tag in im.pages[0].tags.values():
@@ -296,9 +436,22 @@ def main(args_list=None):
                         channel = r['Fluorophore']['ChannelId']
                         target = r['BiologicalTarget'].replace("/", "_")
                         mkit[channel] = target
-                    markers = [mkit[c] for c in channels] 
+                    markers = [mkit[c] for c in channels]
                 except:
-                    pass # channel names left as default ['B','G','R','Y','U']
+                    pass # channel names left as default
+
+                # Apply --channel-name overrides. The kit's MorphologyReagents
+                # metadata is sometimes wrong (e.g. mislabeling 6E10 as CD68/CD3
+                # or AT8 as Histone) and even inconsistent across studies, so
+                # callers can pin the true panel.
+                if args.channel_name:
+                    overrides = {}
+                    for pair in args.channel_name:
+                        ch, sep, name = pair.partition("=")
+                        if not sep or ch not in channels:
+                            sys.exit(f"Invalid --channel-name {pair!r}: expected CH=MARKER with CH in {channels}")
+                        overrides[ch] = name
+                    markers = [overrides.get(c, m) for c, m in zip(channels, markers)]
             if scale_ref_tif is None:
                 scale_ref_tif = morph_ref_tif
             # z-step comes from morphology metadata when available.
@@ -311,7 +464,10 @@ def main(args_list=None):
         sys.exit("Requested --input-ndim 3, but no filenames with _Z### were found.")
 
     if args.input_ndim == 3:
-        detected_z_slices = _detect_z_slices(labels_tiles, ihc_tiles)
+        # Labels define the output z planes whenever present; morphology may be
+        # a single 2D acquisition whose z=0 key would otherwise add a phantom plane.
+        detected_z_slices = (_detect_z_slices(labels_tiles) if labels_tiles
+                             else _detect_z_slices(ihc_tiles))
         if args.output_ndim == 2:
             if args.zslice is None:
                 middle_index = (len(detected_z_slices) - 1) // 2
@@ -348,7 +504,22 @@ def main(args_list=None):
 
     array_shape = (height, width) if args.output_ndim == 2 else (len(z_slices), height, width)
     chunks = stitch.CHUNKS if args.output_ndim == 2 else (1,) + stitch.CHUNKS
-    
+
+    # A 2D morphology acquisition under a 3D labels volume is stored once rather
+    # than copied to every plane. The copies would be byte-identical and carry no
+    # extra information, but morphology dominates a mosaic's size — for a typical
+    # slide that is ~27 GiB duplicated 8 times, which alone exceeds Fargate's
+    # 200 GiB ephemeral storage ceiling. napari renders the single plane beneath
+    # the 3D labels just as well.
+    morphology_z_slices = sorted({zslice for (_fov, zslice) in ihc_tiles})
+    morphology_is_2d = (args.output_ndim == 3 and len(morphology_z_slices) == 1)
+    if morphology_is_2d:
+        print(f"Morphology is a single 2D plane (z={morphology_z_slices[0]}); "
+              "storing it once instead of repeating it across all "
+              f"{len(z_slices)} label planes.")
+    morphology_shape = (height, width) if (args.output_ndim == 2 or morphology_is_2d) else array_shape
+    morphology_chunks = stitch.CHUNKS if (args.output_ndim == 2 or morphology_is_2d) else chunks
+
     if len(labels_res) != 0:
         im = da.zeros(array_shape, dtype=np.uint32, chunks=chunks)
         print("Stitching cell segmentation labels.")
@@ -377,19 +548,26 @@ def main(args_list=None):
         'fov_offsets': fov_offsets.to_dict(),
         'input_ndim': args.input_ndim,
         'ndim': args.output_ndim,
+        # Morphology can be flat while labels are volumetric; the reader uses
+        # this to pick 2D vs 3D scale/translate per image layer.
+        'morphology_ndim': 2 if (args.output_ndim == 2 or morphology_is_2d) else 3,
         'z_slices': z_slices,
         'z_step_um': z_step_um,
         'scale_um': scale_dict['um_per_px'],
-        'version': version('napari_cosmx')
+        'version': _package_version()
     }
 
     if len(ihc_res) != 0:
+        write_planes = [morphology_z_slices[0]] if morphology_is_2d else z_slices
+        morphology_z_for = _map_z_to_morphology(write_planes, set(morphology_z_slices))
+        flat_output = (args.output_ndim == 2 or morphology_is_2d)
         for i in range(n):
-            im = da.zeros(array_shape, dtype=np.uint16, chunks=chunks)
+            im = da.zeros(morphology_shape, dtype=np.uint16, chunks=morphology_chunks)
             print(f"Stitching images for {markers[i]}.")
-            for z_index, zslice in enumerate(z_slices):
+            for z_index, zslice in enumerate(write_planes):
+                morphology_z = morphology_z_for[zslice]
                 for fov in fov_tqdm(fov_offsets['FOV']):
-                    tile_path = _resolve_tile(ihc_tiles, fov, zslice, "image")
+                    tile_path = _resolve_tile(ihc_tiles, fov, morphology_z, "image")
                     if tile_path is None:
                         continue
                     with tifffile.TiffFile(tile_path) as my_tiff:
@@ -397,7 +575,7 @@ def main(args_list=None):
                     if tile.shape != (fov_height, fov_width):
                         tile = _integer_resize_nearest(tile, (fov_height, fov_width))
                     y, x = stitch.fov_origin(fov_offsets, fov, top_origin_px, left_origin_px, fov_height, scale_dict, dash)
-                    if args.output_ndim == 2:
+                    if flat_output:
                         im[y:y+tile.shape[0], x:x+tile.shape[1]] = tile
                     else:
                         im[z_index, y:y+tile.shape[0], x:x+tile.shape[1]] = tile
