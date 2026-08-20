@@ -60,6 +60,7 @@ SOURCE_S3_PREFIX=CosMx-retina/CosMx-retina-brain-segmentation-test-4.1.26
 KOPAH_PREFIX=cosmx-retina
 MANIFEST=/mmfs1/home/emilyek/cosmx-utilities-retina/pipeline/manifest_retina.csv
 BATCH_COL=slide_id
+BATCH_VARIABLE=slide_id
 COHORT=
 MIN_GENE_COUNTS=50
 MAX_AREA=50000
@@ -135,9 +136,46 @@ sbatch pipeline/slurm/20_concat_qc.sh
 Check in the log: `Cohort filter DISABLED`, ~840k of ~900k cells kept, and **12
 `slide_id` batches**.
 
-Stages 3b/3c (`30_pearson_pca.sh`, `40_cluster.sh`) are **not** needed for typing. Run
-them if you want the Leiden clusters for the post-typing crosstab and the `Region` QC
-UMAPs — that is also the cheapest early read on whether the three tissues separate.
+## Stage 3b/3c — batch-corrected PCA + Leiden
+
+**Run these.** InSituType does not read the PCA, so it is tempting to skip them, but the
+cost is larger than it looks:
+
+- `40_cluster.sh` (3c) stages 3b's `embedding.h5`, so skipping 3b skips 3c as well — no
+  Leiden, no UMAP, no `cosmx_clustered.h5ad`.
+- `90_write_celltypes.sh` stages `cosmx_clustered.h5ad`, so without 3b/3c there is **no
+  `cosmx_typed.h5ad`** at the end — nothing with `cell_type` in `obs` for Napari or any
+  spatial work. (`81_diagnose_typing.sh` deliberately reads `combined_qc.h5ad` plus the
+  result h5 instead, so the diagnostics do not depend on this — but that routes around the
+  gap rather than closing it.)
+- What they provide is the **reference-free** evidence this study most needs: a Leiden ×
+  `cell_type` crosstab (`85d`) checks that the typing respects unsupervised structure,
+  which matters precisely because a 64-type collinear reference leaves the EM unconfident.
+  A UMAP coloured by `Region` is also the most direct read on whether retina / optic nerve
+  / brain separate at all, and `QC_COLOR=slide_id` shows whether the 12 donors mix.
+
+`BATCH_VARIABLE` (3b, R) must match `BATCH_COL` (3a, Python) — both are set in `.env`
+above so they cannot drift:
+
+```bash
+sbatch pipeline/slurm/30_pearson_pca.sh
+```
+
+```bash
+sbatch pipeline/slurm/40_cluster.sh
+```
+
+⚠️ 3b needs `APPTAINER_SCPEARSON`, and `scpearsonpca.sif` was **purged** from
+`/gscratch/glioblastoma/$USER/containers/` in the August 2026 cleanup. Check first, and
+rebuild if absent — `scpearsonpca.def` is pinned (dated Posit snapshot + commit SHA), so
+the rebuild is reproducible; the build command is in its header and takes ~20–40 min on a
+login node.
+
+Aside on method: scPearsonPCA exists rather than rapids-singlecell's
+`normalize_pearson_residuals` because at ~8M cells the rapids path densifies an
+n_cells × n_genes residual matrix that will not fit a 46GB L40S. At retina's ~840k × 2000
+HVGs (~6.7GB dense) that constraint does not bind — but swapping methods would need new
+code and would make retina-vs-GBM comparison murkier, so rebuild the pinned container.
 
 ## Stage 4a — InSituType input
 
@@ -240,7 +278,17 @@ HIERARCHY_BASENAME=retina_hierarchy.json sbatch pipeline/slurm/81_diagnose_typin
 4. **Marker heatmap** — `profile_marker_inputs.py` (compute on Klone) then
    `marker_heatmap.R` (render on the Mac — the InSituType SIF has no ComplexHeatmap).
 
-## Stage 4c — InSituTree
+## Stage 4c — write cell types back
+
+```bash
+sbatch pipeline/slurm/90_write_celltypes.sh
+```
+
+Produces `cosmx-retina/stage4/cosmx_typed.h5ad` — `combined_qc` obs plus `cell_type` and
+`insitutype_prob` — which is the artifact downstream spatial work and Napari re-colouring
+read. Requires 3b/3c (it stages `cosmx_clustered.h5ad`).
+
+## Stage 4d — InSituTree
 
 `pipeline/reference/retina_hierarchy.json` is already built: 11 top-level branches over
 the 64 named types, depth 4. Two things must happen before `85_insitutree.sh` can run:
