@@ -46,6 +46,11 @@ set +a
 
 STAGE4="${STAGE4_DIR:-stage4_anchor}"
 REFERENCE_BASENAME="${REFERENCE_BASENAME:-gbmap_level4_panel.csv}"
+# Kopah key (under ${KOPAH_PREFIX}/) of the counts HDF5 to read. Defaults to the
+# full-cohort anchor. A study with no anchor stage points it at the plain stage-4a
+# input instead — same schema, so read_anchor_h5() handles both:
+#   INPUT_KEY=stage4/insitutype_input.h5
+INPUT_KEY="${INPUT_KEY:-${STAGE4}/anchor/anchor_input.h5}"
 K_SWEEP_OUT="${K_SWEEP_OUT:-k_sweep}"
 : "${APPTAINER_INSITUTYPE:?must be set in pipeline/.env}"
 
@@ -57,8 +62,8 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging anchor input + reference from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/anchor/anchor_input.h5" \
+echo "Staging counts input (${INPUT_KEY}) + reference from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT_KEY}" \
     "$WORK/anchor_input.h5"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
     "$WORK/reference.csv"

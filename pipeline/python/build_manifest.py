@@ -17,6 +17,9 @@ Usage:
     uv run python pipeline/python/build_manifest.py --output pipeline/manifest.csv
     uv run python pipeline/python/build_manifest.py \\
         --source-bucket my-bucket --source-prefix CosMx-GBM/Wenyu-cohort
+    uv run python pipeline/python/build_manifest.py \\
+        --source-prefix CosMx-retina/<study> --export-batch <resegmentation-run> \\
+        --output pipeline/manifest_retina.csv
 """
 
 from __future__ import annotations
@@ -79,15 +82,23 @@ def _first_runsummary_key(s3, bucket: str, decoded_scan_prefix: str) -> str | No
     return contents[0]["Key"] if contents else None
 
 
-def discover_slides(s3, bucket: str, prefix: str) -> Iterator[SlideManifestRow]:
+def discover_slides(s3, bucket: str, prefix: str,
+                    export_batches: set[str] | None = None) -> Iterator[SlideManifestRow]:
     """Yield one SlideManifestRow per slide found under prefix.
 
     Expected layout:
         <prefix>/<export_batch>/DecodedFiles/<slide_id>/<YYYYMMDD_HHMMSS_S{slot}>/RunSummary/Run_...
         <prefix>/<export_batch>/flatFiles/<slide_id>/
+
+    A prefix can hold several export batches of the SAME slides — e.g. the retina study
+    exports an initial segmentation and a resegmentation side by side, so the unfiltered
+    crawl yields each slide twice. Pass export_batches to keep only the batches wanted;
+    None keeps them all.
     """
     for batch_prefix in _list_subprefixes(s3, bucket, prefix):
         export_batch = batch_prefix.rstrip("/").rsplit("/", 1)[-1]
+        if export_batches is not None and export_batch not in export_batches:
+            continue
         decoded_root = batch_prefix + "DecodedFiles/"
         flat_root = batch_prefix + "flatFiles/"
 
@@ -153,6 +164,13 @@ def main() -> None:
         help="Top-level prefix within the bucket (env: SOURCE_S3_PREFIX)",
     )
     p.add_argument(
+        "--export-batch",
+        nargs="+",
+        help="Keep only these export batches (the directory names directly under "
+             "--source-prefix). Needed when one prefix holds several exports of the "
+             "same slides, e.g. an initial segmentation next to a resegmentation.",
+    )
+    p.add_argument(
         "--output",
         type=Path,
         default=Path(__file__).resolve().parent.parent / "manifest.csv",
@@ -169,7 +187,16 @@ def main() -> None:
         sys.exit(1)
 
     s3 = make_source_client()
-    rows = list(discover_slides(s3, args.source_bucket, args.source_prefix))
+    wanted = set(args.export_batch) if args.export_batch else None
+    rows = list(discover_slides(s3, args.source_bucket, args.source_prefix, wanted))
+    if wanted:
+        # Checked before the empty-rows case: a mistyped batch name would otherwise
+        # silently narrow the manifest, or report the vaguer "no slides found".
+        absent = sorted(wanted - {r.export_batch for r in rows})
+        if absent:
+            print(f"ERROR: --export-batch not found under {args.source_prefix}: "
+                  f"{absent}", file=sys.stderr)
+            sys.exit(1)
     if not rows:
         print("ERROR: no slides found.", file=sys.stderr)
         sys.exit(1)
