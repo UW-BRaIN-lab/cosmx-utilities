@@ -321,6 +321,15 @@ truth, and can discover regional programs rather than being limited to the atlas
 
 ## Gotchas
 
+- **R progress goes to `.err`, Python progress to `.out`.** The R stages (`30`, `73`, `74`,
+  `80`, `85`) log with `message()`, which writes to stderr — `pearson_pca.R` for instance has
+  four `message()` calls and no `print`/`cat` at all, so its `.out` holds only the wrapper's
+  bash `echo`s. Grep `pipeline/logs/<stage>_<jobid>.err` for anything R said. (`73`/`74` also
+  `cat` their summary files from bash at the end, so those land in `.out`.) The Python stages
+  (`10`, `20`, `70`, `81`) use `print()` and behave as expected.
+- **A silent R log is usually not a hang.** These scripts log at phase boundaries only, so
+  `30` prints nothing between `counts: ...` and `writing embedding` while it computes
+  residuals and the SVD. Compare elapsed time against the job's `--time` before worrying.
 - **`--export-batch` is mandatory** when building this manifest, or you get 24 rows.
 - **Raw flat files land OUTSIDE `KOPAH_PREFIX`.** `migrate_s3_to_kopah.py` sets
   `dst_key = src_key`, so they mirror the source path at
