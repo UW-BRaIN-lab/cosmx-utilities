@@ -4,6 +4,37 @@ Apptainer recipes for the CosMx GBM pipeline on Hyak. Each `.def` file
 produces a `.sif` that the Slurm jobs in `pipeline/slurm/` invoke with
 `apptainer exec`.
 
+## Running a SIF on a login node
+
+Klone's site Apptainer config binds `/var/run/slurm` and `/var/spool/slurmd`, which exist
+only on **compute** nodes. Any `apptainer exec` / `shell` on a login node therefore dies
+with:
+
+```
+FATAL: container creation failed: mount hook function failure:
+mount /var/run/slurm->/var/run/slurm error: mount source /var/run/slurm doesn't exist
+```
+
+This is the environment, not the container. Disable the site bind paths:
+
+```bash
+apptainer exec --no-mount bind-paths <sif> <command>
+```
+
+or get a compute node first:
+
+```bash
+salloc --account=glioblastoma-ckpt --partition=ckpt --qos=ckpt \
+    --cpus-per-task=1 --mem=4G --time=00:10:00
+```
+
+The Slurm stages never hit this — they already run on compute nodes. It only affects
+interactive verification, and `apptainer build` is unaffected (no container is started).
+
+Related: heavy interactive work on a login node is separately subject to the **arbiter**,
+which throttles or kills large processes. Anything that reads a multi-million-row `obs`
+table needs `salloc`, not a login node.
+
 ## rapids-singlecell.sif
 
 Runtime for the Python stages of the pipeline:
@@ -215,6 +246,22 @@ Point `pipeline/.env` at it:
 ```
 APPTAINER_SCPEARSON=/gscratch/scrubbed/<username>/containers/scpearsonpca.sif
 ```
+
+### Verifying the build
+
+The def runs an import check during `%post` (`R packages ok` in the build log), which is
+the real confirmation. To re-check the finished SIF interactively on a login node, remember
+`--no-mount bind-paths` (see *Running a SIF on a login node* above):
+
+```bash
+apptainer exec --no-mount bind-paths \
+    /gscratch/glioblastoma/$USER/containers/scpearsonpca.sif \
+    Rscript -e 'library(scPearsonPCA); library(hdf5r); \
+        stopifnot(is.function(scPearsonPCA::sparse_quasipoisson_pca_seurat_batch)); \
+        cat("SIF ok\n")'
+```
+
+`smoke-test.sh` covers `rapids-singlecell.sif` only; this container has no tier there.
 
 ### Reproducibility
 
