@@ -18,6 +18,7 @@ import vaex
 import dask.array as da
 import pickle
 from napari_cosmx.pairing import unpair, pair
+from napari_cosmx._colors import categorical_color_map
 from napari_cosmx._dock_widget import GeminiQWidget
 from sklearn import preprocessing
 from skimage.draw import polygon, ellipse
@@ -144,8 +145,15 @@ class Gemini:
         self.expr_scale = 1
         self.targets = self._load_targets()
         self._load_protein_state()
-        self.name = self.adata.uns['name'] if (self.adata is not None) and ('name' in self.adata.uns) else \
-            os.path.basename(self.folder)
+        if (self.adata is not None) and ('name' in self.adata.uns):
+            self.name = self.adata.uns['name']
+        else:
+            folder = os.path.normpath(self.folder)
+            slide = os.path.basename(folder)
+            parent = os.path.basename(os.path.dirname(folder))
+            # Strip trailing date/number suffixes (e.g. "22426_06_04_2026_12_30_21_218")
+            short_parent = re.sub(r'\d[\d_]*$', '', parent).rstrip('_')
+            self.name = f"{short_parent}/{slide}" if short_parent else slide
 
         if self.adata is None:
             # Accept either legacy *_metdata.csv or gzipped *_metadata_file.csv.gz.
@@ -187,6 +195,7 @@ class Gemini:
             self.viewer = napari.Viewer()
         self.viewer.layers.events.removed.connect(self._layer_removed)
         self.update_console()
+        self.viewer.title = self.name
         self.viewer.scale_bar.visible = True
         self.viewer.scale_bar.unit = "mm"
         self._configure_z_plane_overlay()
@@ -269,16 +278,24 @@ class Gemini:
         else:
             return (min(self.fov_offsets['Y_mm']), -max(self.fov_offsets['X_mm']))
 
-    def _image_translate(self):
-        return self._top_left_mm() if not self.is_3d else (0.0, *self._top_left_mm())
+    def _image_translate(self, layer_ndim=None):
+        """Translation for an image layer.
 
-    def _image_scale(self, protein=False):
+        `layer_ndim` is the dimensionality of the array actually being added,
+        which can be 2 even in a 3D dataset when morphology is a single plane.
+        """
+        ndim = self.ndim if layer_ndim is None else layer_ndim
+        return self._top_left_mm() if ndim != 3 else (0.0, *self._top_left_mm())
+
+    def _image_scale(self, protein=False, layer_ndim=None):
+        """Scale for an image layer; see _image_translate for `layer_ndim`."""
+        ndim = self.ndim if layer_ndim is None else layer_ndim
         if protein:
             xy_scale = self.mm_per_px*(1/self.expr_scale)
-            if self.is_3d:
+            if ndim == 3:
                 return (self.protein_z_step_mm, xy_scale, xy_scale)
             return (xy_scale, xy_scale)
-        if self.is_3d:
+        if ndim == 3:
             return (self.rna_z_step_mm, self.mm_per_px, self.mm_per_px)
         return (self.mm_per_px, self.mm_per_px)
 
@@ -520,9 +537,13 @@ class Gemini:
             metadata['omero']['channels'][0]['color'] = colormap
         z_value = None
         layer_name = name
-        layer_scale = self._image_scale()
-        layer_translate = self._image_translate()
-        if self.is_3d and z_plane is not None:
+        # Morphology may be stored as one 2D plane even in a 3D dataset (a 3D
+        # resegmentation of a 2D-imaged slide), so place it by the array's own
+        # dimensionality rather than the dataset's.
+        stored_ndim = im[0].ndim
+        layer_scale = self._image_scale(layer_ndim=stored_ndim)
+        layer_translate = self._image_translate(layer_ndim=stored_ndim)
+        if self.is_3d and stored_ndim == 3 and z_plane is not None:
             z_index = self._resolve_single_z_index(z_plane)
             im = self._slice_multiscale_at_z(im, z_index)
             z_value = int(self.z_slices[z_index])
@@ -561,9 +582,10 @@ class Gemini:
         im = [da.from_zarr(os.path.join(self.folder, "images", "composite"), component=d["path"]) for d in datasets]
         z_value = None
         layer_name = "Composite"
-        layer_scale = self._image_scale()
-        layer_translate = self._image_translate()
-        if self.is_3d and z_plane is not None:
+        stored_ndim = im[0].ndim
+        layer_scale = self._image_scale(layer_ndim=stored_ndim)
+        layer_translate = self._image_translate(layer_ndim=stored_ndim)
+        if self.is_3d and stored_ndim == 3 and z_plane is not None:
             z_index = self._resolve_single_z_index(z_plane)
             im = self._slice_multiscale_at_z(im, z_index)
             z_value = int(self.z_slices[z_index])
@@ -1246,6 +1268,8 @@ class Gemini:
             label_colors = {1: color, None: transform_color('transparent')[0]}
         else:
             cells = subset if (subset is not None) else self.metadata.index
+            if len(cells) == 0:
+                return
             if col_name == "all":
                 color = transform_color(color)[0]
                 label_colors = {k:color for k in cells}
@@ -1259,14 +1283,28 @@ class Gemini:
                             cat_colors = [transform_color(i)[0] for i in self.adata.uns[col_name + "_colors"]]
                             color = dict(zip(categories, cat_colors))
                         else:
-                            vals = np.unique(self.metadata[col_name])
-                            cm = label_colormap(len(vals)+1)
-                            color = dict(zip(vals, cm.colors[1:]))
+                            # Prefer a per-column '<col>_color' (multi-annotation
+                            # _metadata.csv), then legacy 'hex_color', for consistent
+                            # colors across slides; otherwise auto-generate.
+                            hex_map = categorical_color_map(self.metadata, col_name)
+                            if hex_map is not None:
+                                color = {k: transform_color(v)[0] for k, v in hex_map.items()}
+                            else:
+                                vals = np.unique(self.metadata[col_name])
+                                cm = label_colormap(len(vals)+1)
+                                color = dict(zip(vals, cm.colors[1:]))
                     else:
                         assert isinstance(color, dict), "color needs to be dict for categorical metadata"
                         color = {k:transform_color(v)[0] for k,v in color.items()}
-                    label_colors = {k:(color[v] if v in color else transform_color('transparent')[0])
-                        for k,v in zip(cells, self.metadata.loc[cells][col_name])}
+                    # NaN != NaN in Python, so dict lookup with `v in color` fails
+                    # for NaN keys. Use pd.isna to handle NaN values explicitly.
+                    nan_color = next((c for k, c in color.items() if pd.isna(k)), None)
+                    def _lookup(v):
+                        if pd.isna(v):
+                            return nan_color if nan_color is not None else transform_color('transparent')[0]
+                        return color[v] if v in color else transform_color('transparent')[0]
+                    label_colors = {k: _lookup(v)
+                        for k, v in zip(cells, self.metadata.loc[cells][col_name])}
                 else:
                     if color is None:
                         color = 'gray'
