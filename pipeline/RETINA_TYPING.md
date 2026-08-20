@@ -96,7 +96,9 @@ uv run python pipeline/python/build_manifest.py \
     --output pipeline/manifest_retina.csv
 ```
 
-Mirror the flat files S3 → Kopah (skips the ~640 MB/slide `_tx_file` by default):
+Mirror the flat files S3 → Kopah (skips the ~640 MB/slide `_tx_file` by default). No
+`--manifest` flag needed — `build_manifest.py --output` and `migrate_s3_to_kopah.py
+--manifest` both default to `$MANIFEST`, which `.env` sets:
 
 ```bash
 uv run python pipeline/python/migrate_s3_to_kopah.py --dry-run
@@ -320,6 +322,11 @@ truth, and can discover regional programs rather than being limited to the atlas
 ## Gotchas
 
 - **`--export-batch` is mandatory** when building this manifest, or you get 24 rows.
+- **Raw flat files land OUTSIDE `KOPAH_PREFIX`.** `migrate_s3_to_kopah.py` sets
+  `dst_key = src_key`, so they mirror the source path at
+  `s3://brainlabkg/CosMx-retina/…` while only pipeline outputs go under
+  `cosmx-retina/`. This looks wrong in the transfer log but is deliberate — it is
+  what makes the flat files shareable between runs.
 - **`obs` is wide.** This study's flat-file metadata carries ~190 columns, including
   ~100 AtoMx neighborhood-composition floats and AtoMx's own
   `RNA_RNA_Cell.Typing.InSituType.1_1_clusters` call. All of it lands in `obs`. That is a

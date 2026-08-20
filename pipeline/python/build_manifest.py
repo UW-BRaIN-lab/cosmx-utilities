@@ -173,8 +173,9 @@ def main() -> None:
     p.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).resolve().parent.parent / "manifest.csv",
-        help="Path to write the manifest CSV",
+        default=Path(os.environ.get("MANIFEST")
+                     or Path(__file__).resolve().parent.parent / "manifest.csv"),
+        help="Path to write the manifest CSV (env: MANIFEST, so build and consume agree)",
     )
     args = p.parse_args()
 

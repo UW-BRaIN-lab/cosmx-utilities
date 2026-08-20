@@ -164,8 +164,10 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--manifest", type=Path,
-        default=Path(__file__).resolve().parent.parent / "manifest.csv",
-        help="Path to manifest.csv produced by build_manifest.py",
+        default=Path(os.environ.get("MANIFEST")
+                     or Path(__file__).resolve().parent.parent / "manifest.csv"),
+        help="Manifest produced by build_manifest.py (env: MANIFEST). A per-study run "
+             "sets MANIFEST in pipeline/.env, as the Slurm stages already expect.",
     )
     p.add_argument("--include-transcripts", action="store_true",
                    help="Also copy the heavy _tx_file.csv.gz per slide")
