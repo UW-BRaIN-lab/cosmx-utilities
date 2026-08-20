@@ -186,6 +186,8 @@ def worker_flags(args) -> list[str]:
         flags += ["--output-ndim", str(args.output_ndim)]
     for column in args.column or []:
         flags += ["--column", column]
+    if args.annotations_prefix:
+        flags += ["--annotations-prefix", args.annotations_prefix]
     if args.fill_from:
         flags += ["--fill-from", args.fill_from]
     return flags
@@ -364,6 +366,14 @@ def main() -> None:
         help="Annotation column to carry into _metadata.csv (repeatable). "
              "SOURCE_HEADER may list fallbacks separated by '|' for studies "
              "that renamed a column between AtoMx runs.",
+    )
+    parser.add_argument(
+        "--annotations-prefix",
+        default="",
+        metavar="S3URI",
+        help="S3 directory of per-FOV annotation sheets named "
+             "<slide>_annotations.csv, one per slide. Fills annotation values "
+             "AtoMx never captured. Must be readable from the Fargate task.",
     )
     parser.add_argument(
         "--fill-from",

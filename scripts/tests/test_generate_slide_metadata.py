@@ -327,6 +327,125 @@ def test_fill_refuses_per_cell_columns():
         assert rows[0][2][1] == "", "per-cell typing must stay blank"
 
 
+# ---- Per-FOV annotation sheets ---------------------------------------------
+
+SHEET_FIELDS = ["Flow Cells", "FOVs", "Case_broad", "Case_specific_SORL1",
+                "SORL1_mutation", "UWA"]
+SHEET_SLIDE = "20260708_UWA_599_657_710_741"
+
+
+def _write_sheet(path, rows, fieldnames=SHEET_FIELDS):
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+
+
+def _sheet_rows(n=3, slide=SHEET_SLIDE):
+    return [{"Flow Cells": slide, "FOVs": str(i), "Case_broad": "AD+LATE",
+             "Case_specific_SORL1": "AD+LATE SORL1",
+             "SORL1_mutation": "AD+LATE SORL1 R953C", "UWA": "741"}
+            for i in range(1, n + 1)]
+
+
+ANNOTATION_SPECS = [
+    ("Case Broad", "Case_broad"),
+    ("Case Specific", "Case_specific_SORL1|Case_specific"),
+    ("SORL1 Mutation", "SORL1_mutation"),
+    ("UWA", "UWA"),
+]
+
+
+def _annotation_specs():
+    return [gsm.ColumnSpec(out, src, f"{out}_color") for out, src in ANNOTATION_SPECS]
+
+
+def test_annotation_sheet_fills_blank_metadata():
+    """A per-FOV sheet fills the annotations AtoMx never captured."""
+    specs = _annotation_specs()
+    fields = ["cell_id", "fov", "cellSegmentationSetId",
+              "Case_broad", "Case_specific_SORL1", "SORL1_mutation", "UWA"]
+    with tempfile.TemporaryDirectory() as d:
+        gz = os.path.join(d, "meta.csv.gz")
+        sheet = os.path.join(d, "sheet.csv")
+        _write_gz(gz, fields, [
+            {"cell_id": "c_1_1_1", "fov": "1", "cellSegmentationSetId": "s",
+             "Case_broad": "", "Case_specific_SORL1": "", "SORL1_mutation": "", "UWA": ""},
+            {"cell_id": "c_1_2_1", "fov": "2", "cellSegmentationSetId": "s",
+             "Case_broad": "", "Case_specific_SORL1": "", "SORL1_mutation": "", "UWA": ""},
+        ])
+        _write_sheet(sheet, _sheet_rows())
+
+        rows, _ = gsm.read_rows(gz, None, specs)
+        sheet_rows = gsm.read_annotation_csv(sheet, SHEET_SLIDE, specs)
+        filled, skipped = gsm.fill_missing_annotations(rows, sheet_rows, specs)
+
+        assert skipped == [], skipped
+        assert filled == {"Case Broad": 2, "Case Specific": 2,
+                          "SORL1 Mutation": 2, "UWA": 2}, filled
+        assert rows[0][2] == ["AD+LATE", "AD+LATE SORL1", "AD+LATE SORL1 R953C", "741"]
+
+
+def test_annotation_sheet_rejects_wrong_slide():
+    """Pointing at another slide's sheet is the likely wiring mistake, so it
+    must fail loudly rather than annotate cells with the wrong case."""
+    specs = _annotation_specs()
+    with tempfile.TemporaryDirectory() as d:
+        sheet = os.path.join(d, "sheet.csv")
+        _write_sheet(sheet, _sheet_rows(slide="20260708_UWA_787_795_6589_6745"))
+        try:
+            gsm.read_annotation_csv(sheet, SHEET_SLIDE, specs)
+        except ValueError as e:
+            assert "787_795_6589_6745" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for a mismatched slide")
+
+
+def test_annotation_sheet_accepts_alternate_fov_header():
+    """Sheets label the FOV column FOVs/FOV/fov depending on who exported them."""
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color")]
+    with tempfile.TemporaryDirectory() as d:
+        sheet = os.path.join(d, "sheet.csv")
+        _write_sheet(sheet,
+                     [{"fov": "1", "UWA": "741"}, {"fov": "2", "UWA": "710"}],
+                     fieldnames=["fov", "UWA"])
+        rows = gsm.read_annotation_csv(sheet, SHEET_SLIDE, specs)
+        assert [(r[1], r[2][0]) for r in rows] == [("1", "741"), ("2", "710")]
+
+
+def test_annotation_sheet_without_fov_column_raises():
+    """No FOV column means there is nothing to join on."""
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color")]
+    with tempfile.TemporaryDirectory() as d:
+        sheet = os.path.join(d, "sheet.csv")
+        _write_sheet(sheet, [{"UWA": "741"}], fieldnames=["UWA"])
+        try:
+            gsm.read_annotation_csv(sheet, SHEET_SLIDE, specs)
+        except ValueError as e:
+            assert "FOV" in str(e), e
+        else:
+            raise AssertionError("expected ValueError when no FOV column is present")
+
+
+def test_annotation_sheet_does_not_overwrite_atomx_values():
+    """Where AtoMx already annotated a cell, the sheet leaves it alone."""
+    specs = [gsm.ColumnSpec("UWA", "UWA", "UWA_color")]
+    fields = ["cell_id", "fov", "cellSegmentationSetId", "UWA"]
+    with tempfile.TemporaryDirectory() as d:
+        gz = os.path.join(d, "meta.csv.gz")
+        sheet = os.path.join(d, "sheet.csv")
+        _write_gz(gz, fields, [
+            {"cell_id": "c_1_1_1", "fov": "1", "cellSegmentationSetId": "s", "UWA": "existing"},
+        ])
+        _write_sheet(sheet, [{"fov": "1", "UWA": "741"}], fieldnames=["fov", "UWA"])
+        rows, _ = gsm.read_rows(gz, None, specs)
+        filled, _skipped = gsm.fill_missing_annotations(
+            rows, gsm.read_annotation_csv(sheet, SHEET_SLIDE, specs), specs)
+        assert filled == {}, filled
+        assert rows[0][2][0] == "existing"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

@@ -608,11 +608,15 @@ def read_targets(ctx: SlideContext, analysis_subdir: str) -> None:
 # ── Step 4: Generate metadata CSV ──────────────────────────────────────────
 
 
+ANNOTATIONS_SUFFIX = "_annotations.csv"
+
+
 def generate_metadata(
     ctx: SlideContext,
     seg_uuids: list[str],
     columns: list[str] | None = None,
     fill_from: str = "",
+    annotations_prefix: str = "",
 ) -> None:
     script_dir = Path(__file__).resolve().parent
     metadata_script = script_dir / "generate-slide-metadata.py"
@@ -630,6 +634,11 @@ def generate_metadata(
         cmd += ["--seg-id", ",".join(seg_uuids)]
     for column in columns or []:
         cmd += ["--column", column]
+    if annotations_prefix:
+        # One sheet per slide, named for the slide, so a whole study can be
+        # launched with a single prefix.
+        sheet = f"{annotations_prefix.rstrip('/')}/{ctx.slide_name}{ANNOTATIONS_SUFFIX}"
+        cmd += ["--annotations-csv", sheet]
     if fill_from:
         cmd += ["--fill-from", fill_from]
     run(cmd)
@@ -673,6 +682,7 @@ def process_slide(
     output_ndim: int | None = None,
     columns: list[str] | None = None,
     fill_from: str = "",
+    annotations_prefix: str = "",
 ) -> None:
     bench = Benchmark(ctx=ctx, whatif=whatif)
 
@@ -739,7 +749,8 @@ def process_slide(
 
             bench.start("metadata")
             log(f"[{now_iso()}] Generating metadata CSV ...")
-            generate_metadata(ctx, seg_uuids, columns=columns, fill_from=fill_from)
+            generate_metadata(ctx, seg_uuids, columns=columns, fill_from=fill_from,
+                              annotations_prefix=annotations_prefix)
             bench.end("metadata")
             log(f"[{now_iso()}] Metadata complete ({bench._duration_seconds('metadata')}s)")
 
@@ -815,6 +826,13 @@ def main() -> None:
              "SOURCE_HEADER may list fallbacks separated by '|'.",
     )
     parser.add_argument(
+        "--annotations-prefix",
+        default="",
+        metavar="PATH_OR_S3URI",
+        help="Directory of per-FOV annotation sheets named <slide>_annotations.csv. "
+             "Fills annotation values AtoMx never captured.",
+    )
+    parser.add_argument(
         "--fill-from",
         default="",
         metavar="EXPERIMENT_PREFIX",
@@ -833,6 +851,7 @@ def main() -> None:
         output_ndim=args.output_ndim,
         columns=args.column,
         fill_from=args.fill_from,
+        annotations_prefix=args.annotations_prefix,
     )
 
 
