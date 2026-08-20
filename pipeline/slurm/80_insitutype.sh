@@ -14,6 +14,8 @@
 #   APPTAINER_INSITUTYPE (path to the insitutype.sif R container).
 # The panel-restricted reference must already be on Kopah at
 #   ${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}  (see pipeline/reference/README.md).
+# Optional: KEEP_GENES=<stage4>/gene_selection/kept_genes.txt restricts the panel to the
+# FAQ-pruned gene set from 73_select_genes.sh.
 
 #SBATCH --job-name=cosmx-insitutype
 # glioblastoma has no dedicated CPU node -> ckpt (free, preemptible). --requeue
@@ -73,6 +75,16 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT_DIR}/insitutype_input.h5"
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
     "$WORK/reference.csv"
 
+# Optional FAQ pruned panel (73_select_genes.sh output). KEEP_GENES is a Kopah key under
+# ${KOPAH_PREFIX}/ to a kept_genes.txt; unset = full panel. Mirrors 72_anchor_typing.sh —
+# insitutype_typing.R is the shared driver, so both entry points expose the same knob.
+KEEP_ARG=()
+if [[ -n "${KEEP_GENES:-}" ]]; then
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${KEEP_GENES}" "$WORK/kept_genes.txt"
+    KEEP_ARG=(--keep-genes "$WORK/kept_genes.txt")
+    echo "Restricting typing to pruned panel from ${KEEP_GENES}"
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -88,7 +100,8 @@ apptainer exec \
         --refit "${REFIT:-false}" \
         --refinement "${REFINEMENT:-false}" \
         --n-starts "${N_STARTS:-10}" \
-        --max-iters "${MAX_ITERS:-40}"
+        --max-iters "${MAX_ITERS:-40}" \
+        ${KEEP_ARG[@]+"${KEEP_ARG[@]}"}
 
 echo "Uploading InSituType result to Kopah..."
 s5cmd cp "$WORK/insitutype_result.h5" \

@@ -209,6 +209,9 @@ sankey/
 
 # Pipeline runtime artifacts
 pipeline/manifest.csv
+# Per-study manifests are generated from S3, not committed; see the build_manifest.py
+# command in pipeline/RETINA_TYPING.md.
+pipeline/manifest_retina.csv
 pipeline/logs/
 pipeline/containers/*.sif
 
