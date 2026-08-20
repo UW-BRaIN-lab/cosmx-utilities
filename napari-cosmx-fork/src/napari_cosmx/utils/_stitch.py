@@ -1,4 +1,4 @@
-from napari_cosmx import DASH_UM_PER_PX, ALPHA_UM_PER_PX, BETA_UM_PER_PX, DEFAULT_COLORMAPS
+from napari_cosmx import DASH_UM_PER_PX, ALPHA_UM_PER_PX, BETA_UM_PER_PX, DEFAULT_COLORMAPS, DEFAULT_Z_STEP_UM
 
 import pandas as pd
 import dask.array as da
@@ -19,28 +19,56 @@ fov_tqdm = partial(
         std_tqdm, desc='Added FOV', unit=" FOVs", ncols=40, mininterval=1.2,
         bar_format="{desc} {n_fmt}/{total_fmt}|{bar}|{percentage:3.0f}%")
 
+def read_image_description_metadata(tiff_path):
+    try:
+        with tifffile.TiffFile(tiff_path) as im:
+            image_description = im.pages[0].tags.get('ImageDescription')
+            if image_description is None:
+                return None
+            return json.loads(image_description.value)
+    except Exception:
+        return None
+
+def get_z_step_um(tiff_path):
+    metadata = read_image_description_metadata(tiff_path)
+    if not metadata:
+        return None
+    z_step_um = metadata.get('ZStackStepSize_um')
+    return float(z_step_um) if z_step_um is not None else None
+
 def offsets(offsetsdir: str):
     """Reads FOV coordinates data.
 
     Args:
         offsetsdir (str): Directory location containing a file
-        ending in "FOV_Locations.csv" or legacy format "latest.fovs.csv".
+        ending in "fov_positions_file.csv.gz" (AtoMx SIP exported format), 
+        or "FOV_Locations.csv" or legacy format "latest.fovs.csv".
 
     Returns:
         DataFrame: coordinates of each FOV
     """
     legacy_format = True
+    atomx_format = False
     for filename in os.listdir(offsetsdir):
         if filename.endswith("FOV_Locations.csv"):
             print(f"Using FOV locations from {filename}")
             legacy_format = False
+            atomx_format = False
             df = pd.read_csv(os.path.join(offsetsdir, filename))
-            #pdb.set_trace()
-            df['Z_um'] = df['Z_um'] / 1e3 # convert to millimeters
-            df = df.rename(columns={'Z_um':'Z_mm'})
+            # Slide	X_mm	Y_mm	Z_um    FOV	Order
+            if 'Z_mm' not in df.columns and 'Z_um' in df.columns:
+                df['Z_um'] = df['Z_um'] / 1e3 # convert to millimeters
+                df = df.rename(columns={'Z_um':'Z_mm'})
             z_mm_index = df.columns.get_loc('Z_mm')
             df.insert(z_mm_index + 1, 'ZOffset_mm', -2.0) # hardcoded
             df.insert(z_mm_index + 2, 'ROI', 0) # hardcoded
+            break
+        if filename.endswith("fov_positions_file.csv.gz"):
+            print(f"Using AtoMx 2.x format of FOV locations from {filename}")
+            legacy_format = False
+            atomx_format = True
+            break
+            
     if legacy_format:
         print(f"Using legacy format to read FOVs")
         df = pd.read_csv(os.path.join(offsetsdir, "latest.fovs.csv"), header=None)
@@ -48,38 +76,127 @@ def offsets(offsetsdir: str):
             ["Slide", "X_mm", "Y_mm", "Z_mm", "ZOffset_mm", "ROI", "FOV", "Order"]
             )}
         df = df.rename(columns=cols)
-    
+    if atomx_format:
+        df = pd.read_csv(os.path.join(offsetsdir, filename))
+        # FOV  x_global_px  y_global_px  x_global_mm  y_global_mm
+        df = df.rename(columns={'x_global_mm':'X_mm', 'y_global_mm':'Y_mm'})
+        df.drop(['x_global_px', 'y_global_px'], axis=1, inplace=True, errors='ignore')
+        df.insert(0, 'Slide', 1) # hardcoded 
+        df['Z_mm'] = 0.0 # hardcoded
+        z_mm_index = df.columns.get_loc('Z_mm')
+        df.insert(z_mm_index + 1, 'ZOffset_mm', -2.0) # hardcoded
+        df.insert(z_mm_index + 2, 'ROI', 0) # hardcoded
+        df.insert(z_mm_index + 3, 'Order', range(len(df))) # hardcoded
+        # align columns to legacy format to put "FOV" before "Order" for consistency
+        if 'FOV' in df.columns:
+            fov_column = df.pop('FOV')
+            order_index = df.columns.get_loc('Order')
+            df.insert(order_index - 1, 'FOV', fov_column)
+
     return df
 
 def _resize(image):
+    if image.ndim == 2:
+        output_shape = (
+            max(1, image.shape[0]//2),
+            max(1, image.shape[1]//2),
+        )
+    elif image.ndim == 3:
+        output_shape = (
+            image.shape[0],
+            max(1, image.shape[1]//2),
+            max(1, image.shape[2]//2),
+        )
+    else:
+        raise ValueError(f"Unsupported image ndim for pyramid resize: {image.ndim}")
     return resize(
         image,
-        output_shape=(max(1, image.shape[0]//2), max(1, image.shape[1]//2)),
+        output_shape=output_shape,
         order=0,
         preserve_range=True,
         anti_aliasing=False
     )
 
+def _resize_rgb(image):
+    return resize(
+        image,
+        output_shape=(
+            max(1, image.shape[0]//2),
+            max(1, image.shape[1]//2),
+            image.shape[2],
+        ),
+        order=0,
+        preserve_range=True,
+        anti_aliasing=False
+    )
+
+def _resize_rgb_3d(image):
+    return resize(
+        image,
+        output_shape=(
+            image.shape[0],
+            max(1, image.shape[1]//2),
+            max(1, image.shape[2]//2),
+            image.shape[3],
+        ),
+        order=0,
+        preserve_range=True,
+        anti_aliasing=False
+    )
+
+def _downsample_chunks(chunks, preserve_axes=None, preserve_last=False):
+    if preserve_axes is None:
+        preserve_axes = set()
+    new_chunks = []
+    for axis, axis_chunks in enumerate(chunks):
+        if axis in preserve_axes or (preserve_last and axis == len(chunks) - 1):
+            new_chunks.append(tuple(axis_chunks))
+            continue
+        new_chunks.append(tuple(max(1, chunk//2) for chunk in axis_chunks))
+    return tuple(new_chunks)
+
 def write_pyramid(image, scale_dict, store, path):
-    PYRAMID_LEVELS = math.floor(math.log2(max(image.shape)/256))
+    spatial_shape = image.shape[-3:-1] if path == "composite" else image.shape[-2:]
+    PYRAMID_LEVELS = max(1, math.floor(math.log2(max(spatial_shape)/256)))
     um_per_px = scale_dict["um_per_px"]
+    z_step_um = scale_dict.get("z_step_um", DEFAULT_Z_STEP_UM)
     pyramid_scale = 1
-    dimensions = ['y','x']
+    if path == "composite" and image.ndim == 3:
+        dimensions = ['y', 'x']
+        resize_fn = _resize_rgb
+        preserve_axes = set()
+        preserve_last = True
+    elif path == "composite" and image.ndim == 4:
+        dimensions = ['z', 'y', 'x']
+        resize_fn = _resize_rgb_3d
+        preserve_axes = {0}
+        preserve_last = True
+    elif image.ndim == 2:
+        dimensions = ['y', 'x']
+        resize_fn = _resize
+        preserve_axes = set()
+        preserve_last = False
+    elif image.ndim == 3:
+        dimensions = ['z', 'y', 'x']
+        resize_fn = _resize
+        preserve_axes = {0}
+        preserve_last = False
+    else:
+        raise ValueError(f"Unsupported image ndim for pyramid write: {image.ndim}")
     datasets = [{}]*PYRAMID_LEVELS
     print(f"Writing {path} multiscale output to zarr.")
     for i in range(PYRAMID_LEVELS):
         print(f"Writing level {i+1} of {PYRAMID_LEVELS}, shape: {image.shape}, chunksize: {image.chunksize}")
         image.to_zarr(store, component=path+f"/{i}", overwrite=True, write_empty_chunks=False, dimension_separator="/")
-        new_chunks = tuple([
-            tuple([max(1, i//2) for i in image.chunks[0]]),
-            tuple([max(1, i//2) for i in image.chunks[1]])
-        ])
-        if path == "composite":
-            new_chunks = new_chunks + (3,)
-        image = image.map_blocks(_resize, dtype=image.dtype, chunks=new_chunks)
+        new_chunks = _downsample_chunks(image.chunks, preserve_axes=preserve_axes, preserve_last=preserve_last)
+        image = image.map_blocks(resize_fn, dtype=image.dtype, chunks=new_chunks)
+        if dimensions == ['z', 'y', 'x']:
+            scale = [z_step_um, um_per_px*pyramid_scale, um_per_px*pyramid_scale]
+        else:
+            scale = [um_per_px*pyramid_scale]*len(dimensions)
         datasets[i] = {'path': str(i), 
                        'coordinateTransformations':[{'type':'scale', 
-                       'scale':[um_per_px*pyramid_scale]*len(dimensions)}]} 
+                       'scale': scale}]} 
         pyramid_scale *= 2
     grp = zarr.open(store, mode = 'r+')
     grp[path].attrs['multiscales'] = [{
@@ -136,10 +253,8 @@ def get_scales(tiff_path=None, um_per_px=None, scale=1):
     if um_per_px is None:
         with tifffile.TiffFile(tiff_path) as im:
             try:
-                tif_tags = {}
-                for tag in im.pages[0].tags.values():
-                    tif_tags[tag.name] = tag.value
-                j = json.loads(tif_tags['ImageDescription'])
+                j = read_image_description_metadata(tiff_path)
+                assert j is not None
                 Magnification, PixelSize_um = j['Magnification'], j['PixelSize_um']
                 um_per_px = round(PixelSize_um/Magnification, 4)
                 print(f"Reading pixel size and magnification from metadata... scale = {um_per_px:.4f} um/px")

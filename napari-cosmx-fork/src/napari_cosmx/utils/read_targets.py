@@ -11,7 +11,7 @@ import pandas as pd
 import vaex
 import glob
 
-def main():
+def main(args_list=None):
     parser = argparse.ArgumentParser(description='Read decoded targets and write to hdf5')
     parser.add_argument("folder",
         help="Voting folder")
@@ -21,21 +21,27 @@ def main():
     parser.add_argument("--filename",
         help="Name for hdf5 file",
         default="targets.hdf5")
-    args = parser.parse_args()
+    args = parser.parse_args(args=args_list)
 
     def read_targets_file(filename):
         print(f"Reading targets from {filename}...")
+        header = pd.read_csv(filename, nrows=0)
+        usecols = ["fov", "CellId", "x", "y", "target", "CellComp"]
+        dtype = {
+            "fov": int,
+            "CellId": int,
+            "target": "category",
+            "x": float,
+            "y": float,
+            "CellComp": "category"
+        }
+        if "z" in header.columns:
+            usecols.insert(4, "z")
+            dtype["z"] = int
         return pd.read_csv(
             filename,
-            usecols=["fov", "CellId", "x", "y", "z", "target", "CellComp"],
-            dtype={"fov": int,
-                "CellId": int,
-                "target": "category",
-                "x": float,
-                "y": float,
-                "z": int,
-                "CellComp": "category"
-            })
+            usecols=usecols,
+            dtype=dtype)
 
     def find_target_call_files(path, fov_folder="", summary_folder=""):
         return glob.glob(os.path.join(
@@ -54,6 +60,8 @@ def main():
         sys.exit(f"No target call files found at {args.folder}")
 
     targets = pd.concat([read_targets_file(i) for i in res])
+    if 'z' not in targets:
+        targets['z'] = 0
 
     df = vaex.from_pandas(targets)
     # using v5 preview features for categorical encoding

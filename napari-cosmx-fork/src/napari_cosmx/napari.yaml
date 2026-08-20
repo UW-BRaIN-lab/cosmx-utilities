@@ -1,11 +1,17 @@
-name: napari-cosmx-fork
-display_name: napari CosMx Fork
+name: napari-CosMx
+display_name: napari CosMx
 contributions:
   commands:
-    - id: napari-cosmx-fork.get_reader
+    - id: napari-CosMx.get_reader
       python_name: napari_cosmx._reader:napari_get_reader
-      title: Open data with napari CosMx Fork
+      title: Open data with napari CosMx
+    - id: napari-CosMx.stitch_widget
+      python_name: napari_cosmx._dock_widget:make_stitching_widget
+      title: Stitch Images
+  widgets:
+    - command: napari-CosMx.stitch_widget
+      display_name: Stitch Images
   readers:
-    - command: napari-cosmx-fork.get_reader
+    - command: napari-CosMx.get_reader
       filename_patterns: ['*']
       accepts_directories: true

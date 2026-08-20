@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from napari_cosmx import DEFAULT_NDIM, DEFAULT_PROTEIN_Z_STEP_UM
 from napari_cosmx.utils import _stitch as stitch
 from napari_cosmx.utils._patterns import get_fov_number, convertLabels
 from napari_cosmx.utils._stitch import fov_tqdm
@@ -15,7 +16,6 @@ import pandas as pd
 import tifffile
 import zarr
 import dask.array as da
-from pathlib import Path
 
 
 def makeConfig(args) -> dict:
@@ -42,19 +42,19 @@ def makeConfig(args) -> dict:
     if plexFile is None:
         sys.exit("No plex file found. Aborting.")
 
-    # ProteinDir exists
+    # ProteinDir (legacy source) may exist
     ProteinDir = os.path.join(inputdir, "ProteinDir")
-    if not os.path.exists(ProteinDir):
-        sys.exit(f"Cound not find {str(ProteinDir)}.")
 
-    # AnalysisResults and subdir exist
+    # AnalysisResults/<subdir> (new source) may exist
     AnalysisDirParent = os.path.join(inputdir, 'AnalysisResults')
-    if not os.path.exists(AnalysisDirParent):
-        sys.exit(f"Cound not find {str(AnalysisDirParent)}.")
-    AnalysisDirSubBasename = [i for i in os.listdir(AnalysisDirParent) if not i.startswith('.')]
-    AnalysisDir = os.path.join(AnalysisDirParent, AnalysisDirSubBasename[0])
-    if not os.path.exists(AnalysisDir):
-        sys.exit(f"Cound not find {str(AnalysisDir)}.")   
+    AnalysisDir = None
+    if os.path.exists(AnalysisDirParent):
+        analysis_subdirs = [
+            i for i in os.listdir(AnalysisDirParent)
+            if not i.startswith('.') and os.path.isdir(os.path.join(AnalysisDirParent, i))
+        ]
+        if len(analysis_subdirs) > 0:
+            AnalysisDir = os.path.join(AnalysisDirParent, analysis_subdirs[0])
 
     # CellStatsDir exists
     CellStatsDir = os.path.join(inputdir, "CellStatsDir")
@@ -66,16 +66,40 @@ def makeConfig(args) -> dict:
     if not os.path.exists(RunSummaryDir):
         sys.exit(f"Cound not find {str(RunSummaryDir)}.")
     
-    # location of ProteinImages directory(ies)
-    check = [os.path.exists(os.path.join(AnalysisDir, x, "ProteinImages")) for x in os.listdir(AnalysisDir)]
-    if all(check):
-        # ProteinImages is found in AnalysisResults/abc..j/FOV.../
+    # Detect location of ProteinImages directory(ies)
+    protein_images_in_analysis_results = False
+    analysis_has_protein_images = False
+    legacy_has_protein_images = False
+
+    if AnalysisDir is not None:
+        analysis_fov_dirs = [x for x in Path(AnalysisDir).glob("FOV*") if x.is_dir()]
+        if len(analysis_fov_dirs) > 0:
+            check = [os.path.exists(os.path.join(str(fov_dir), "ProteinImages")) for fov_dir in analysis_fov_dirs]
+            if all(check):
+                # ProteinImages found in AnalysisResults/<subdir>/FOV*/ProteinImages
+                analysis_has_protein_images = True
+            elif any(check):
+                sys.exit("Could not find some of the ProteinImages folders within the AnalysisResults")
+
+    if os.path.exists(ProteinDir):
+        legacy_fov_dirs = [x for x in Path(ProteinDir).glob("FOV*") if x.is_dir()]
+        if len(legacy_fov_dirs) > 0:
+            check = [os.path.exists(os.path.join(str(fov_dir), "ProteinImages")) for fov_dir in legacy_fov_dirs]
+            if all(check):
+                # Legacy location: ProteinDir/FOV*/ProteinImages
+                legacy_has_protein_images = True
+            elif any(check):
+                sys.exit("Could not find some of the ProteinImages folders within the ProteinDir")
+
+    if analysis_has_protein_images:
         protein_images_in_analysis_results = True
-    elif any(check):
-        sys.exit("Could not find some of the ProteinImages folders within the AnalysisResults")
-    else: 
-        # Look instead within the ProteinDir (legacy format)
+    elif legacy_has_protein_images:
         protein_images_in_analysis_results = False
+    else:
+        sys.exit(
+            "Could not find protein images in either AnalysisResults/<subdir>/FOV*/ProteinImages "
+            "or ProteinDir/FOV*/ProteinImages."
+        )
 
     # 3 or 5 digit format
     fov_dirs = [item for item in Path(CellStatsDir).iterdir() if item.is_dir() and item.name.startswith("FOV")]
@@ -120,6 +144,17 @@ def makeConfig(args) -> dict:
     else:
         scale_dict = stitch.get_scales(um_per_px=args.umperpx)
 
+    if args.z_step_um is None:
+        z_step_um = stitch.get_z_step_um(prototype_file)
+        if z_step_um is not None:
+            print(f"Reading z-step from protein image metadata: {z_step_um:.4f} um")
+        else:
+            z_step_um = DEFAULT_PROTEIN_Z_STEP_UM
+            print(f"No z-step found in protein image metadata, using default: {z_step_um:.4f} um")
+    else:
+        z_step_um = args.z_step_um
+    scale_dict['z_step_um'] = z_step_um
+
     h_scale = args.scale
     w_scale = args.scale
     fov_height = h/h_scale
@@ -132,13 +167,13 @@ def makeConfig(args) -> dict:
             'RunSummaryDir':RunSummaryDir, 'protein_images_in_analysis_results':protein_images_in_analysis_results,
             'f_length':f_length, 'fov_offsets':fov_offsets, 'proteins':proteins, 'top_origin_px':top_origin_px,
             'left_origin_px':left_origin_px, 'fov_height':fov_height, 'height':height, 'fov_width':fov_width, 'width':width,
-            'scale_dict':scale_dict, 'dash':dash})
+            'scale_dict':scale_dict, 'z_step_um':z_step_um, 'dash':dash})
 
-def main():
+def main(args_list=None):
     parser = argparse.ArgumentParser(description='Tile protein expression images',
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-i", "--inputdir",
-        help="Required: Path to parent directory containing CellStatsDir, RunSummary, AnalysisResults, and ProteinDir.",
+        help="Required: Path to parent directory containing CellStatsDir and RunSummary, plus either AnalysisResults or ProteinDir for protein images.",
         default=".")
     parser.add_argument("-o", "--outputdir",
         help="Required: Where to create zarr output.",
@@ -160,10 +195,19 @@ def main():
         help="Optional: Cycle to use, default is 1.",
         default=1,
         type=int)
+    parser.add_argument("--ndim",
+        help="Optional: Dimensionality of the stitched output metadata.",
+        choices=[2, 3],
+        default=DEFAULT_NDIM,
+        type=int)
+    parser.add_argument("--z-step-um",
+        help="Optional: Spacing between protein z planes in microns. If omitted, read from image metadata when available.",
+        default=None,
+        type=float)
     parser.add_argument("--dotzarr",
         help="\nOptional: Add .zarr extension on multiscale pyramids.",
         action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(args=args_list)
 
     # Check output directory
     if not os.path.exists(args.outputdir):
@@ -221,7 +265,9 @@ def main():
     print("Saving metadata")
     grp = zarr.open(os.path.join(args.outputdir, "images"), mode = 'r+')
     grp['protein'].attrs['CosMx'] = {
-        'scale': args.scale
+        'scale': args.scale,
+        'ndim': args.ndim,
+        'z_step_um': config['z_step_um'],
     }
 
 if __name__ == '__main__':
