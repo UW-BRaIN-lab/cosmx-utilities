@@ -209,16 +209,30 @@ is the aggressive variant we avoid.
 
 ## After the fit — triage before anything else
 
-1. **Region concordance** — cross-tabulate `cell_type` × `Region`. Strongest available
-   check, needs no ground truth: retinal types belong in `Retina`, Allen cortical types in
-   `Gray`/`White matter`, Mona optic-nerve types in `Optic nerve`.
-2. **Duplicate-copy adjudication** — for each surviving duplicate group (astrocyte ×3,
-   microglia ×3, endothelial, pericyte, vSMC, fibroblast, pigment epithelium),
-   cross-tabulate the copy assignment against `Region` **and** against `qc_area` /
-   `total_counts`. If it tracks `Region`, the distinction is plausibly real regional
-   biology and belongs in the hierarchy. If it tracks area or counts, it is the NEAT1
-   single-nucleus assay offset sorting cells by segmentation quality — collapse the group
-   to its parent. Only the second failure mode looks like success, so check both.
+**1–2 are one job.** `81_diagnose_typing.sh` reads the stage-4b result and the stage-3a
+AnnData directly, so it runs the moment `80` finishes — no 3b/3c, no writeback needed:
+
+```bash
+HIERARCHY_BASENAME=retina_hierarchy.json sbatch pipeline/slurm/81_diagnose_typing.sh
+```
+
+1. **Spatial concordance** — modal `Region` and its share per type, plus the same
+   aggregated by source atlas (HRCA types should concentrate in `Retina`, Allen in
+   `Gray`/`White matter`, Mona in `Optic nerve`). It flags **spatially diffuse** types —
+   modal share under 40% with ≥1000 cells — which is what a low-signal catch-all looks
+   like, and the quantitative form of the neuropathologist's "cells inappropriately
+   everywhere".
+2. **Sibling adjudication** — for every terminal competition node in the hierarchy, the
+   normalized mutual information of the sibling choice against `Region` versus against
+   `qc_area` / `total_counts` / `qc_genes_detected` (quantile-binned to the same
+   cardinality so the numbers are comparable). `Region` higher → real regional biology,
+   keep the split. Technical higher → the assay offset sorting cells by segmentation
+   quality, collapse that node to its parent. It also reports NEAT1 fold-change across
+   siblings and which sibling carries it, since NEAT1 is the direct assay-offset probe.
+
+   **Read both numbers, not just the region one.** A node whose siblings sort by cell area
+   still yields a confident, spatially-structured-looking call, because segmentation
+   quality itself varies by tissue. That is the failure mode that looks like success.
 3. **De novo characterisation** — `pipeline/python/inspect_denovo_profiles.py` on the
    result's `/profiles`: per de novo cluster, top specific markers, nearest named type by
    cosine, and size. Expect at least one flat low-signal sink; the question is how much
