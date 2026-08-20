@@ -81,6 +81,10 @@ FOV_COLUMN = "fov"
 LEGACY_OUTPUT_NAME = "cell_type"
 LEGACY_COLOR_COLUMN = "hex_color"
 SOURCE_FALLBACK_SEPARATOR = "|"
+# Column naming AtoMx annotation sheets use for the FOV number, most specific first.
+ANNOTATION_FOV_COLUMNS = ("FOVs", "FOV", "fov")
+# Column naming the slide an annotation sheet describes, used to catch a wrong file.
+ANNOTATION_SLIDE_COLUMNS = ("Flow Cells", "Flow Cell", "slide", "Run_Tissue_name")
 # 64 KB of a gzip stream decompresses to far more than one CSV header row.
 HEADER_PROBE_BYTES = 1 << 16
 
@@ -427,6 +431,69 @@ def resolve_legacy_src(specs: list[ColumnSpec], input_path: str) -> list[ColumnS
     return specs
 
 
+def read_annotation_csv(
+    path: str, slide_name: str, specs: list[ColumnSpec],
+) -> list[tuple[str, str, list[str]]]:
+    """Read a per-FOV annotation sheet into the same row shape as metadata.
+
+    These sheets carry one row per FOV rather than per cell — the case-level
+    annotations AtoMx should have held. Returning the (cell_id, fov, values)
+    shape lets them flow through the same FOV join and the same FOV-constant
+    guard as a donor study, with a blank cell_id since there are no cells here.
+
+    Raises ValueError if the sheet names a different slide, which is the likely
+    failure when per-slide files are wired up by prefix.
+    """
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        headers = reader.fieldnames or []
+        fov_column = next((c for c in ANNOTATION_FOV_COLUMNS if c in headers), "")
+        if not fov_column:
+            raise ValueError(
+                f"{path}: no FOV column; expected one of {ANNOTATION_FOV_COLUMNS}, "
+                f"got {headers}")
+        slide_column = next((c for c in ANNOTATION_SLIDE_COLUMNS if c in headers), "")
+        resolved = [spec.resolve(headers) for spec in specs]
+
+        rows: list[tuple[str, str, list[str]]] = []
+        slides_seen: set[str] = set()
+        for row in reader:
+            if slide_column:
+                slides_seen.add((row.get(slide_column) or "").strip())
+            fov = (row.get(fov_column) or "").strip()
+            if not fov:
+                continue
+            rows.append(("", fov, [(row.get(col) or "") if col else "" for col in resolved]))
+
+    off_slide = {s for s in slides_seen if s and s != slide_name}
+    if off_slide:
+        raise ValueError(
+            f"{path}: describes slide(s) {sorted(off_slide)}, not {slide_name}")
+
+    filled = [spec.out for spec, col in zip(specs, resolved) if col]
+    print(f"  Annotation sheet: {len(rows)} FOVs, provides {', '.join(filled) or '(nothing)'}")
+    return rows
+
+
+def load_annotation_rows(
+    s3, bucket: str, source: str, slide_name: str,
+    specs: list[ColumnSpec], tmpdir: str,
+) -> list[tuple[str, str, list[str]]] | None:
+    """Load an annotation sheet from a local path or an s3:// URI."""
+    local = source
+    if source.startswith("s3://"):
+        rest = source[5:]
+        src_bucket, _, key = rest.partition("/")
+        local = os.path.join(tmpdir, "annotations.csv")
+        if not s3_download(s3, src_bucket, key, local):
+            print(f"  WARNING: could not download annotation sheet {source}")
+            return None
+    elif not os.path.exists(local):
+        print(f"  WARNING: annotation sheet not found: {local}")
+        return None
+    return read_annotation_csv(local, slide_name, specs)
+
+
 def load_donor_rows(
     s3, bucket: str, donor_prefix: str, slide_name: str,
     specs: list[ColumnSpec], tmpdir: str,
@@ -493,6 +560,14 @@ def main() -> None:
              "present in the chosen metadata file wins.",
     )
     parser.add_argument(
+        "--annotations-csv",
+        default=None,
+        metavar="PATH_OR_S3URI",
+        help="Per-FOV annotation sheet (one row per FOV) to fill blank annotation "
+             "values from. Use when AtoMx never captured the annotations. "
+             "Applied before --fill-from.",
+    )
+    parser.add_argument(
         "--fill-from",
         default=None,
         metavar="EXPERIMENT_PREFIX",
@@ -537,8 +612,31 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         local_gz = os.path.join(tmpdir, "metadata.csv.gz")
 
+        def _report_fill(source, filled, skipped):
+            if skipped:
+                print(f"  Not filled (varies within an FOV, so per-cell not "
+                      f"per-case): {', '.join(skipped)}")
+            if filled:
+                print(f"  Filled from {source}: "
+                      + ", ".join(f"{col} ({n} cells)" for col, n in filled.items()))
+            else:
+                print(f"  Nothing to fill from {source}")
+
         def apply_fill(rows):
-            """Fill blank annotations from --fill-from, if requested."""
+            """Fill blank annotations, sheet first then donor study.
+
+            An explicit --annotations-csv is the more authoritative source, so it
+            goes first; --fill-from then covers anything it left blank. Both only
+            ever write into empty values.
+            """
+            if args.annotations_csv:
+                sheet_rows = load_annotation_rows(
+                    s3, args.bucket, args.annotations_csv, args.slide_name,
+                    specs, tmpdir,
+                )
+                if sheet_rows:
+                    filled, skipped = fill_missing_annotations(rows, sheet_rows, specs)
+                    _report_fill(args.annotations_csv, filled, skipped)
             if not args.fill_from:
                 return
             donor_rows = load_donor_rows(
@@ -547,14 +645,7 @@ def main() -> None:
             if donor_rows is None:
                 return
             filled, skipped = fill_missing_annotations(rows, donor_rows, specs)
-            if skipped:
-                print(f"  Not filled (varies within an FOV, so per-cell not "
-                      f"per-case): {', '.join(skipped)}")
-            if filled:
-                print(f"  Filled from {args.fill_from}: "
-                      + ", ".join(f"{col} ({n} cells)" for col, n in filled.items()))
-            else:
-                print(f"  Nothing to fill from {args.fill_from}")
+            _report_fill(args.fill_from, filled, skipped)
 
         if seg_id_set is None:
             # No filtering — use the first source.

@@ -175,9 +175,23 @@ When cell typing is re-run, AtoMx nests the new export under the original run
 that actually has the requested columns is used — the segmentation ID cannot
 tell them apart, since a re-export carries the same segmentation.
 
-If AtoMx left annotations blank on one study but not on another covering the
-same physical slides, `--fill-from <experiment prefix>` transfers them by
-joining on FOV. Only blanks are filled, and only for columns constant within an
+When AtoMx never captured the annotations at all, supply them as per-FOV
+sheets — one row per FOV, one file per slide named `<slide>_annotations.csv` —
+and point `--annotations-prefix` at the directory holding them:
+
+```bash
+uv run python scripts/process-slides.py s3://bucket/study/atomx-run/ \
+    --annotations-prefix s3://bucket/study/annotations \
+    --column 'UWA=UWA' --column 'Case Broad=Case_broad'
+```
+
+The sheet's FOV column may be named `FOVs`, `FOV`, or `fov`. If it also names
+the slide (`Flow Cells`, `Run_Tissue_name`, ...), that is checked against the
+slide being processed, so pointing at the wrong file fails loudly instead of
+labelling cells with another case.
+
+If instead the annotations exist on another study covering the same physical
+slides, `--fill-from <experiment prefix>` transfers them by joining on FOV. Only blanks are filled, and only for columns constant within an
 FOV; per-cell columns such as cell typing belong to the segmentation that
 produced them and are refused, with a line saying which were skipped.
 
