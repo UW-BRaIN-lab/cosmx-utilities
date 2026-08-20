@@ -1,0 +1,122 @@
+{
+  "Retinal_neuron": {
+    "Photoreceptor": [
+      "HRCA_retinal rod cell",
+      "HRCA_retinal cone cell",
+      "HRCA_S cone cell"
+    ],
+    "Bipolar": {
+      "Rod_bipolar": [
+        "HRCA_rod bipolar cell"
+      ],
+      "Midget_bipolar": [
+        "HRCA_flat midget bipolar cell",
+        "HRCA_invaginating midget bipolar cell"
+      ],
+      "Diffuse_bipolar": [
+        "HRCA_diffuse bipolar 1 cell",
+        "HRCA_diffuse bipolar 2 cell",
+        "HRCA_diffuse bipolar 3a cell",
+        "HRCA_diffuse bipolar 3b cell",
+        "HRCA_diffuse bipolar 4 cell",
+        "HRCA_diffuse bipolar 6 cell"
+      ],
+      "Other_bipolar": [
+        "HRCA_retinal bipolar neuron",
+        "HRCA_giant bipolar cell",
+        "HRCA_ON-blue cone bipolar cell",
+        "HRCA_OFFx cell"
+      ]
+    },
+    "Amacrine": [
+      "HRCA_amacrine cell",
+      "HRCA_GABAergic amacrine cell",
+      "HRCA_glycinergic amacrine cell",
+      "HRCA_starburst amacrine cell"
+    ],
+    "Horizontal": [
+      "HRCA_H1 horizontal cell",
+      "HRCA_H2 horizontal cell"
+    ],
+    "Ganglion": {
+      "Midget_ganglion": [
+        "HRCA_OFF midget ganglion cell",
+        "HRCA_ON midget ganglion cell"
+      ],
+      "Parasol_ganglion": [
+        "HRCA_OFF parasol ganglion cell",
+        "HRCA_ON parasol ganglion cell"
+      ],
+      "Other_ganglion": [
+        "HRCA_retinal ganglion cell"
+      ]
+    }
+  },
+  "Cortical_neuron": {
+    "Excitatory": [
+      "Allen_Upper-layer intratelencephalic",
+      "Allen_Deep-layer intratelencephalic",
+      "Allen_Deep-layer near-projecting",
+      "Allen_Deep-layer corticothalamic and 6b",
+      "Allen_Hippocampal CA1-3"
+    ],
+    "Inhibitory": [
+      "Allen_CGE interneuron",
+      "Allen_MGE interneuron",
+      "Allen_LAMP5-LHX6 and Chandelier"
+    ],
+    "Striatal": [
+      "Allen_Medium spiny neuron",
+      "Allen_Eccentric medium spiny neuron"
+    ]
+  },
+  "Mueller_glia": [
+    "HRCA_Mueller cell"
+  ],
+  "Astrocyte": [
+    "HRCA_astrocyte",
+    "Mona_astrocyte",
+    "Allen_Astrocyte"
+  ],
+  "Oligodendrocyte_lineage": [
+    "Oligodendrocyte",
+    "OPC",
+    "Allen_Committed oligodendrocyte precursor"
+  ],
+  "Peripheral_glia": [
+    "Mona_Schwann cell",
+    "Mona_myelinating Schwann cell"
+  ],
+  "Myeloid": [
+    "HRCA_microglial cell",
+    "Mona_microglial cell",
+    "Allen_Microglia",
+    "Mona_macrophage"
+  ],
+  "Lymphoid": [
+    "Mona_T cell",
+    "Mona_natural killer cell",
+    "Mona_B cell"
+  ],
+  "Vascular": {
+    "Endothelial": [
+      "Mona_endothelium",
+      "Allen_endothelial cell"
+    ],
+    "Mural": [
+      "Mona_pericyte",
+      "Allen_pericyte",
+      "Mona_vascular associated smooth muscle cell",
+      "Allen_vascular associated smooth muscle cell"
+    ]
+  },
+  "Fibroblast": [
+    "Mona_fibroblast",
+    "Allen_Fibroblast"
+  ],
+  "Pigmented": [
+    "HRCA_retinal pigment epithelial cell",
+    "Mona_pigmented epithelial cell",
+    "Mona_melanocyte"
+  ]
+}

@@ -1,0 +1,7 @@
+action,source_type,merged_name
+merge,Mona_oligodendrocyte,Oligodendrocyte
+merge,Allen_Oligodendrocyte,Oligodendrocyte
+merge,Mona_oligodendrocyte precursor cell,OPC
+merge,Allen_Oligodendrocyte precursor,OPC
+drop,Allen_Splatter,
+drop,Allen_Miscellaneous,
