@@ -191,7 +191,14 @@ mean). Everything below reads that one file.
 ## Stage 4a′ — gene selection (FAQ pruning)
 
 The 6k FAQ recommends typing on a well-chosen 3,000–5,000 gene subset. `INPUT_KEY` is
-what points 73/74 at a plain stage-4a input instead of the full-cohort anchor:
+what points 73/74 at a plain stage-4a input instead of the full-cohort anchor.
+
+⚠️ **`73`/`74` default `STAGE4_DIR` to `stage4_anchor`**, not `stage4` like `70`/`80` — they
+were written for the full-cohort anchor workflow. `INPUT_KEY` redirects only the *input*, so
+their **outputs** still land under `stage4_anchor/`. Either set `STAGE4_DIR=stage4` in `.env`
+so all four stages agree, or take the `stage4_anchor/` path when passing `KEEP_GENES` on to
+`74` and `80`. Check with `s5cmd ls "s3://$KOPAH_BUCKET/$KOPAH_PREFIX/"` rather than
+assuming.
 
 ```bash
 INPUT_KEY=stage4/insitutype_input.h5 sbatch pipeline/slurm/73_select_genes.sh
