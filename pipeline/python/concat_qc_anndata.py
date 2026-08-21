@@ -80,6 +80,10 @@ def parse_args() -> argparse.Namespace:
                    help="Output prefix; writes <output>.h5ad and <output>.pca_input.h5.")
     p.add_argument("--batch-col", default=DEFAULT_BATCH_COL,
                    help="obs column used as the PCA batch variable (patient/Case).")
+    p.add_argument("--exclude-regions", default="",
+                   help="Comma-separated obs['Region'] values to drop before QC stats, "
+                        "HVG selection and the PCA — e.g. tissue with no counterpart in "
+                        "the reference atlas. See pipeline/reference/FOV_ANNOTATIONS.md.")
     p.add_argument("--cohort", type=Path, default=None,
                    help="Cohort CSV with Donor + Block columns (e.g. "
                         "pipeline/cohort_wenyu.csv). If given, keep only cells whose "
@@ -270,6 +274,27 @@ def main() -> None:
         print(f"ERROR: batch column '{args.batch_col}' not in obs. Available: "
               f"{list(adata.obs.columns)}", file=sys.stderr)
         sys.exit(1)
+
+    # Drop out-of-scope tissue FIRST: these cells must not influence QC thresholds, the
+    # HVG selection or the PCA. The retina study excludes ciliary body and cornea, which
+    # no cell type in the combined atlas covers.
+    drop_regions = [r.strip() for r in args.exclude_regions.split(",") if r.strip()]
+    if drop_regions:
+        if "Region" not in adata.obs:
+            print(f"ERROR: --exclude-regions given but obs has no 'Region' column",
+                  file=sys.stderr)
+            sys.exit(1)
+        region = adata.obs["Region"].astype(str)
+        absent = [r for r in drop_regions if r not in set(region)]
+        if absent:
+            # A typo would silently exclude nothing, so fail rather than proceed.
+            print(f"ERROR: --exclude-regions value(s) not present in obs['Region']: "
+                  f"{absent}. Present: {sorted(set(region))}", file=sys.stderr)
+            sys.exit(1)
+        keep_region = ~region.isin(drop_regions).to_numpy()
+        print(f"Excluding regions {drop_regions}: dropping "
+              f"{int((~keep_region).sum()):,} of {adata.n_obs:,} cells")
+        adata = adata[keep_region].copy()
 
     qc = compute_qc(adata, args.area_col)
     adata.obs = adata.obs.join(qc)

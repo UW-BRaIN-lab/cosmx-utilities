@@ -74,6 +74,58 @@ def read_expr_mat(path: Path) -> tuple[pd.DataFrame, sp.csr_matrix, list[str]]:
     return cell_index, counts, gene_cols
 
 
+def apply_fov_annotations(obs: pd.DataFrame, table: Path, slide_id: str) -> pd.DataFrame:
+    """Replace Region from an authoritative per-FOV annotation table.
+
+    The flat-file `Region` is an AtoMx annotation that can be stale — on uwa7761eyes it
+    labels 67 FOVs as Retina when only 3 are, the other 57 being ciliary body and cornea.
+    Where a curated table exists it wins, and the two extra columns ride along:
+      Region_mixed_adjacent  the FOV straddles a tissue boundary
+      Region_excluded        the SME ruled it out of analysis
+
+    Joins on `fov` only — cell ids differ between exports but the FOV grid does not. Every
+    substitution is counted and reported; an FOV present in the data but absent from the
+    table keeps its original Region and is reported rather than silently blanked, since a
+    partial table must not quietly erase annotation.
+    """
+    ann = pd.read_csv(table, dtype={"slide_id": str})
+    ann = ann[ann["slide_id"].astype(str) == slide_id]
+    if ann.empty:
+        print(f"WARN: no rows for slide_id={slide_id} in {table}; "
+              f"leaving Region as exported", file=sys.stderr)
+        return obs
+    if ann["fov"].duplicated().any():
+        dupes = sorted(ann.loc[ann["fov"].duplicated(), "fov"].unique())
+        print(f"ERROR: {table} has duplicate fov rows for {slide_id}: {dupes}",
+              file=sys.stderr)
+        sys.exit(1)
+
+    by_fov = ann.set_index(ann["fov"].astype(int))
+    fov_int = obs["fov"].astype(int)
+    mapped = fov_int.map(by_fov["region"])
+    n_missing = int(mapped.isna().sum())
+    if n_missing:
+        absent = sorted(set(fov_int[mapped.isna()]))
+        print(f"WARN: {n_missing:,} cells in {len(absent)} FOV(s) absent from the "
+              f"annotation table, keeping exported Region: {absent[:20]}", file=sys.stderr)
+
+    if "Region" in obs:
+        changed = int((mapped.notna() & (mapped != obs["Region"].astype(str))).sum())
+        print(f"FOV annotations: Region reassigned for {changed:,} of {len(obs):,} cells")
+    obs["Region"] = mapped.fillna(obs["Region"] if "Region" in obs else "")
+    obs["Region_mixed_adjacent"] = (
+        fov_int.map(by_fov["mixed_adjacent"]).fillna(0).astype(int))
+    obs["Region_excluded"] = fov_int.map(by_fov["exclude"]).fillna(0).astype(int)
+    n_excl = int(obs["Region_excluded"].sum())
+    if n_excl:
+        print(f"FOV annotations: {n_excl:,} cells flagged Region_excluded "
+              f"(drop at stage 3a with --exclude-regions)")
+    print("Region composition after annotation:")
+    for region, count in obs["Region"].value_counts().items():
+        print(f"  {region:26s} {count:7,d}")
+    return obs
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--flatfiles-dir", type=Path, required=True,
@@ -82,6 +134,10 @@ def main() -> None:
                    help="Slide identifier matching the flat-file filename prefix")
     p.add_argument("--manifest", type=Path,
                    help="Pipeline manifest CSV (optional)")
+    p.add_argument("--fov-annotations", type=Path,
+                   help="Authoritative per-FOV tissue table (slide_id,fov,region,...). "
+                        "Overrides the flat-file Region for this slide; see "
+                        "pipeline/reference/FOV_ANNOTATIONS.md.")
     p.add_argument("--output", type=Path, required=True, help="Path to write .h5ad")
     args = p.parse_args()
 
@@ -129,6 +185,9 @@ def main() -> None:
 
     merged["slide_id"] = slide_id
     uns: dict = {"slide_id": slide_id}
+
+    if args.fov_annotations:
+        merged = apply_fov_annotations(merged, args.fov_annotations, slide_id)
 
     if args.manifest and args.manifest.exists():
         mdf = pd.read_csv(args.manifest, dtype={"slide_id": str})

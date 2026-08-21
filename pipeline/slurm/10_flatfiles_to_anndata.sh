@@ -101,6 +101,7 @@ apptainer exec \
         --flatfiles-dir "$WORK/flat" \
         --slide-id "$SLIDE_ID" \
         --manifest "$MANIFEST" \
+        ${FOV_ANNOTATIONS:+--fov-annotations "${PIPELINE_DIR}/${FOV_ANNOTATIONS}"} \
         --output "$OUTPUT_H5AD"
 
 echo "Uploading $OUTPUT_H5AD to Kopah..."

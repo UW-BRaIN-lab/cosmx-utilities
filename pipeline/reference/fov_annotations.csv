@@ -1,0 +1,2529 @@
+slide_id,fov,region,mixed_adjacent,exclude
+uwa7509eyes,1,Adjacent soft tissue,0,0
+uwa7509eyes,2,Adjacent soft tissue,0,0
+uwa7509eyes,3,Optic nerve,1,0
+uwa7509eyes,4,Optic nerve,0,0
+uwa7509eyes,5,Optic nerve,0,0
+uwa7509eyes,6,Optic nerve,0,0
+uwa7509eyes,7,Optic nerve,0,0
+uwa7509eyes,8,Optic nerve,1,0
+uwa7509eyes,9,Adjacent soft tissue,0,0
+uwa7509eyes,10,Adjacent soft tissue,0,0
+uwa7509eyes,11,Adjacent soft tissue,0,0
+uwa7509eyes,12,Optic nerve,0,0
+uwa7509eyes,13,Optic nerve,0,0
+uwa7509eyes,14,Optic nerve,0,0
+uwa7509eyes,15,Optic nerve,0,0
+uwa7509eyes,16,Optic nerve,0,0
+uwa7509eyes,17,Optic nerve,0,0
+uwa7509eyes,18,Adjacent soft tissue,0,0
+uwa7509eyes,19,Adjacent soft tissue,0,0
+uwa7509eyes,20,Adjacent soft tissue,0,0
+uwa7509eyes,21,Optic nerve,0,0
+uwa7509eyes,22,Optic nerve,0,0
+uwa7509eyes,23,Optic nerve,0,0
+uwa7509eyes,24,Optic nerve,0,0
+uwa7509eyes,25,Optic nerve,0,0
+uwa7509eyes,26,Optic nerve,1,0
+uwa7509eyes,27,Adjacent soft tissue,0,0
+uwa7509eyes,28,Adjacent soft tissue,0,0
+uwa7509eyes,29,Adjacent soft tissue,0,0
+uwa7509eyes,30,Optic nerve,1,0
+uwa7509eyes,31,Optic nerve,0,0
+uwa7509eyes,32,Optic nerve,0,0
+uwa7509eyes,33,Optic nerve,0,0
+uwa7509eyes,34,Optic nerve,0,0
+uwa7509eyes,35,Optic nerve,1,0
+uwa7509eyes,36,Adjacent soft tissue,0,0
+uwa7509eyes,37,Adjacent soft tissue,0,0
+uwa7509eyes,38,Adjacent soft tissue,0,0
+uwa7509eyes,39,Adjacent soft tissue,1,0
+uwa7509eyes,40,Optic nerve,1,0
+uwa7509eyes,41,Optic nerve,0,0
+uwa7509eyes,42,Optic nerve,1,0
+uwa7509eyes,43,Adjacent soft tissue,1,0
+uwa7509eyes,44,Adjacent soft tissue,0,0
+uwa7509eyes,45,Adjacent soft tissue,0,0
+uwa7509eyes,46,Adjacent soft tissue,0,0
+uwa7509eyes,47,Adjacent soft tissue,0,0
+uwa7509eyes,48,Adjacent soft tissue,0,0
+uwa7509eyes,49,Adjacent soft tissue,0,0
+uwa7509eyes,50,Adjacent soft tissue,0,0
+uwa7509eyes,51,Adjacent soft tissue,0,0
+uwa7509eyes,52,Adjacent soft tissue,0,0
+uwa7509eyes,53,Adjacent soft tissue,0,0
+uwa7509eyes,54,Adjacent soft tissue,0,0
+uwa7509eyes,55,Adjacent soft tissue,0,0
+uwa7509eyes,56,Adjacent soft tissue,0,0
+uwa7509eyes,57,Adjacent soft tissue,0,0
+uwa7509eyes,58,Adjacent soft tissue,0,0
+uwa7509eyes,59,Adjacent soft tissue,0,0
+uwa7509eyes,60,Optic nerve,1,0
+uwa7509eyes,61,Optic nerve,0,0
+uwa7509eyes,62,Optic nerve,0,0
+uwa7509eyes,63,Optic nerve,0,0
+uwa7509eyes,64,Optic nerve,0,0
+uwa7509eyes,65,Optic nerve,1,0
+uwa7509eyes,66,Adjacent soft tissue,0,0
+uwa7509eyes,67,Adjacent soft tissue,0,0
+uwa7509eyes,68,Optic nerve,1,0
+uwa7509eyes,69,Optic nerve,0,0
+uwa7509eyes,70,Optic nerve,0,0
+uwa7509eyes,71,Optic nerve,0,0
+uwa7509eyes,72,Optic nerve,0,0
+uwa7509eyes,74,Adjacent soft tissue,0,0
+uwa7509eyes,75,Adjacent soft tissue,0,0
+uwa7509eyes,76,Adjacent soft tissue,0,0
+uwa7509eyes,77,Optic nerve,0,0
+uwa7509eyes,78,Optic nerve,0,0
+uwa7509eyes,79,Optic nerve,0,0
+uwa7509eyes,80,Optic nerve,0,0
+uwa7509eyes,81,Optic nerve,1,0
+uwa7509eyes,82,Adjacent soft tissue,0,0
+uwa7509eyes,83,Adjacent soft tissue,0,0
+uwa7509eyes,84,Adjacent soft tissue,0,0
+uwa7509eyes,85,Adjacent soft tissue,0,0
+uwa7509eyes,86,Adjacent soft tissue,0,0
+uwa7509eyes,87,Adjacent soft tissue,0,0
+uwa7509eyes,88,Adjacent soft tissue,0,0
+uwa7509eyes,89,Adjacent soft tissue,0,0
+uwa7509eyes,90,Optic nerve,0,0
+uwa7509eyes,91,Optic nerve,0,0
+uwa7509eyes,92,Optic nerve,0,0
+uwa7509eyes,93,Optic nerve,0,0
+uwa7509eyes,94,Optic nerve,1,0
+uwa7509eyes,95,Adjacent soft tissue,0,0
+uwa7509eyes,96,Adjacent soft tissue,0,0
+uwa7509eyes,97,Adjacent soft tissue,0,0
+uwa7509eyes,98,Retina,1,0
+uwa7509eyes,99,Retina,1,0
+uwa7509eyes,100,Retina,1,0
+uwa7509eyes,101,Retina,1,0
+uwa7509eyes,102,Retina,1,0
+uwa7509eyes,103,Retina,1,0
+uwa7509eyes,104,Optic nerve,1,0
+uwa7509eyes,105,Optic nerve,0,0
+uwa7509eyes,106,Optic nerve,0,0
+uwa7509eyes,107,Optic nerve,0,0
+uwa7509eyes,108,Adjacent soft tissue,1,0
+uwa7509eyes,109,Adjacent soft tissue,1,0
+uwa7509eyes,110,Adjacent soft tissue,0,0
+uwa7509eyes,111,Adjacent soft tissue,0,0
+uwa7509eyes,112,Adjacent soft tissue,0,0
+uwa7509eyes,113,Adjacent soft tissue,0,0
+uwa7509eyes,114,Retina,1,0
+uwa7509eyes,115,Retina,1,0
+uwa7509eyes,116,Retina,1,0
+uwa7509eyes,117,Retina,0,0
+uwa7509eyes,118,Retina,0,0
+uwa7509eyes,119,Retina,0,0
+uwa7509eyes,120,Retina,0,0
+uwa7509eyes,121,Retina,0,0
+uwa7509eyes,122,Retina,0,0
+uwa7509eyes,123,Retina,0,0
+uwa7509eyes,124,Retina,0,0
+uwa7509eyes,125,Retina,1,0
+uwa7509eyes,126,Retina,1,0
+uwa7509eyes,127,Retina,1,0
+uwa7509eyes,128,Retina,1,0
+uwa7509eyes,129,Retina,1,0
+uwa7509eyes,130,Retina,1,0
+uwa7509eyes,131,Adjacent soft tissue,0,0
+uwa7509eyes,132,Adjacent soft tissue,0,0
+uwa7509eyes,133,Retina,1,0
+uwa7509eyes,134,Retina,1,0
+uwa7509eyes,135,Retina,1,0
+uwa7509eyes,136,Retina,0,0
+uwa7509eyes,137,Retina,0,0
+uwa7509eyes,138,Retina,1,0
+uwa7509eyes,139,Retina,1,0
+uwa7509eyes,140,Retina,1,0
+uwa7509eyes,141,Adjacent soft tissue,0,0
+uwa7509eyes,142,Retina,1,0
+uwa7509eyes,143,Retina,1,0
+uwa7509eyes,144,Retina,0,0
+uwa7509eyes,145,Retina,0,0
+uwa7509eyes,146,Retina,1,0
+uwa7509eyes,147,Retina,1,0
+uwa7509eyes,148,Retina,1,0
+uwa7509eyes,149,Retina,0,0
+uwa7509eyes,150,Retina,0,0
+uwa7509eyes,151,Retina,1,0
+uwa7509eyes,152,White matter,0,0
+uwa7509eyes,153,White matter,0,0
+uwa7509eyes,154,White matter,0,0
+uwa7509eyes,155,White matter,0,0
+uwa7509eyes,156,White matter,0,0
+uwa7509eyes,157,Gray matter,1,0
+uwa7509eyes,158,Gray matter,1,0
+uwa7509eyes,159,Gray matter,1,0
+uwa7509eyes,160,White matter,0,0
+uwa7509eyes,161,White matter,0,0
+uwa7509eyes,162,White matter,0,0
+uwa7509eyes,163,White matter,0,0
+uwa7509eyes,164,White matter,0,0
+uwa7509eyes,165,White matter,0,0
+uwa7509eyes,166,White matter,0,0
+uwa7509eyes,167,Gray matter,1,0
+uwa7509eyes,168,Gray matter,0,0
+uwa7509eyes,169,Gray matter,0,0
+uwa7509eyes,170,Gray matter,0,0
+uwa7509eyes,171,Gray matter,1,0
+uwa7509eyes,172,White matter,0,0
+uwa7509eyes,173,White matter,0,0
+uwa7509eyes,174,White matter,0,0
+uwa7509eyes,175,White matter,0,0
+uwa7509eyes,176,White matter,0,0
+uwa7509eyes,177,Gray matter,1,0
+uwa7509eyes,178,Gray matter,0,0
+uwa7509eyes,179,Gray matter,0,0
+uwa7509eyes,180,Gray matter,0,0
+uwa7509eyes,181,Gray matter,0,0
+uwa7509eyes,182,Gray matter,0,0
+uwa7509eyes,183,Gray matter,1,0
+uwa7509eyes,184,White matter,0,0
+uwa7509eyes,185,White matter,0,0
+uwa7509eyes,186,White matter,0,0
+uwa7509eyes,187,Gray matter,1,0
+uwa7509eyes,188,Gray matter,0,0
+uwa7509eyes,189,Gray matter,0,0
+uwa7509eyes,190,Gray matter,0,0
+uwa7509eyes,191,Gray matter,0,0
+uwa7509eyes,192,Gray matter,0,0
+uwa7509eyes,193,Gray matter,0,0
+uwa7509eyes,194,Gray matter,1,0
+uwa7509eyes,195,White matter,0,0
+uwa7509eyes,196,White matter,0,0
+uwa7509eyes,197,Gray matter,1,0
+uwa7509eyes,198,Gray matter,0,0
+uwa7509eyes,199,Gray matter,0,0
+uwa7509eyes,200,Gray matter,0,0
+uwa7509eyes,201,Gray matter,0,0
+uwa7509eyes,202,Gray matter,0,0
+uwa7509eyes,203,Gray matter,0,0
+uwa7509eyes,204,Gray matter,0,0
+uwa7509eyes,205,Gray matter,1,0
+uwa7509eyes,206,White matter,0,0
+uwa7509eyes,207,White matter,0,0
+uwa7509eyes,208,Gray matter,1,0
+uwa7509eyes,209,Gray matter,0,0
+uwa7509eyes,210,Gray matter,0,0
+uwa7509eyes,211,Gray matter,0,0
+uwa7509eyes,212,Gray matter,1,0
+uwa7509eyes,213,Gray matter,1,0
+uwa7509eyes,214,Gray matter,0,0
+uwa7509eyes,215,Gray matter,0,0
+uwa7509eyes,216,Gray matter,0,0
+uwa7509eyes,217,White matter,1,0
+uwa7509eyes,218,White matter,0,0
+uwa7509eyes,219,White matter,0,0
+uwa7509eyes,220,White matter,0,0
+uwa7509eyes,221,White matter,0,0
+uwa7509eyes,222,White matter,0,0
+uwa7509eyes,223,White matter,0,0
+uwa7509eyes,224,White matter,0,0
+uwa7509eyes,225,White matter,0,0
+uwa7509eyes,226,White matter,0,0
+uwa7509eyes,227,White matter,0,0
+uwa7509eyes,228,White matter,0,0
+uwa7509eyes,229,White matter,0,0
+eyes7517,1,Adjacent soft tissue,0,0
+eyes7517,2,Adjacent soft tissue,0,0
+eyes7517,3,Adjacent soft tissue,1,0
+eyes7517,4,Optic nerve,1,0
+eyes7517,5,Optic nerve,1,0
+eyes7517,6,Adjacent soft tissue,1,0
+eyes7517,7,Adjacent soft tissue,0,0
+eyes7517,8,Optic nerve,0,0
+eyes7517,9,Optic nerve,0,0
+eyes7517,10,Optic nerve,0,0
+eyes7517,11,Optic nerve,0,0
+eyes7517,12,Optic nerve,0,0
+eyes7517,13,Adjacent soft tissue,0,0
+eyes7517,14,Optic nerve,0,0
+eyes7517,15,Optic nerve,0,0
+eyes7517,16,Optic nerve,0,0
+eyes7517,17,Optic nerve,0,0
+eyes7517,18,Optic nerve,0,0
+eyes7517,19,Adjacent soft tissue,0,0
+eyes7517,20,Optic nerve,0,0
+eyes7517,21,Optic nerve,0,0
+eyes7517,22,Optic nerve,0,0
+eyes7517,23,Optic nerve,0,0
+eyes7517,24,Optic nerve,0,0
+eyes7517,25,Adjacent soft tissue,1,0
+eyes7517,26,Optic nerve,0,0
+eyes7517,27,Optic nerve,0,0
+eyes7517,28,Optic nerve,0,0
+eyes7517,29,Optic nerve,0,0
+eyes7517,30,Optic nerve,0,0
+eyes7517,31,Adjacent soft tissue,0,0
+eyes7517,32,Optic nerve,0,0
+eyes7517,33,Optic nerve,0,0
+eyes7517,34,Optic nerve,0,0
+eyes7517,35,Optic nerve,0,0
+eyes7517,36,Optic nerve,1,0
+eyes7517,37,Adjacent soft tissue,0,0
+eyes7517,38,Optic nerve,0,0
+eyes7517,39,Optic nerve,0,0
+eyes7517,40,Optic nerve,0,0
+eyes7517,41,Optic nerve,0,0
+eyes7517,42,Optic nerve,0,0
+eyes7517,43,Optic nerve,0,0
+eyes7517,44,Optic nerve,0,0
+eyes7517,45,Optic nerve,0,0
+eyes7517,46,Optic nerve,1,0
+eyes7517,47,Adjacent soft tissue,1,0
+eyes7517,48,Optic nerve,1,0
+eyes7517,49,Optic nerve,1,0
+eyes7517,50,Adjacent soft tissue,1,0
+eyes7517,51,Retina,0,0
+eyes7517,52,Retina,0,0
+eyes7517,53,Retina,0,0
+eyes7517,54,Retina,0,0
+eyes7517,55,Retina,1,0
+eyes7517,56,Retina,0,0
+eyes7517,57,Retina,1,0
+eyes7517,58,Retina,0,0
+eyes7517,59,Retina,0,0
+eyes7517,60,Retina,1,0
+eyes7517,61,Retina,0,0
+eyes7517,62,Retina,0,0
+eyes7517,63,Retina,0,0
+eyes7517,64,Retina,0,0
+eyes7517,65,Retina,0,0
+eyes7517,66,Retina,1,0
+eyes7517,67,Retina,1,0
+eyes7517,68,Adjacent soft tissue,0,0
+eyes7517,69,Adjacent soft tissue,0,0
+eyes7517,70,Retina,1,0
+eyes7517,71,Optic nerve,0,0
+eyes7517,72,Optic nerve,0,0
+eyes7517,73,Retina,1,0
+eyes7517,74,Retina,1,0
+eyes7517,75,Retina,0,0
+eyes7517,76,Retina,0,0
+eyes7517,77,Retina,0,0
+eyes7517,78,Retina,0,0
+eyes7517,79,Retina,0,0
+eyes7517,80,Retina,0,0
+eyes7517,82,Optic nerve,0,0
+eyes7517,83,Optic nerve,0,0
+eyes7517,84,Adjacent soft tissue,1,0
+eyes7517,85,Adjacent soft tissue,1,0
+eyes7517,86,Optic nerve,0,0
+eyes7517,87,Optic nerve,0,0
+eyes7517,88,Optic nerve,1,0
+eyes7517,89,Optic nerve,0,0
+eyes7517,90,Optic nerve,0,0
+eyes7517,91,Optic nerve,0,0
+eyes7517,92,Optic nerve,0,0
+eyes7517,93,Optic nerve,0,0
+eyes7517,94,Optic nerve,0,0
+eyes7517,95,Optic nerve,0,0
+eyes7517,96,Optic nerve,0,0
+eyes7517,97,Optic nerve,0,0
+eyes7517,98,Optic nerve,0,0
+eyes7517,99,Optic nerve,0,0
+eyes7517,100,Optic nerve,0,0
+eyes7517,101,Optic nerve,0,0
+eyes7517,102,Optic nerve,0,0
+eyes7517,103,Optic nerve,0,0
+eyes7517,104,Optic nerve,0,0
+eyes7517,105,Optic nerve,0,0
+eyes7517,106,Optic nerve,0,0
+eyes7517,107,Optic nerve,0,0
+eyes7517,108,Optic nerve,0,0
+eyes7517,109,Optic nerve,0,0
+eyes7517,110,Optic nerve,1,0
+eyes7517,111,Optic nerve,1,0
+eyes7517,112,Adjacent soft tissue,0,0
+eyes7517,113,Adjacent soft tissue,0,0
+eyes7517,114,Gray matter,0,0
+eyes7517,115,Gray matter,0,0
+eyes7517,116,Gray matter,0,0
+eyes7517,117,Gray matter,0,0
+eyes7517,118,Gray matter,0,0
+eyes7517,119,Gray matter,1,0
+eyes7517,120,White matter,0,0
+eyes7517,121,White matter,0,0
+eyes7517,122,White matter,0,0
+eyes7517,123,White matter,0,0
+eyes7517,124,White matter,0,0
+eyes7517,125,White matter,0,0
+eyes7517,126,White matter,0,0
+eyes7517,127,White matter,0,0
+eyes7517,128,White matter,0,0
+eyes7517,129,White matter,0,0
+eyes7517,130,White matter,0,0
+eyes7517,131,White matter,0,0
+eyes7517,132,White matter,0,0
+eyes7517,133,White matter,0,0
+eyes7517,134,White matter,0,0
+eyes7517,135,White matter,0,0
+eyes7517,136,White matter,0,0
+eyes7517,137,White matter,0,0
+eyes7517,138,White matter,0,0
+eyes7517,139,White matter,0,0
+eyes7517,140,White matter,0,0
+eyes7517,141,Gray matter,0,0
+eyes7517,142,Gray matter,0,0
+eyes7517,143,Gray matter,0,0
+eyes7517,144,Gray matter,0,0
+eyes7517,145,Gray matter,0,0
+eyes7517,146,Gray matter,1,0
+eyes7517,147,White matter,0,0
+eyes7517,148,White matter,0,0
+eyes7517,149,White matter,0,0
+eyes7517,150,White matter,0,0
+eyes7517,151,White matter,0,0
+eyes7517,152,White matter,0,0
+eyes7517,153,White matter,0,0
+eyes7517,154,White matter,0,0
+eyes7517,155,White matter,0,0
+eyes7517,156,White matter,0,0
+eyes7517,157,White matter,0,0
+eyes7517,158,White matter,0,0
+eyes7517,159,White matter,0,0
+eyes7517,160,White matter,0,0
+eyes7517,161,White matter,0,0
+eyes7517,162,White matter,0,0
+eyes7517,163,White matter,0,0
+eyes7517,164,White matter,0,0
+eyes7517,165,White matter,0,0
+eyes7517,166,White matter,0,0
+eyes7517,167,White matter,0,0
+eyes7517,168,Gray matter,0,0
+eyes7517,169,Gray matter,0,0
+eyes7517,170,Gray matter,0,0
+eyes7517,171,Gray matter,0,0
+eyes7517,172,Gray matter,0,0
+eyes7517,173,Gray matter,1,0
+eyes7517,174,White matter,0,0
+eyes7517,175,White matter,0,0
+eyes7517,176,White matter,0,0
+eyes7517,177,White matter,0,0
+eyes7517,178,White matter,0,0
+eyes7517,179,White matter,0,0
+eyes7517,180,White matter,0,0
+eyes7517,181,White matter,0,0
+eyes7517,182,White matter,0,0
+eyes7517,183,White matter,0,0
+eyes7517,184,White matter,0,0
+eyes7517,185,White matter,0,0
+eyes7517,186,White matter,0,0
+eyes7517,187,White matter,0,0
+eyes7517,188,White matter,0,0
+eyes7517,189,White matter,0,0
+eyes7517,190,White matter,0,0
+eyes7517,191,White matter,0,0
+eyes7517,192,White matter,0,0
+eyes7517,193,White matter,0,0
+eyes7517,194,White matter,0,0
+UWA7575eyes,1,Adjacent soft tissue,0,0
+UWA7575eyes,2,Adjacent soft tissue,0,0
+UWA7575eyes,3,Adjacent soft tissue,1,0
+UWA7575eyes,4,Optic nerve,1,0
+UWA7575eyes,5,Adjacent soft tissue,1,0
+UWA7575eyes,6,Adjacent soft tissue,0,0
+UWA7575eyes,7,Adjacent soft tissue,1,0
+UWA7575eyes,8,Optic nerve,1,0
+UWA7575eyes,9,Optic nerve,0,0
+UWA7575eyes,10,Optic nerve,0,0
+UWA7575eyes,11,Optic nerve,0,0
+UWA7575eyes,12,Adjacent soft tissue,1,0
+UWA7575eyes,13,Adjacent soft tissue,0,0
+UWA7575eyes,14,Optic nerve,1,0
+UWA7575eyes,15,Optic nerve,0,0
+UWA7575eyes,16,Optic nerve,0,0
+UWA7575eyes,17,Optic nerve,0,0
+UWA7575eyes,18,Optic nerve,0,0
+UWA7575eyes,19,Optic nerve,0,0
+UWA7575eyes,20,Adjacent soft tissue,0,0
+UWA7575eyes,21,Adjacent soft tissue,1,0
+UWA7575eyes,22,Optic nerve,0,0
+UWA7575eyes,23,Optic nerve,0,0
+UWA7575eyes,24,Optic nerve,0,0
+UWA7575eyes,25,Optic nerve,0,0
+UWA7575eyes,26,Optic nerve,0,0
+UWA7575eyes,27,Optic nerve,0,0
+UWA7575eyes,28,Adjacent soft tissue,1,0
+UWA7575eyes,29,Adjacent soft tissue,1,0
+UWA7575eyes,30,Optic nerve,0,0
+UWA7575eyes,31,Optic nerve,0,0
+UWA7575eyes,32,Optic nerve,0,0
+UWA7575eyes,33,Optic nerve,0,0
+UWA7575eyes,34,Optic nerve,0,0
+UWA7575eyes,35,Optic nerve,0,0
+UWA7575eyes,36,Adjacent soft tissue,0,0
+UWA7575eyes,37,Adjacent soft tissue,0,0
+UWA7575eyes,38,Optic nerve,1,0
+UWA7575eyes,39,Optic nerve,0,0
+UWA7575eyes,40,Optic nerve,0,0
+UWA7575eyes,41,Optic nerve,0,0
+UWA7575eyes,42,Optic nerve,0,0
+UWA7575eyes,43,Optic nerve,1,0
+UWA7575eyes,44,Optic nerve,1,0
+UWA7575eyes,45,Optic nerve,0,0
+UWA7575eyes,46,Optic nerve,0,0
+UWA7575eyes,47,Optic nerve,0,0
+UWA7575eyes,48,Optic nerve,0,0
+UWA7575eyes,50,Adjacent soft tissue,0,0
+UWA7575eyes,51,Adjacent soft tissue,1,0
+UWA7575eyes,52,Adjacent soft tissue,1,0
+UWA7575eyes,53,Adjacent soft tissue,0,0
+UWA7575eyes,54,Adjacent soft tissue,0,0
+UWA7575eyes,55,Retina,0,0
+UWA7575eyes,56,Retina,0,0
+UWA7575eyes,57,Retina,0,0
+UWA7575eyes,58,Retina,0,0
+UWA7575eyes,59,Retina,0,0
+UWA7575eyes,60,Retina,0,0
+UWA7575eyes,61,Retina,0,0
+UWA7575eyes,62,Retina,0,0
+UWA7575eyes,63,Retina,0,0
+UWA7575eyes,64,Retina,0,0
+UWA7575eyes,65,Retina,0,0
+UWA7575eyes,66,Retina,0,0
+UWA7575eyes,67,Adjacent soft tissue,0,0
+UWA7575eyes,68,Retina,0,0
+UWA7575eyes,69,Retina,0,0
+UWA7575eyes,70,Retina,0,0
+UWA7575eyes,71,Adjacent soft tissue,0,0
+UWA7575eyes,72,Retina,1,0
+UWA7575eyes,73,Retina,1,0
+UWA7575eyes,74,Adjacent soft tissue,0,0
+UWA7575eyes,75,Retina,0,0
+UWA7575eyes,76,Retina,1,0
+UWA7575eyes,77,Retina,1,0
+UWA7575eyes,78,Adjacent soft tissue,0,0
+UWA7575eyes,79,Adjacent soft tissue,0,0
+UWA7575eyes,80,Retina,0,0
+UWA7575eyes,81,Retina,1,0
+UWA7575eyes,82,Retina,1,0
+UWA7575eyes,83,Adjacent soft tissue,0,0
+UWA7575eyes,84,Adjacent soft tissue,0,0
+UWA7575eyes,85,Retina,0,0
+UWA7575eyes,86,Retina,0,0
+UWA7575eyes,87,Retina,1,0
+UWA7575eyes,88,Retina,1,0
+UWA7575eyes,89,Adjacent soft tissue,0,0
+UWA7575eyes,90,Adjacent soft tissue,0,0
+UWA7575eyes,91,Adjacent soft tissue,0,0
+UWA7575eyes,92,Retina,0,0
+UWA7575eyes,93,Retina,0,0
+UWA7575eyes,94,Retina,0,0
+UWA7575eyes,95,Retina,0,0
+UWA7575eyes,96,Retina,0,0
+UWA7575eyes,97,Retina,0,0
+UWA7575eyes,98,Retina,0,0
+UWA7575eyes,99,Retina,0,0
+UWA7575eyes,100,Retina,0,0
+UWA7575eyes,101,Retina,1,0
+UWA7575eyes,102,Retina,1,0
+UWA7575eyes,103,Adjacent soft tissue,0,0
+UWA7575eyes,104,Adjacent soft tissue,0,0
+UWA7575eyes,105,Retina,1,0
+UWA7575eyes,106,Retina,1,0
+UWA7575eyes,107,Retina,1,0
+UWA7575eyes,108,Retina,1,0
+UWA7575eyes,109,Retina,1,0
+UWA7575eyes,110,Retina,1,0
+UWA7575eyes,111,Retina,0,0
+UWA7575eyes,112,Retina,0,0
+UWA7575eyes,113,Retina,0,0
+UWA7575eyes,114,Retina,1,0
+UWA7575eyes,115,Retina,1,0
+UWA7575eyes,116,Retina,1,0
+UWA7575eyes,117,Retina,1,0
+UWA7575eyes,118,Adjacent soft tissue,0,0
+UWA7575eyes,119,Adjacent soft tissue,0,0
+UWA7575eyes,120,Adjacent soft tissue,0,0
+UWA7575eyes,121,Adjacent soft tissue,0,0
+UWA7575eyes,122,Adjacent soft tissue,0,0
+UWA7575eyes,123,Adjacent soft tissue,0,0
+UWA7575eyes,124,Adjacent soft tissue,0,0
+UWA7575eyes,125,Adjacent soft tissue,0,0
+UWA7575eyes,126,Adjacent soft tissue,0,0
+UWA7575eyes,127,Adjacent soft tissue,0,0
+UWA7575eyes,128,Adjacent soft tissue,0,0
+UWA7575eyes,129,Adjacent soft tissue,0,0
+UWA7575eyes,130,Adjacent soft tissue,0,0
+UWA7575eyes,131,Adjacent soft tissue,0,0
+UWA7575eyes,132,Adjacent soft tissue,0,0
+UWA7575eyes,133,Adjacent soft tissue,0,0
+UWA7575eyes,134,Adjacent soft tissue,0,0
+UWA7575eyes,135,Adjacent soft tissue,0,0
+UWA7575eyes,136,Adjacent soft tissue,0,0
+UWA7575eyes,137,Adjacent soft tissue,0,0
+UWA7575eyes,138,Adjacent soft tissue,0,0
+UWA7575eyes,139,Adjacent soft tissue,0,0
+UWA7575eyes,140,Adjacent soft tissue,0,0
+UWA7575eyes,141,Adjacent soft tissue,0,0
+UWA7575eyes,142,Adjacent soft tissue,0,0
+UWA7575eyes,143,Adjacent soft tissue,0,0
+UWA7575eyes,144,Adjacent soft tissue,0,0
+UWA7575eyes,145,Adjacent soft tissue,0,0
+UWA7575eyes,146,Adjacent soft tissue,0,0
+UWA7575eyes,147,Adjacent soft tissue,0,0
+UWA7575eyes,148,Adjacent soft tissue,0,0
+UWA7575eyes,149,Gray matter,0,0
+UWA7575eyes,150,Gray matter,0,0
+UWA7575eyes,151,Gray matter,0,0
+UWA7575eyes,152,Gray matter,0,0
+UWA7575eyes,153,Gray matter,1,0
+UWA7575eyes,154,White matter,0,0
+UWA7575eyes,155,White matter,0,0
+UWA7575eyes,156,White matter,0,0
+UWA7575eyes,157,White matter,0,0
+UWA7575eyes,158,White matter,0,0
+UWA7575eyes,159,Gray matter,0,0
+UWA7575eyes,160,Gray matter,0,0
+UWA7575eyes,161,Gray matter,0,0
+UWA7575eyes,162,Gray matter,0,0
+UWA7575eyes,163,Gray matter,1,0
+UWA7575eyes,164,White matter,0,0
+UWA7575eyes,165,White matter,0,0
+UWA7575eyes,166,White matter,0,0
+UWA7575eyes,167,White matter,0,0
+UWA7575eyes,168,White matter,0,0
+UWA7575eyes,169,Gray matter,0,0
+UWA7575eyes,170,Gray matter,0,0
+UWA7575eyes,171,Gray matter,0,0
+UWA7575eyes,172,Gray matter,0,0
+UWA7575eyes,173,Gray matter,0,0
+UWA7575eyes,174,Gray matter,1,0
+UWA7575eyes,175,White matter,0,0
+UWA7575eyes,176,White matter,0,0
+UWA7575eyes,177,White matter,0,0
+UWA7575eyes,178,White matter,0,0
+UWA7575eyes,179,Gray matter,0,0
+UWA7575eyes,180,Gray matter,0,0
+UWA7575eyes,181,Gray matter,0,0
+UWA7575eyes,182,Gray matter,0,0
+UWA7575eyes,183,Gray matter,0,0
+UWA7575eyes,184,Gray matter,1,0
+UWA7575eyes,185,White matter,0,0
+UWA7575eyes,186,White matter,0,0
+UWA7575eyes,187,White matter,0,0
+UWA7575eyes,188,White matter,0,0
+UWA7575eyes,189,Gray matter,0,0
+UWA7575eyes,190,Gray matter,0,0
+UWA7575eyes,191,Gray matter,0,0
+UWA7575eyes,192,Gray matter,0,0
+UWA7575eyes,193,Gray matter,0,0
+UWA7575eyes,194,Gray matter,1,0
+UWA7575eyes,195,White matter,0,0
+UWA7575eyes,196,White matter,0,0
+UWA7575eyes,197,White matter,0,0
+UWA7575eyes,198,White matter,0,0
+UWA7575eyes,199,Gray matter,0,0
+UWA7575eyes,200,Gray matter,0,0
+UWA7575eyes,201,Gray matter,0,0
+UWA7575eyes,202,Gray matter,0,0
+UWA7575eyes,203,Gray matter,0,0
+UWA7575eyes,204,Gray matter,0,0
+UWA7575eyes,205,Gray matter,1,0
+UWA7575eyes,206,White matter,0,0
+UWA7575eyes,207,White matter,0,0
+UWA7575eyes,208,White matter,0,0
+UWA7575eyes,209,Gray matter,0,0
+UWA7575eyes,210,Gray matter,0,0
+UWA7575eyes,211,Gray matter,0,0
+UWA7575eyes,212,Gray matter,0,0
+UWA7575eyes,213,Gray matter,0,0
+UWA7575eyes,214,Gray matter,1,0
+UWA7575eyes,215,Gray matter,1,0
+UWA7575eyes,216,Gray matter,1,0
+UWA7575eyes,217,Gray matter,1,0
+UWA7575eyes,218,Gray matter,0,0
+UWA7575eyes,219,Gray matter,0,0
+eyes7597,1,Adjacent soft tissue,0,0
+eyes7597,2,Adjacent soft tissue,1,0
+eyes7597,3,Optic nerve,1,0
+eyes7597,4,Optic nerve,1,0
+eyes7597,5,Adjacent soft tissue,0,0
+eyes7597,6,Optic nerve,1,0
+eyes7597,7,Optic nerve,0,0
+eyes7597,8,Optic nerve,0,0
+eyes7597,9,Optic nerve,1,0
+eyes7597,10,Optic nerve,1,0
+eyes7597,11,Adjacent soft tissue,0,0
+eyes7597,12,Optic nerve,0,0
+eyes7597,13,Optic nerve,0,0
+eyes7597,14,Optic nerve,0,0
+eyes7597,15,Optic nerve,0,0
+eyes7597,16,Optic nerve,0,0
+eyes7597,17,Optic nerve,1,0
+eyes7597,18,Adjacent soft tissue,0,0
+eyes7597,19,Optic nerve,0,0
+eyes7597,20,Optic nerve,0,0
+eyes7597,21,Optic nerve,0,0
+eyes7597,22,Optic nerve,0,0
+eyes7597,23,Optic nerve,0,0
+eyes7597,24,Optic nerve,0,0
+eyes7597,25,Optic nerve,1,0
+eyes7597,26,Optic nerve,0,0
+eyes7597,27,Optic nerve,0,0
+eyes7597,28,Optic nerve,0,0
+eyes7597,29,Optic nerve,0,0
+eyes7597,30,Optic nerve,1,0
+eyes7597,31,Adjacent soft tissue,1,0
+eyes7597,32,Optic nerve,0,0
+eyes7597,33,Optic nerve,0,0
+eyes7597,34,Optic nerve,0,0
+eyes7597,35,Optic nerve,0,0
+eyes7597,36,Adjacent soft tissue,1,0
+eyes7597,37,Adjacent soft tissue,1,0
+eyes7597,38,Adjacent soft tissue,1,0
+eyes7597,39,Adjacent soft tissue,1,0
+eyes7597,40,Adjacent soft tissue,1,0
+eyes7597,41,Adjacent soft tissue,0,0
+eyes7597,42,Retina,1,0
+eyes7597,43,Retina,1,0
+eyes7597,44,Retina,1,0
+eyes7597,45,Retina,1,0
+eyes7597,46,Retina,1,0
+eyes7597,47,Retina,1,0
+eyes7597,48,Retina,1,0
+eyes7597,49,Retina,1,0
+eyes7597,50,Retina,1,0
+eyes7597,51,Retina,1,0
+eyes7597,52,Retina,1,0
+eyes7597,53,Retina,1,0
+eyes7597,54,Retina,1,0
+eyes7597,55,Retina,1,0
+eyes7597,56,Retina,1,0
+eyes7597,58,Adjacent soft tissue,1,0
+eyes7597,59,Adjacent soft tissue,0,0
+eyes7597,60,Adjacent soft tissue,0,0
+eyes7597,61,Adjacent soft tissue,0,0
+eyes7597,62,Adjacent soft tissue,0,0
+eyes7597,63,Adjacent soft tissue,0,0
+eyes7597,64,Adjacent soft tissue,0,0
+eyes7597,65,Adjacent soft tissue,0,0
+eyes7597,66,Retina,0,0
+eyes7597,67,Optic nerve,0,0
+eyes7597,68,Optic nerve,0,0
+eyes7597,69,Optic nerve,0,0
+eyes7597,70,Optic nerve,0,0
+eyes7597,71,Optic nerve,0,0
+eyes7597,72,Optic nerve,0,0
+eyes7597,73,Retina,1,0
+eyes7597,74,Retina,1,0
+eyes7597,75,Adjacent soft tissue,0,0
+eyes7597,76,Adjacent soft tissue,0,0
+eyes7597,77,Retina,1,0
+eyes7597,78,Retina,0,0
+eyes7597,79,Retina,0,0
+eyes7597,80,Retina,0,0
+eyes7597,81,Retina,1,0
+eyes7597,82,Retina,1,0
+eyes7597,83,Retina,0,0
+eyes7597,84,Retina,0,0
+eyes7597,85,Retina,1,0
+eyes7597,86,Retina,1,0
+eyes7597,87,Retina,0,0
+eyes7597,88,Retina,0,0
+eyes7597,89,Retina,1,0
+eyes7597,90,Retina,1,0
+eyes7597,91,Retina,0,0
+eyes7597,92,Retina,0,0
+eyes7597,93,Retina,0,0
+eyes7597,94,Retina,1,0
+eyes7597,95,Retina,1,0
+eyes7597,96,Retina,0,0
+eyes7597,97,Adjacent soft tissue,0,0
+eyes7597,98,Retina,0,0
+eyes7597,99,Retina,1,0
+eyes7597,100,Gray matter,1,0
+eyes7597,101,Gray matter,0,0
+eyes7597,102,Gray matter,0,0
+eyes7597,103,Gray matter,0,0
+eyes7597,104,Gray matter,0,0
+eyes7597,105,Gray matter,0,0
+eyes7597,106,Gray matter,0,0
+eyes7597,107,Gray matter,0,0
+eyes7597,108,Gray matter,1,0
+eyes7597,109,White matter,0,0
+eyes7597,110,White matter,0,0
+eyes7597,111,White matter,0,0
+eyes7597,112,White matter,0,0
+eyes7597,113,White matter,0,0
+eyes7597,114,White matter,0,0
+eyes7597,115,White matter,0,0
+eyes7597,116,White matter,0,0
+eyes7597,117,White matter,0,0
+eyes7597,118,White matter,0,0
+eyes7597,119,White matter,0,0
+eyes7597,120,White matter,0,0
+eyes7597,121,White matter,0,0
+eyes7597,122,White matter,0,0
+eyes7597,123,White matter,0,0
+eyes7597,124,White matter,0,0
+eyes7597,125,White matter,0,0
+eyes7597,126,White matter,0,0
+eyes7597,127,White matter,0,0
+eyes7597,128,Gray matter,1,0
+eyes7597,129,Gray matter,0,0
+eyes7597,130,Gray matter,0,0
+eyes7597,131,Gray matter,0,0
+eyes7597,132,Gray matter,0,0
+eyes7597,133,Gray matter,0,0
+eyes7597,134,Gray matter,0,0
+eyes7597,135,Gray matter,0,0
+eyes7597,136,Gray matter,1,0
+eyes7597,137,White matter,0,0
+eyes7597,138,White matter,0,0
+eyes7597,139,White matter,0,0
+eyes7597,140,White matter,0,0
+eyes7597,141,White matter,0,0
+eyes7597,142,White matter,0,0
+eyes7597,143,White matter,0,0
+eyes7597,144,White matter,0,0
+eyes7597,145,White matter,0,0
+eyes7597,146,White matter,0,0
+eyes7597,147,White matter,0,0
+eyes7597,148,White matter,0,0
+eyes7597,149,White matter,0,0
+eyes7597,150,White matter,0,0
+eyes7597,151,White matter,0,0
+eyes7597,152,White matter,0,0
+eyes7597,153,White matter,0,0
+eyes7597,154,White matter,0,0
+eyes7597,155,White matter,0,0
+eyes7597,156,Gray matter,1,0
+eyes7597,157,Gray matter,0,0
+eyes7597,158,Gray matter,0,0
+eyes7597,159,Gray matter,0,0
+eyes7597,160,Gray matter,0,0
+eyes7597,161,Gray matter,0,0
+eyes7597,162,Gray matter,0,0
+eyes7597,163,Gray matter,1,0
+eyes7597,164,Gray matter,1,0
+eyes7597,165,Gray matter,1,0
+eyes7597,166,Gray matter,1,0
+eyes7597,167,Gray matter,1,0
+eyes7597,168,Gray matter,1,0
+eyes7597,169,Gray matter,1,0
+eyes7597,170,Gray matter,1,0
+eyes7597,171,Gray matter,1,0
+eyes7597,172,Gray matter,1,0
+eyes7597,173,Gray matter,1,0
+eyes7597,174,White matter,0,0
+eyes7597,175,White matter,0,0
+eyes7597,176,White matter,0,0
+eyes7597,177,White matter,0,0
+eyes7597,178,White matter,0,0
+eyes7597,179,White matter,0,0
+eyes7597,180,White matter,0,0
+eyes7597,181,White matter,0,0
+eyes7597,182,White matter,0,0
+eyes7597,183,White matter,0,0
+eyes7597,184,Gray matter,1,0
+eyes7597,185,Gray matter,0,0
+eyes7597,186,Gray matter,0,0
+eyes7597,187,Gray matter,1,0
+eyes7597,198,White matter,0,0
+eyes7597,199,White matter,0,0
+eyes7597,200,White matter,0,0
+eyes7597,201,White matter,0,0
+eyes7597,202,White matter,0,0
+eyes7597,203,White matter,0,0
+eyes7597,204,White matter,0,0
+eyes7597,205,White matter,0,0
+uwa7611eyes,1,Adjacent soft tissue,0,0
+uwa7611eyes,2,Adjacent soft tissue,0,0
+uwa7611eyes,3,Adjacent soft tissue,0,0
+uwa7611eyes,4,Adjacent soft tissue,1,0
+uwa7611eyes,5,Adjacent soft tissue,1,0
+uwa7611eyes,6,Adjacent soft tissue,0,0
+uwa7611eyes,7,Adjacent soft tissue,0,0
+uwa7611eyes,8,Adjacent soft tissue,0,0
+uwa7611eyes,9,Adjacent soft tissue,0,0
+uwa7611eyes,10,Optic nerve,1,0
+uwa7611eyes,11,Optic nerve,0,0
+uwa7611eyes,12,Optic nerve,0,0
+uwa7611eyes,13,Optic nerve,1,0
+uwa7611eyes,14,Adjacent soft tissue,0,0
+uwa7611eyes,15,Adjacent soft tissue,0,0
+uwa7611eyes,16,Adjacent soft tissue,0,0
+uwa7611eyes,17,Optic nerve,1,0
+uwa7611eyes,18,Optic nerve,0,0
+uwa7611eyes,19,Optic nerve,0,0
+uwa7611eyes,20,Optic nerve,0,0
+uwa7611eyes,21,Optic nerve,0,0
+uwa7611eyes,22,Optic nerve,1,0
+uwa7611eyes,23,Adjacent soft tissue,0,0
+uwa7611eyes,24,Adjacent soft tissue,0,0
+uwa7611eyes,25,Optic nerve,1,0
+uwa7611eyes,26,Optic nerve,0,0
+uwa7611eyes,27,Optic nerve,0,0
+uwa7611eyes,28,Optic nerve,0,0
+uwa7611eyes,29,Optic nerve,0,0
+uwa7611eyes,30,Optic nerve,0,0
+uwa7611eyes,31,Adjacent soft tissue,1,0
+uwa7611eyes,32,Adjacent soft tissue,0,0
+uwa7611eyes,33,Adjacent soft tissue,0,0
+uwa7611eyes,34,Optic nerve,1,0
+uwa7611eyes,35,Optic nerve,0,0
+uwa7611eyes,36,Optic nerve,0,0
+uwa7611eyes,37,Optic nerve,0,0
+uwa7611eyes,38,Optic nerve,0,0
+uwa7611eyes,39,Optic nerve,0,0
+uwa7611eyes,40,Optic nerve,1,0
+uwa7611eyes,41,Adjacent soft tissue,0,0
+uwa7611eyes,42,Adjacent soft tissue,0,0
+uwa7611eyes,43,Adjacent soft tissue,1,0
+uwa7611eyes,44,Optic nerve,0,0
+uwa7611eyes,45,Optic nerve,0,0
+uwa7611eyes,46,Optic nerve,0,0
+uwa7611eyes,47,Optic nerve,0,0
+uwa7611eyes,48,Optic nerve,0,0
+uwa7611eyes,49,Optic nerve,1,0
+uwa7611eyes,50,Adjacent soft tissue,0,0
+uwa7611eyes,51,Adjacent soft tissue,0,0
+uwa7611eyes,52,Optic nerve,1,0
+uwa7611eyes,53,Optic nerve,0,0
+uwa7611eyes,54,Optic nerve,0,0
+uwa7611eyes,55,Optic nerve,0,0
+uwa7611eyes,56,Adjacent soft tissue,1,0
+uwa7611eyes,57,Adjacent soft tissue,0,0
+uwa7611eyes,58,Adjacent soft tissue,0,0
+uwa7611eyes,59,Adjacent soft tissue,0,0
+uwa7611eyes,60,Adjacent soft tissue,0,0
+uwa7611eyes,61,Adjacent soft tissue,0,0
+uwa7611eyes,62,Adjacent soft tissue,0,0
+uwa7611eyes,63,Adjacent soft tissue,0,0
+uwa7611eyes,64,Adjacent soft tissue,0,0
+uwa7611eyes,65,Adjacent soft tissue,1,0
+uwa7611eyes,66,Adjacent soft tissue,1,0
+uwa7611eyes,67,Adjacent soft tissue,0,0
+uwa7611eyes,68,Optic nerve,0,0
+uwa7611eyes,69,Optic nerve,0,0
+uwa7611eyes,70,Adjacent soft tissue,1,0
+uwa7611eyes,71,Optic nerve,0,0
+uwa7611eyes,72,Optic nerve,0,0
+uwa7611eyes,73,Optic nerve,1,0
+uwa7611eyes,74,Optic nerve,0,0
+uwa7611eyes,75,Optic nerve,0,0
+uwa7611eyes,76,Optic nerve,1,0
+uwa7611eyes,77,Optic nerve,0,0
+uwa7611eyes,78,Optic nerve,0,0
+uwa7611eyes,79,Optic nerve,1,0
+uwa7611eyes,80,Optic nerve,0,0
+uwa7611eyes,81,Optic nerve,0,0
+uwa7611eyes,83,Retina,1,0
+uwa7611eyes,84,Retina,0,0
+uwa7611eyes,85,Retina,1,0
+uwa7611eyes,86,Retina,1,0
+uwa7611eyes,87,Retina,1,0
+uwa7611eyes,88,Retina,0,0
+uwa7611eyes,89,Adjacent soft tissue,0,0
+uwa7611eyes,90,Adjacent soft tissue,0,0
+uwa7611eyes,91,Adjacent soft tissue,1,0
+uwa7611eyes,92,Retina,1,0
+uwa7611eyes,93,Retina,1,0
+uwa7611eyes,94,Retina,0,0
+uwa7611eyes,95,Adjacent soft tissue,0,0
+uwa7611eyes,96,Adjacent soft tissue,0,0
+uwa7611eyes,97,Adjacent soft tissue,0,0
+uwa7611eyes,98,Retina,1,0
+uwa7611eyes,99,Retina,1,0
+uwa7611eyes,100,Retina,1,0
+uwa7611eyes,101,Retina,0,0
+uwa7611eyes,102,Retina,0,0
+uwa7611eyes,103,Retina,0,0
+uwa7611eyes,104,Retina,0,0
+uwa7611eyes,105,Retina,0,0
+uwa7611eyes,106,Retina,0,0
+uwa7611eyes,107,Retina,0,0
+uwa7611eyes,108,Retina,0,0
+uwa7611eyes,109,Adjacent soft tissue,0,0
+uwa7611eyes,110,Adjacent soft tissue,0,0
+uwa7611eyes,111,Adjacent soft tissue,0,0
+uwa7611eyes,112,Adjacent soft tissue,0,0
+uwa7611eyes,113,Adjacent soft tissue,1,0
+uwa7611eyes,114,Retina,1,0
+uwa7611eyes,115,Retina,1,0
+uwa7611eyes,116,Retina,1,0
+uwa7611eyes,117,Retina,1,0
+uwa7611eyes,118,Retina,1,0
+uwa7611eyes,119,Retina,1,0
+uwa7611eyes,120,Retina,1,0
+uwa7611eyes,121,Adjacent soft tissue,0,0
+uwa7611eyes,122,Adjacent soft tissue,0,0
+uwa7611eyes,123,Adjacent soft tissue,0,0
+uwa7611eyes,124,Adjacent soft tissue,0,0
+uwa7611eyes,125,Adjacent soft tissue,0,0
+uwa7611eyes,126,Adjacent soft tissue,0,0
+uwa7611eyes,127,Adjacent soft tissue,0,0
+uwa7611eyes,128,Adjacent soft tissue,0,0
+uwa7611eyes,129,Adjacent soft tissue,0,0
+uwa7611eyes,130,Adjacent soft tissue,0,0
+uwa7611eyes,131,Gray matter,1,0
+uwa7611eyes,132,Gray matter,1,0
+uwa7611eyes,133,Gray matter,1,0
+uwa7611eyes,134,Gray matter,1,0
+uwa7611eyes,135,Gray matter,1,0
+uwa7611eyes,136,Gray matter,0,0
+uwa7611eyes,137,Gray matter,0,0
+uwa7611eyes,138,Gray matter,1,0
+uwa7611eyes,139,White matter,0,0
+uwa7611eyes,140,White matter,0,0
+uwa7611eyes,141,White matter,0,0
+uwa7611eyes,142,White matter,0,0
+uwa7611eyes,143,White matter,0,0
+uwa7611eyes,144,White matter,0,0
+uwa7611eyes,145,White matter,0,0
+uwa7611eyes,146,White matter,0,0
+uwa7611eyes,147,White matter,0,0
+uwa7611eyes,148,White matter,0,0
+uwa7611eyes,149,White matter,0,0
+uwa7611eyes,150,White matter,0,0
+uwa7611eyes,151,White matter,0,0
+uwa7611eyes,152,White matter,0,0
+uwa7611eyes,153,White matter,0,0
+uwa7611eyes,154,White matter,0,0
+uwa7611eyes,155,White matter,0,0
+uwa7611eyes,156,White matter,0,0
+uwa7611eyes,157,White matter,0,0
+uwa7611eyes,158,White matter,0,0
+uwa7611eyes,159,Gray matter,1,0
+uwa7611eyes,160,Gray matter,1,0
+uwa7611eyes,161,Gray matter,1,0
+uwa7611eyes,162,Gray matter,1,0
+uwa7611eyes,163,Gray matter,0,0
+uwa7611eyes,164,Gray matter,0,0
+uwa7611eyes,165,Gray matter,0,0
+uwa7611eyes,166,Gray matter,0,0
+uwa7611eyes,167,Gray matter,1,0
+uwa7611eyes,168,Gray matter,0,0
+uwa7611eyes,169,Gray matter,0,0
+uwa7611eyes,170,Gray matter,0,0
+uwa7611eyes,171,Gray matter,0,0
+uwa7611eyes,172,Gray matter,0,0
+uwa7611eyes,173,Gray matter,0,0
+uwa7611eyes,174,Gray matter,0,0
+uwa7611eyes,175,Gray matter,0,0
+uwa7611eyes,176,Gray matter,0,0
+uwa7611eyes,177,Gray matter,0,0
+uwa7611eyes,178,Gray matter,0,0
+uwa7611eyes,179,Gray matter,0,0
+uwa7611eyes,180,Gray matter,0,0
+uwa7611eyes,181,Gray matter,0,0
+uwa7611eyes,182,Gray matter,0,0
+uwa7611eyes,183,Gray matter,0,0
+uwa7611eyes,184,Gray matter,0,0
+uwa7611eyes,185,Gray matter,0,0
+uwa7611eyes,186,Gray matter,0,0
+uwa7611eyes,187,Retina,0,0
+uwa7611eyes,188,Retina,0,0
+uwa7611eyes,189,Adjacent soft tissue,0,0
+uwa7611eyes,190,Adjacent soft tissue,0,0
+uwa7611eyes,191,Retina,0,0
+uwa7611eyes,192,Retina,0,0
+uwa7611eyes,193,Adjacent soft tissue,0,0
+uwa7611eyes,194,Adjacent soft tissue,0,0
+uwa7611eyes,195,Retina,0,0
+uwa7611eyes,196,Retina,0,0
+uwa7611eyes,197,Adjacent soft tissue,0,0
+uwa7611eyes,198,Retina,0,0
+uwa7611eyes,199,Retina,0,0
+uwa7611eyes,200,Adjacent soft tissue,0,0
+uwa7611eyes,201,Retina,0,0
+uwa7611eyes,202,Retina,0,0
+uwa7611eyes,203,Adjacent soft tissue,0,0
+uwa7611eyes,204,Retina,0,0
+uwa7611eyes,205,Adjacent soft tissue,0,0
+uwa7611eyes,206,Retina,0,0
+uwa7611eyes,207,Retina,0,0
+uwa7611eyes,208,Adjacent soft tissue,0,0
+uwa7611eyes,209,Retina,0,0
+uwa7611eyes,210,Retina,0,0
+uwa7611eyes,211,Retina,0,0
+uwa7634eyes,1,Adjacent soft tissue,0,0
+uwa7634eyes,2,Adjacent soft tissue,0,0
+uwa7634eyes,3,Adjacent soft tissue,0,0
+uwa7634eyes,4,Adjacent soft tissue,0,0
+uwa7634eyes,5,Adjacent soft tissue,1,0
+uwa7634eyes,6,Adjacent soft tissue,1,0
+uwa7634eyes,7,Adjacent soft tissue,0,0
+uwa7634eyes,8,Adjacent soft tissue,0,0
+uwa7634eyes,9,Adjacent soft tissue,0,0
+uwa7634eyes,10,Adjacent soft tissue,0,0
+uwa7634eyes,11,Optic nerve,1,0
+uwa7634eyes,12,Optic nerve,0,0
+uwa7634eyes,13,Optic nerve,0,0
+uwa7634eyes,14,Optic nerve,1,0
+uwa7634eyes,15,Adjacent soft tissue,0,0
+uwa7634eyes,16,Adjacent soft tissue,0,0
+uwa7634eyes,17,Adjacent soft tissue,0,0
+uwa7634eyes,18,Adjacent soft tissue,0,0
+uwa7634eyes,19,Adjacent soft tissue,0,0
+uwa7634eyes,20,Optic nerve,0,0
+uwa7634eyes,21,Optic nerve,0,0
+uwa7634eyes,22,Optic nerve,0,0
+uwa7634eyes,23,Optic nerve,0,0
+uwa7634eyes,24,Optic nerve,0,0
+uwa7634eyes,25,Adjacent soft tissue,0,0
+uwa7634eyes,26,Adjacent soft tissue,0,0
+uwa7634eyes,27,Adjacent soft tissue,0,0
+uwa7634eyes,28,Adjacent soft tissue,0,0
+uwa7634eyes,29,Optic nerve,0,0
+uwa7634eyes,30,Optic nerve,0,0
+uwa7634eyes,31,Optic nerve,0,0
+uwa7634eyes,32,Optic nerve,0,0
+uwa7634eyes,33,Optic nerve,0,0
+uwa7634eyes,34,Optic nerve,0,0
+uwa7634eyes,35,Optic nerve,1,0
+uwa7634eyes,36,Optic nerve,0,0
+uwa7634eyes,37,Optic nerve,0,0
+uwa7634eyes,38,Optic nerve,0,0
+uwa7634eyes,39,Optic nerve,0,0
+uwa7634eyes,40,Optic nerve,0,0
+uwa7634eyes,41,Optic nerve,0,0
+uwa7634eyes,42,Optic nerve,0,0
+uwa7634eyes,43,Optic nerve,0,0
+uwa7634eyes,44,Adjacent soft tissue,1,0
+uwa7634eyes,45,Adjacent soft tissue,0,0
+uwa7634eyes,46,Adjacent soft tissue,0,0
+uwa7634eyes,47,Adjacent soft tissue,0,0
+uwa7634eyes,48,Adjacent soft tissue,1,0
+uwa7634eyes,49,Optic nerve,0,0
+uwa7634eyes,50,Optic nerve,0,0
+uwa7634eyes,51,Optic nerve,0,0
+uwa7634eyes,52,Optic nerve,1,0
+uwa7634eyes,53,Adjacent soft tissue,0,0
+uwa7634eyes,54,Adjacent soft tissue,0,0
+uwa7634eyes,55,Adjacent soft tissue,0,0
+uwa7634eyes,56,Adjacent soft tissue,0,0
+uwa7634eyes,57,Adjacent soft tissue,0,0
+uwa7634eyes,58,Adjacent soft tissue,0,0
+uwa7634eyes,59,Adjacent soft tissue,0,0
+uwa7634eyes,60,Adjacent soft tissue,0,0
+uwa7634eyes,61,Optic nerve,0,0
+uwa7634eyes,62,Optic nerve,0,0
+uwa7634eyes,63,Optic nerve,0,0
+uwa7634eyes,64,Optic nerve,0,0
+uwa7634eyes,65,Optic nerve,0,0
+uwa7634eyes,66,Adjacent soft tissue,0,0
+uwa7634eyes,67,Optic nerve,1,0
+uwa7634eyes,68,Optic nerve,0,0
+uwa7634eyes,69,Optic nerve,0,0
+uwa7634eyes,70,Optic nerve,0,0
+uwa7634eyes,71,Optic nerve,0,0
+uwa7634eyes,72,Retina,0,0
+uwa7634eyes,73,Adjacent soft tissue,0,0
+uwa7634eyes,74,Optic nerve,1,0
+uwa7634eyes,75,Optic nerve,1,0
+uwa7634eyes,76,Optic nerve,0,0
+uwa7634eyes,77,Optic nerve,0,0
+uwa7634eyes,78,Optic nerve,0,0
+uwa7634eyes,79,Retina,0,0
+uwa7634eyes,80,Retina,0,0
+uwa7634eyes,81,Adjacent soft tissue,0,0
+uwa7634eyes,82,Adjacent soft tissue,0,0
+uwa7634eyes,83,Adjacent soft tissue,0,0
+uwa7634eyes,84,Adjacent soft tissue,0,0
+uwa7634eyes,85,Adjacent soft tissue,0,0
+uwa7634eyes,86,Retina,0,0
+uwa7634eyes,87,Retina,0,0
+uwa7634eyes,88,Retina,0,0
+uwa7634eyes,89,Retina,0,0
+uwa7634eyes,90,Retina,0,0
+uwa7634eyes,91,Adjacent soft tissue,0,0
+uwa7634eyes,92,Retina,1,0
+uwa7634eyes,93,Retina,1,0
+uwa7634eyes,94,Retina,0,0
+uwa7634eyes,95,Retina,0,0
+uwa7634eyes,96,Adjacent soft tissue,0,0
+uwa7634eyes,97,Retina,1,0
+uwa7634eyes,98,Retina,1,0
+uwa7634eyes,99,Retina,0,0
+uwa7634eyes,100,Retina,0,0
+uwa7634eyes,101,Retina,0,0
+uwa7634eyes,102,Adjacent soft tissue,0,0
+uwa7634eyes,103,Adjacent soft tissue,0,0
+uwa7634eyes,104,Retina,1,0
+uwa7634eyes,105,Retina,1,0
+uwa7634eyes,106,Retina,1,0
+uwa7634eyes,107,Retina,0,0
+uwa7634eyes,108,Retina,0,0
+uwa7634eyes,109,Retina,0,0
+uwa7634eyes,110,Retina,0,0
+uwa7634eyes,111,Retina,0,0
+uwa7634eyes,112,Retina,0,0
+uwa7634eyes,113,Retina,0,0
+uwa7634eyes,114,Retina,0,0
+uwa7634eyes,115,Adjacent soft tissue,0,0
+uwa7634eyes,116,Adjacent soft tissue,0,0
+uwa7634eyes,117,Adjacent soft tissue,0,0
+uwa7634eyes,118,Adjacent soft tissue,0,0
+uwa7634eyes,119,Retina,1,0
+uwa7634eyes,120,Retina,1,0
+uwa7634eyes,121,Retina,1,0
+uwa7634eyes,122,Retina,1,0
+uwa7634eyes,123,Retina,1,0
+uwa7634eyes,124,Retina,1,0
+uwa7634eyes,125,Retina,1,0
+uwa7634eyes,126,Retina,1,0
+uwa7634eyes,127,Retina,0,0
+uwa7634eyes,128,Retina,0,0
+uwa7634eyes,129,Retina,0,0
+uwa7634eyes,130,Adjacent soft tissue,0,0
+uwa7634eyes,131,Adjacent soft tissue,0,0
+uwa7634eyes,132,Adjacent soft tissue,0,0
+uwa7634eyes,133,Adjacent soft tissue,0,0
+uwa7634eyes,134,Adjacent soft tissue,0,0
+uwa7634eyes,135,Retina,1,0
+uwa7634eyes,136,Retina,1,0
+uwa7634eyes,137,Retina,1,0
+uwa7634eyes,138,Retina,1,0
+uwa7634eyes,139,Gray matter,1,0
+uwa7634eyes,140,Gray matter,1,0
+uwa7634eyes,141,Gray matter,0,0
+uwa7634eyes,142,Gray matter,0,0
+uwa7634eyes,143,Gray matter,0,0
+uwa7634eyes,144,Gray matter,0,0
+uwa7634eyes,145,Gray matter,0,0
+uwa7634eyes,146,Gray matter,1,0
+uwa7634eyes,147,Gray matter,1,0
+uwa7634eyes,148,Gray matter,0,0
+uwa7634eyes,149,Gray matter,0,0
+uwa7634eyes,150,Gray matter,0,0
+uwa7634eyes,151,Gray matter,0,0
+uwa7634eyes,152,Gray matter,0,0
+uwa7634eyes,153,White matter,0,0
+uwa7634eyes,154,Gray matter,1,0
+uwa7634eyes,155,Gray matter,1,0
+uwa7634eyes,156,Gray matter,0,0
+uwa7634eyes,157,Gray matter,0,0
+uwa7634eyes,158,Gray matter,0,0
+uwa7634eyes,159,Gray matter,0,0
+uwa7634eyes,160,White matter,0,0
+uwa7634eyes,161,White matter,0,0
+uwa7634eyes,162,Gray matter,1,0
+uwa7634eyes,163,Gray matter,1,0
+uwa7634eyes,164,Gray matter,0,0
+uwa7634eyes,165,Gray matter,0,0
+uwa7634eyes,166,Gray matter,0,0
+uwa7634eyes,167,White matter,0,0
+uwa7634eyes,168,White matter,0,0
+uwa7634eyes,169,White matter,0,0
+uwa7634eyes,170,White matter,1,0
+uwa7634eyes,171,White matter,1,0
+uwa7634eyes,172,White matter,0,0
+uwa7634eyes,173,White matter,0,0
+uwa7634eyes,174,White matter,0,0
+uwa7634eyes,175,White matter,0,0
+uwa7634eyes,176,White matter,0,0
+uwa7634eyes,177,White matter,0,0
+uwa7634eyes,178,White matter,1,0
+uwa7634eyes,179,White matter,1,0
+uwa7634eyes,180,Gray matter,1,0
+uwa7634eyes,181,White matter,0,0
+uwa7634eyes,182,White matter,0,0
+uwa7634eyes,183,White matter,0,0
+uwa7634eyes,184,White matter,0,0
+uwa7634eyes,185,White matter,0,0
+uwa7634eyes,186,White matter,0,0
+uwa7634eyes,187,White matter,0,0
+uwa7634eyes,188,White matter,0,0
+uwa7634eyes,189,White matter,0,0
+uwa7634eyes,190,White matter,0,0
+uwa7634eyes,191,White matter,0,0
+uwa7634eyes,192,White matter,0,0
+uwa7634eyes,193,White matter,0,0
+uwa7634eyes,194,White matter,0,0
+uwa7634eyes,195,White matter,0,0
+uwa7634eyes,196,White matter,0,0
+uwa7634eyes,197,White matter,0,0
+uwa7634eyes,198,White matter,0,0
+uwa7634eyes,199,White matter,0,0
+uwa7634eyes,200,White matter,0,0
+uwa7634eyes,201,White matter,0,0
+uwa7634eyes,202,White matter,0,0
+uwa7634eyes,203,White matter,0,0
+uwa7634eyes,204,White matter,0,0
+uwa7634eyes,205,White matter,0,0
+uwa7634eyes,206,White matter,0,0
+uwa7634eyes,207,White matter,0,0
+uwa7634eyes,208,White matter,0,0
+uwa7634eyes,209,White matter,0,0
+uwa7634eyes,210,White matter,0,0
+UWA7676eyes,1,Adjacent soft tissue,0,0
+UWA7676eyes,2,Adjacent soft tissue,0,0
+UWA7676eyes,3,Adjacent soft tissue,0,0
+UWA7676eyes,4,Adjacent soft tissue,0,0
+UWA7676eyes,5,Adjacent soft tissue,0,0
+UWA7676eyes,6,Adjacent soft tissue,0,0
+UWA7676eyes,7,Adjacent soft tissue,0,0
+UWA7676eyes,8,Adjacent soft tissue,0,0
+UWA7676eyes,9,Adjacent soft tissue,0,0
+UWA7676eyes,10,Adjacent soft tissue,0,0
+UWA7676eyes,11,Adjacent soft tissue,1,0
+UWA7676eyes,12,Optic nerve,0,0
+UWA7676eyes,13,Optic nerve,0,0
+UWA7676eyes,14,Optic nerve,0,0
+UWA7676eyes,15,Optic nerve,1,0
+UWA7676eyes,16,Adjacent soft tissue,0,0
+UWA7676eyes,17,Adjacent soft tissue,0,0
+UWA7676eyes,18,Adjacent soft tissue,0,0
+UWA7676eyes,19,Optic nerve,1,0
+UWA7676eyes,20,Optic nerve,0,0
+UWA7676eyes,21,Optic nerve,0,0
+UWA7676eyes,22,Optic nerve,0,0
+UWA7676eyes,23,Optic nerve,0,0
+UWA7676eyes,24,Optic nerve,0,0
+UWA7676eyes,25,Optic nerve,1,0
+UWA7676eyes,26,Adjacent soft tissue,0,0
+UWA7676eyes,27,Adjacent soft tissue,0,0
+UWA7676eyes,28,Optic nerve,1,0
+UWA7676eyes,29,Optic nerve,0,0
+UWA7676eyes,30,Optic nerve,0,0
+UWA7676eyes,31,Optic nerve,0,0
+UWA7676eyes,32,Optic nerve,0,0
+UWA7676eyes,33,Optic nerve,0,0
+UWA7676eyes,34,Optic nerve,1,0
+UWA7676eyes,35,Adjacent soft tissue,0,0
+UWA7676eyes,36,Adjacent soft tissue,0,0
+UWA7676eyes,37,Optic nerve,1,0
+UWA7676eyes,38,Optic nerve,0,0
+UWA7676eyes,39,Optic nerve,0,0
+UWA7676eyes,40,Optic nerve,0,0
+UWA7676eyes,41,Optic nerve,0,0
+UWA7676eyes,42,Optic nerve,0,0
+UWA7676eyes,43,Optic nerve,1,0
+UWA7676eyes,44,Adjacent soft tissue,0,0
+UWA7676eyes,45,Adjacent soft tissue,0,0
+UWA7676eyes,46,Optic nerve,1,0
+UWA7676eyes,47,Optic nerve,0,0
+UWA7676eyes,48,Optic nerve,0,0
+UWA7676eyes,49,Optic nerve,0,0
+UWA7676eyes,50,Optic nerve,0,0
+UWA7676eyes,51,Optic nerve,0,0
+UWA7676eyes,52,Optic nerve,1,0
+UWA7676eyes,53,Adjacent soft tissue,0,0
+UWA7676eyes,54,Adjacent soft tissue,0,0
+UWA7676eyes,55,Adjacent soft tissue,0,0
+UWA7676eyes,56,Adjacent soft tissue,0,0
+UWA7676eyes,57,Adjacent soft tissue,0,0
+UWA7676eyes,58,Adjacent soft tissue,0,0
+UWA7676eyes,59,Adjacent soft tissue,0,0
+UWA7676eyes,60,Adjacent soft tissue,0,0
+UWA7676eyes,61,Adjacent soft tissue,0,0
+UWA7676eyes,62,Adjacent soft tissue,0,0
+UWA7676eyes,63,Adjacent soft tissue,0,0
+UWA7676eyes,64,Adjacent soft tissue,0,0
+UWA7676eyes,65,Adjacent soft tissue,0,0
+UWA7676eyes,66,Optic nerve,1,0
+UWA7676eyes,67,Optic nerve,0,0
+UWA7676eyes,68,Optic nerve,0,0
+UWA7676eyes,69,Optic nerve,0,0
+UWA7676eyes,70,Optic nerve,1,0
+UWA7676eyes,71,Adjacent soft tissue,0,0
+UWA7676eyes,72,Adjacent soft tissue,0,0
+UWA7676eyes,73,Adjacent soft tissue,0,0
+UWA7676eyes,74,Adjacent soft tissue,0,0
+UWA7676eyes,75,Adjacent soft tissue,0,0
+UWA7676eyes,76,Adjacent soft tissue,0,0
+UWA7676eyes,77,Adjacent soft tissue,0,0
+UWA7676eyes,78,Adjacent soft tissue,0,0
+UWA7676eyes,79,Adjacent soft tissue,0,0
+UWA7676eyes,80,Adjacent soft tissue,0,0
+UWA7676eyes,81,Adjacent soft tissue,0,0
+UWA7676eyes,82,Adjacent soft tissue,0,0
+UWA7676eyes,83,Adjacent soft tissue,0,0
+UWA7676eyes,84,Adjacent soft tissue,0,0
+UWA7676eyes,85,Adjacent soft tissue,0,0
+UWA7676eyes,86,Adjacent soft tissue,0,0
+UWA7676eyes,87,Adjacent soft tissue,0,0
+UWA7676eyes,88,Adjacent soft tissue,1,0
+UWA7676eyes,89,Adjacent soft tissue,1,0
+UWA7676eyes,90,Adjacent soft tissue,0,0
+UWA7676eyes,91,Adjacent soft tissue,0,0
+UWA7676eyes,92,Adjacent soft tissue,0,0
+UWA7676eyes,93,Adjacent soft tissue,0,0
+UWA7676eyes,94,Adjacent soft tissue,0,0
+UWA7676eyes,95,Adjacent soft tissue,0,0
+UWA7676eyes,96,Adjacent soft tissue,0,0
+UWA7676eyes,97,Adjacent soft tissue,0,0
+UWA7676eyes,98,Adjacent soft tissue,0,0
+UWA7676eyes,99,Adjacent soft tissue,0,0
+UWA7676eyes,100,Retina,1,0
+UWA7676eyes,101,Retina,1,0
+UWA7676eyes,102,Retina,1,0
+UWA7676eyes,103,Retina,1,0
+UWA7676eyes,104,Retina,1,0
+UWA7676eyes,105,Retina,1,0
+UWA7676eyes,106,Optic nerve,0,0
+UWA7676eyes,107,Optic nerve,1,0
+UWA7676eyes,108,Adjacent soft tissue,1,0
+UWA7676eyes,109,Adjacent soft tissue,0,0
+UWA7676eyes,110,Adjacent soft tissue,0,0
+UWA7676eyes,111,Adjacent soft tissue,0,0
+UWA7676eyes,112,Adjacent soft tissue,0,0
+UWA7676eyes,113,Adjacent soft tissue,0,0
+UWA7676eyes,114,Retina,1,0
+UWA7676eyes,115,Retina,1,0
+UWA7676eyes,116,Retina,1,0
+UWA7676eyes,117,Retina,1,0
+UWA7676eyes,118,Retina,0,0
+UWA7676eyes,119,Retina,0,0
+UWA7676eyes,120,Optic nerve,0,0
+UWA7676eyes,121,Optic nerve,0,0
+UWA7676eyes,122,Optic nerve,0,0
+UWA7676eyes,123,Optic nerve,1,0
+UWA7676eyes,124,Adjacent soft tissue,0,0
+UWA7676eyes,125,Adjacent soft tissue,0,0
+UWA7676eyes,126,Adjacent soft tissue,0,0
+UWA7676eyes,127,Retina,1,0
+UWA7676eyes,128,Retina,1,0
+UWA7676eyes,129,Retina,0,0
+UWA7676eyes,130,Retina,0,0
+UWA7676eyes,131,Adjacent soft tissue,1,0
+UWA7676eyes,132,Optic nerve,0,0
+UWA7676eyes,133,Optic nerve,0,0
+UWA7676eyes,134,Optic nerve,0,0
+UWA7676eyes,135,Optic nerve,0,0
+UWA7676eyes,136,Adjacent soft tissue,1,0
+UWA7676eyes,137,Retina,1,0
+UWA7676eyes,138,Retina,1,0
+UWA7676eyes,139,Retina,0,0
+UWA7676eyes,140,Adjacent soft tissue,0,0
+UWA7676eyes,141,Adjacent soft tissue,0,0
+UWA7676eyes,142,Optic nerve,0,0
+UWA7676eyes,143,Optic nerve,0,0
+UWA7676eyes,144,Optic nerve,0,0
+UWA7676eyes,145,Optic nerve,0,0
+UWA7676eyes,146,Retina,1,0
+UWA7676eyes,147,Retina,1,0
+UWA7676eyes,148,Adjacent soft tissue,0,0
+UWA7676eyes,149,Adjacent soft tissue,0,0
+UWA7676eyes,150,Adjacent soft tissue,1,0
+UWA7676eyes,151,Optic nerve,1,0
+UWA7676eyes,152,Optic nerve,1,0
+UWA7676eyes,153,Retina,1,0
+UWA7676eyes,154,Retina,0,0
+UWA7676eyes,155,Gray matter,0,0
+UWA7676eyes,156,Gray matter,0,0
+UWA7676eyes,157,Gray matter,0,0
+UWA7676eyes,158,Gray matter,0,0
+UWA7676eyes,159,Gray matter,0,0
+UWA7676eyes,160,Gray matter,0,0
+UWA7676eyes,161,Gray matter,1,0
+UWA7676eyes,162,Gray matter,1,0
+UWA7676eyes,163,Gray matter,1,0
+UWA7676eyes,164,White matter,0,0
+UWA7676eyes,165,White matter,0,0
+UWA7676eyes,166,White matter,0,0
+UWA7676eyes,167,White matter,0,0
+UWA7676eyes,168,White matter,0,0
+UWA7676eyes,169,White matter,0,0
+UWA7676eyes,170,White matter,0,0
+UWA7676eyes,171,Gray matter,1,0
+UWA7676eyes,172,Gray matter,1,0
+UWA7676eyes,173,Gray matter,1,0
+UWA7676eyes,174,White matter,0,0
+UWA7676eyes,175,White matter,0,0
+UWA7676eyes,176,White matter,0,0
+UWA7676eyes,177,White matter,0,0
+UWA7676eyes,178,White matter,0,0
+UWA7676eyes,179,White matter,0,0
+UWA7676eyes,180,White matter,0,0
+UWA7676eyes,181,White matter,0,0
+UWA7676eyes,182,White matter,0,0
+UWA7676eyes,183,Gray matter,0,0
+UWA7676eyes,184,Gray matter,0,0
+UWA7676eyes,185,Gray matter,0,0
+UWA7676eyes,186,Gray matter,1,0
+UWA7676eyes,187,White matter,0,0
+UWA7676eyes,188,White matter,0,0
+UWA7676eyes,189,White matter,0,0
+UWA7676eyes,190,White matter,0,0
+UWA7676eyes,191,White matter,0,0
+UWA7676eyes,192,White matter,0,0
+UWA7676eyes,193,White matter,0,0
+UWA7676eyes,194,White matter,0,0
+UWA7676eyes,195,White matter,0,0
+UWA7676eyes,196,White matter,0,0
+UWA7676eyes,197,Gray matter,1,0
+UWA7676eyes,198,Gray matter,0,0
+UWA7676eyes,199,Gray matter,0,0
+UWA7676eyes,200,Gray matter,0,0
+UWA7676eyes,201,Gray matter,1,0
+UWA7676eyes,202,White matter,0,0
+UWA7676eyes,203,White matter,0,0
+UWA7676eyes,204,White matter,0,0
+UWA7676eyes,205,White matter,0,0
+UWA7676eyes,206,White matter,0,0
+UWA7676eyes,207,White matter,0,0
+UWA7676eyes,208,White matter,0,0
+UWA7676eyes,209,White matter,0,0
+UWA7676eyes,210,White matter,0,0
+UWA7676eyes,211,Gray matter,0,0
+UWA7676eyes,212,Gray matter,0,0
+UWA7676eyes,213,Gray matter,0,0
+UWA7676eyes,214,Gray matter,0,0
+UWA7676eyes,215,Gray matter,1,0
+UWA7676eyes,216,White matter,0,0
+UWA7676eyes,217,White matter,0,0
+UWA7676eyes,218,White matter,0,0
+UWA7676eyes,219,White matter,0,0
+UWA7676eyes,220,White matter,0,0
+UWA7676eyes,221,White matter,0,0
+UWA7676eyes,222,White matter,0,0
+UWA7676eyes,223,Gray matter,1,0
+UWA7676eyes,224,Gray matter,0,0
+UWA7676eyes,225,Gray matter,0,0
+UWA7676eyes,226,Gray matter,0,0
+UWA7676eyes,227,Gray matter,0,0
+UWA7676eyes,228,Gray matter,0,0
+UWA7676eyes,229,Gray matter,1,0
+UWA7676eyes,230,White matter,0,0
+UWA7676eyes,231,White matter,0,0
+UWA7676eyes,232,White matter,0,0
+UWA7676eyes,233,White matter,0,0
+UWA7676eyes,234,White matter,0,0
+UWA7676eyes,235,White matter,0,0
+UWA7676eyes,236,White matter,0,0
+UWA7676eyes,237,White matter,0,0
+UWA7676eyes,238,White matter,0,0
+UWA7689eyes,1,Adjacent soft tissue,0,0
+UWA7689eyes,2,Adjacent soft tissue,0,0
+UWA7689eyes,3,Optic nerve,0,0
+UWA7689eyes,4,Optic nerve,0,0
+UWA7689eyes,5,Optic nerve,0,0
+UWA7689eyes,6,Optic nerve,0,0
+UWA7689eyes,7,Optic nerve,1,0
+UWA7689eyes,8,Adjacent soft tissue,0,0
+UWA7689eyes,9,Adjacent soft tissue,0,0
+UWA7689eyes,10,Adjacent soft tissue,1,0
+UWA7689eyes,11,Optic nerve,0,0
+UWA7689eyes,12,Optic nerve,0,0
+UWA7689eyes,13,Optic nerve,0,0
+UWA7689eyes,14,Optic nerve,0,0
+UWA7689eyes,15,Optic nerve,0,0
+UWA7689eyes,16,Optic nerve,1,0
+UWA7689eyes,17,Adjacent soft tissue,0,0
+UWA7689eyes,18,Adjacent soft tissue,0,0
+UWA7689eyes,19,Optic nerve,1,0
+UWA7689eyes,20,Optic nerve,0,0
+UWA7689eyes,21,Optic nerve,0,0
+UWA7689eyes,22,Optic nerve,0,0
+UWA7689eyes,23,Optic nerve,0,0
+UWA7689eyes,24,Optic nerve,0,0
+UWA7689eyes,25,Optic nerve,1,0
+UWA7689eyes,26,Adjacent soft tissue,0,0
+UWA7689eyes,27,Adjacent soft tissue,0,0
+UWA7689eyes,28,Optic nerve,1,0
+UWA7689eyes,29,Optic nerve,0,0
+UWA7689eyes,30,Optic nerve,0,0
+UWA7689eyes,31,Optic nerve,0,0
+UWA7689eyes,32,Optic nerve,0,0
+UWA7689eyes,33,Optic nerve,0,0
+UWA7689eyes,34,Optic nerve,1,0
+UWA7689eyes,35,Adjacent soft tissue,0,0
+UWA7689eyes,36,Adjacent soft tissue,0,0
+UWA7689eyes,37,Adjacent soft tissue,1,0
+UWA7689eyes,38,Optic nerve,0,0
+UWA7689eyes,39,Optic nerve,0,0
+UWA7689eyes,40,Optic nerve,0,0
+UWA7689eyes,41,Optic nerve,0,0
+UWA7689eyes,42,Optic nerve,0,0
+UWA7689eyes,43,Optic nerve,1,0
+UWA7689eyes,44,Adjacent soft tissue,0,0
+UWA7689eyes,45,Adjacent soft tissue,0,0
+UWA7689eyes,46,Adjacent soft tissue,0,0
+UWA7689eyes,47,Adjacent soft tissue,1,0
+UWA7689eyes,48,Optic nerve,1,0
+UWA7689eyes,49,Optic nerve,1,0
+UWA7689eyes,50,Optic nerve,1,0
+UWA7689eyes,51,Optic nerve,1,0
+UWA7689eyes,52,Adjacent soft tissue,0,0
+UWA7689eyes,53,Adjacent soft tissue,0,0
+UWA7689eyes,54,Adjacent soft tissue,0,0
+UWA7689eyes,55,Adjacent soft tissue,0,0
+UWA7689eyes,56,Adjacent soft tissue,0,0
+UWA7689eyes,57,Adjacent soft tissue,0,0
+UWA7689eyes,58,Adjacent soft tissue,0,0
+UWA7689eyes,59,Adjacent soft tissue,0,0
+UWA7689eyes,60,Retina,0,0
+UWA7689eyes,61,Retina,1,0
+UWA7689eyes,62,Retina,1,0
+UWA7689eyes,63,Retina,1,0
+UWA7689eyes,64,Retina,0,0
+UWA7689eyes,65,Retina,0,0
+UWA7689eyes,66,Retina,0,0
+UWA7689eyes,67,Retina,0,0
+UWA7689eyes,68,Retina,0,0
+UWA7689eyes,69,Retina,0,0
+UWA7689eyes,70,Retina,0,0
+UWA7689eyes,71,Retina,0,0
+UWA7689eyes,72,Retina,0,0
+UWA7689eyes,73,Retina,0,0
+UWA7689eyes,74,Retina,0,0
+UWA7689eyes,75,Retina,0,0
+UWA7689eyes,76,Retina,0,0
+UWA7689eyes,77,Retina,0,0
+UWA7689eyes,78,Retina,0,0
+UWA7689eyes,79,Retina,1,0
+UWA7689eyes,80,Retina,1,0
+UWA7689eyes,81,Adjacent soft tissue,0,0
+UWA7689eyes,82,Adjacent soft tissue,0,0
+UWA7689eyes,83,Adjacent soft tissue,0,0
+UWA7689eyes,84,Optic nerve,1,0
+UWA7689eyes,85,Optic nerve,1,0
+UWA7689eyes,103,Adjacent soft tissue,0,0
+UWA7689eyes,104,Adjacent soft tissue,0,0
+UWA7689eyes,105,Adjacent soft tissue,0,0
+UWA7689eyes,106,Adjacent soft tissue,0,0
+UWA7689eyes,107,Adjacent soft tissue,1,0
+UWA7689eyes,108,Optic nerve,0,0
+UWA7689eyes,109,Optic nerve,0,0
+UWA7689eyes,110,Adjacent soft tissue,1,0
+UWA7689eyes,111,Adjacent soft tissue,0,0
+UWA7689eyes,112,Adjacent soft tissue,0,0
+UWA7689eyes,113,Adjacent soft tissue,0,0
+UWA7689eyes,114,Adjacent soft tissue,0,0
+UWA7689eyes,115,Adjacent soft tissue,0,0
+UWA7689eyes,116,Adjacent soft tissue,0,0
+UWA7689eyes,117,Adjacent soft tissue,0,0
+UWA7689eyes,118,Adjacent soft tissue,0,0
+UWA7689eyes,119,Adjacent soft tissue,0,0
+UWA7689eyes,120,Adjacent soft tissue,0,0
+UWA7689eyes,121,Adjacent soft tissue,0,0
+UWA7689eyes,122,Adjacent soft tissue,0,0
+UWA7689eyes,123,Adjacent soft tissue,0,0
+UWA7689eyes,124,Adjacent soft tissue,0,0
+UWA7689eyes,125,Adjacent soft tissue,0,0
+UWA7689eyes,126,Adjacent soft tissue,0,0
+UWA7689eyes,127,Adjacent soft tissue,0,0
+UWA7689eyes,128,Adjacent soft tissue,0,0
+UWA7689eyes,129,Adjacent soft tissue,0,0
+UWA7689eyes,130,Adjacent soft tissue,0,0
+UWA7689eyes,131,Adjacent soft tissue,1,0
+UWA7689eyes,132,Optic nerve,0,0
+UWA7689eyes,133,Optic nerve,0,0
+UWA7689eyes,134,Optic nerve,1,0
+UWA7689eyes,135,Adjacent soft tissue,0,0
+UWA7689eyes,136,Adjacent soft tissue,0,0
+UWA7689eyes,137,Adjacent soft tissue,0,0
+UWA7689eyes,138,Adjacent soft tissue,0,0
+UWA7689eyes,139,Adjacent soft tissue,0,0
+UWA7689eyes,140,Adjacent soft tissue,0,0
+UWA7689eyes,141,Adjacent soft tissue,0,0
+UWA7689eyes,142,Gray matter,0,0
+UWA7689eyes,143,Gray matter,0,0
+UWA7689eyes,144,Gray matter,0,0
+UWA7689eyes,145,Gray matter,0,0
+UWA7689eyes,146,Gray matter,0,0
+UWA7689eyes,147,Gray matter,0,0
+UWA7689eyes,148,Gray matter,0,0
+UWA7689eyes,149,Gray matter,0,0
+UWA7689eyes,150,Gray matter,0,0
+UWA7689eyes,151,Gray matter,0,0
+UWA7689eyes,152,Gray matter,0,0
+UWA7689eyes,153,Gray matter,0,0
+UWA7689eyes,154,Gray matter,0,0
+UWA7689eyes,155,Gray matter,0,0
+UWA7689eyes,156,Gray matter,0,0
+UWA7689eyes,157,Gray matter,0,0
+UWA7689eyes,158,Gray matter,0,0
+UWA7689eyes,159,Gray matter,0,0
+UWA7689eyes,160,Gray matter,0,0
+UWA7689eyes,161,Gray matter,0,0
+UWA7689eyes,162,Gray matter,0,0
+UWA7689eyes,163,Gray matter,0,0
+UWA7689eyes,164,Gray matter,0,0
+UWA7689eyes,165,Gray matter,1,0
+UWA7689eyes,166,White matter,1,0
+UWA7689eyes,167,White matter,0,0
+UWA7689eyes,168,White matter,0,0
+UWA7689eyes,169,White matter,0,0
+UWA7689eyes,170,Gray matter,1,0
+UWA7689eyes,171,Gray matter,0,0
+UWA7689eyes,172,Gray matter,0,0
+UWA7689eyes,173,Gray matter,0,0
+UWA7689eyes,174,Gray matter,0,0
+UWA7689eyes,175,Gray matter,0,0
+UWA7689eyes,176,Gray matter,0,0
+UWA7689eyes,177,Gray matter,0,0
+UWA7689eyes,178,Gray matter,1,0
+UWA7689eyes,179,White matter,0,0
+UWA7689eyes,180,White matter,0,0
+UWA7689eyes,181,White matter,0,0
+UWA7689eyes,182,Gray matter,1,0
+UWA7689eyes,183,Gray matter,0,0
+UWA7689eyes,184,Gray matter,0,0
+UWA7689eyes,185,Gray matter,0,0
+UWA7689eyes,186,White matter,0,0
+UWA7689eyes,187,White matter,0,0
+UWA7689eyes,188,White matter,0,0
+UWA7689eyes,189,White matter,0,0
+UWA7689eyes,190,White matter,0,0
+UWA7689eyes,191,White matter,0,0
+UWA7689eyes,192,White matter,0,0
+UWA7689eyes,193,Gray matter,1,0
+UWA7689eyes,194,Gray matter,0,0
+UWA7689eyes,195,Gray matter,0,0
+UWA7689eyes,196,Gray matter,0,0
+UWA7689eyes,197,Gray matter,0,0
+UWA7689eyes,198,White matter,0,0
+UWA7689eyes,199,White matter,0,0
+UWA7689eyes,200,White matter,0,0
+UWA7689eyes,201,White matter,0,0
+UWA7689eyes,202,White matter,0,0
+UWA7689eyes,203,White matter,0,0
+UWA7689eyes,204,White matter,0,0
+UWA7689eyes,205,Gray matter,1,0
+UWA7689eyes,206,Gray matter,0,0
+UWA7689eyes,207,Gray matter,0,0
+UWA7689eyes,208,Gray matter,0,0
+UWA7689eyes,209,Gray matter,0,0
+UWA7689eyes,210,Gray matter,0,0
+UWA7689eyes,211,Gray matter,0,0
+UWA7689eyes,212,Gray matter,0,0
+UWA7689eyes,213,Gray matter,0,0
+UWA7689eyes,214,Gray matter,0,0
+UWA7689eyes,215,Gray matter,0,0
+UWA7689eyes,216,Gray matter,0,0
+UWA7689eyes,217,Gray matter,0,0
+UWA7689eyes,218,Gray matter,0,0
+UWA7689eyes,219,Gray matter,0,0
+UWA7689eyes,220,Gray matter,0,0
+UWA7689eyes,221,Gray matter,0,0
+UWA7689eyes,222,Gray matter,0,0
+UWA7689eyes,223,Gray matter,0,0
+UWA7689eyes,224,Gray matter,0,0
+UWA7689eyes,225,Gray matter,0,0
+UWA7689eyes,227,Retina,0,0
+UWA7697eyes,1,Adjacent soft tissue,0,0
+UWA7697eyes,2,Adjacent soft tissue,0,0
+UWA7697eyes,3,Adjacent soft tissue,0,0
+UWA7697eyes,4,Adjacent soft tissue,0,0
+UWA7697eyes,5,Adjacent soft tissue,0,0
+UWA7697eyes,6,Adjacent soft tissue,0,0
+UWA7697eyes,7,Adjacent soft tissue,0,0
+UWA7697eyes,8,Adjacent soft tissue,0,0
+UWA7697eyes,9,Adjacent soft tissue,1,0
+UWA7697eyes,10,Adjacent soft tissue,1,0
+UWA7697eyes,11,Adjacent soft tissue,1,0
+UWA7697eyes,12,Adjacent soft tissue,1,0
+UWA7697eyes,13,Adjacent soft tissue,1,0
+UWA7697eyes,14,Adjacent soft tissue,0,0
+UWA7697eyes,15,Optic nerve,0,0
+UWA7697eyes,16,Optic nerve,0,0
+UWA7697eyes,17,Optic nerve,0,0
+UWA7697eyes,18,Optic nerve,0,0
+UWA7697eyes,19,Adjacent soft tissue,1,0
+UWA7697eyes,20,Adjacent soft tissue,0,0
+UWA7697eyes,21,Optic nerve,0,0
+UWA7697eyes,22,Optic nerve,0,0
+UWA7697eyes,23,Optic nerve,0,0
+UWA7697eyes,24,Adjacent soft tissue,1,0
+UWA7697eyes,25,Adjacent soft tissue,0,0
+UWA7697eyes,26,Optic nerve,0,0
+UWA7697eyes,27,Optic nerve,0,0
+UWA7697eyes,28,Adjacent soft tissue,0,0
+UWA7697eyes,29,Adjacent soft tissue,0,0
+UWA7697eyes,30,Optic nerve,0,0
+UWA7697eyes,31,Adjacent soft tissue,0,0
+UWA7697eyes,32,Retina,0,0
+UWA7697eyes,33,Optic nerve,0,0
+UWA7697eyes,34,Optic nerve,0,0
+UWA7697eyes,35,Optic nerve,1,0
+UWA7697eyes,36,Optic nerve,1,0
+UWA7697eyes,37,Adjacent soft tissue,0,0
+UWA7697eyes,38,Adjacent soft tissue,0,0
+UWA7697eyes,39,Adjacent soft tissue,0,0
+UWA7697eyes,40,Adjacent soft tissue,0,0
+UWA7697eyes,41,Adjacent soft tissue,0,0
+UWA7697eyes,42,Retina,0,0
+UWA7697eyes,43,Retina,0,0
+UWA7697eyes,44,Retina,0,0
+UWA7697eyes,47,Optic nerve,1,0
+UWA7697eyes,48,Optic nerve,0,0
+UWA7697eyes,49,Optic nerve,0,0
+UWA7697eyes,50,Optic nerve,0,0
+UWA7697eyes,51,Optic nerve,1,0
+UWA7697eyes,52,Adjacent soft tissue,1,0
+UWA7697eyes,53,Adjacent soft tissue,0,0
+UWA7697eyes,54,Adjacent soft tissue,0,0
+UWA7697eyes,55,Adjacent soft tissue,0,0
+UWA7697eyes,56,Retina,0,0
+UWA7697eyes,57,Retina,0,0
+UWA7697eyes,58,Retina,0,0
+UWA7697eyes,59,Retina,0,0
+UWA7697eyes,60,Retina,0,0
+UWA7697eyes,61,Retina,0,0
+UWA7697eyes,62,Retina,0,0
+UWA7697eyes,63,Optic nerve,1,0
+UWA7697eyes,64,Optic nerve,0,0
+UWA7697eyes,65,Optic nerve,0,0
+UWA7697eyes,66,Optic nerve,0,0
+UWA7697eyes,67,Optic nerve,0,0
+UWA7697eyes,68,Optic nerve,0,0
+UWA7697eyes,70,Adjacent soft tissue,0,0
+UWA7697eyes,71,Adjacent soft tissue,0,0
+UWA7697eyes,72,Retina,1,0
+UWA7697eyes,73,Retina,1,0
+UWA7697eyes,74,Retina,1,0
+UWA7697eyes,75,Retina,0,0
+UWA7697eyes,76,Retina,0,0
+UWA7697eyes,77,Retina,0,0
+UWA7697eyes,78,Retina,0,0
+UWA7697eyes,79,Retina,0,0
+UWA7697eyes,80,Retina,0,0
+UWA7697eyes,81,Retina,0,0
+UWA7697eyes,82,Adjacent soft tissue,0,0
+UWA7697eyes,83,Optic nerve,1,0
+UWA7697eyes,84,Optic nerve,0,0
+UWA7697eyes,85,Optic nerve,0,0
+UWA7697eyes,86,Optic nerve,0,0
+UWA7697eyes,87,Optic nerve,0,0
+UWA7697eyes,88,Optic nerve,0,0
+UWA7697eyes,89,Adjacent soft tissue,0,0
+UWA7697eyes,90,Adjacent soft tissue,0,0
+UWA7697eyes,91,Retina,1,0
+UWA7697eyes,92,Retina,1,0
+UWA7697eyes,93,Retina,1,0
+UWA7697eyes,94,Retina,1,0
+UWA7697eyes,95,Retina,1,0
+UWA7697eyes,96,Retina,1,0
+UWA7697eyes,97,Retina,1,0
+UWA7697eyes,98,Retina,1,0
+UWA7697eyes,99,Retina,1,0
+UWA7697eyes,100,Adjacent soft tissue,0,0
+UWA7697eyes,101,Adjacent soft tissue,0,0
+UWA7697eyes,102,Adjacent soft tissue,0,0
+UWA7697eyes,103,Adjacent soft tissue,0,0
+UWA7697eyes,104,Optic nerve,1,0
+UWA7697eyes,105,Optic nerve,0,0
+UWA7697eyes,106,Optic nerve,0,0
+UWA7697eyes,107,Optic nerve,0,0
+UWA7697eyes,108,Adjacent soft tissue,0,0
+UWA7697eyes,109,Adjacent soft tissue,0,0
+UWA7697eyes,110,Adjacent soft tissue,0,0
+UWA7697eyes,111,Adjacent soft tissue,0,0
+UWA7697eyes,112,Adjacent soft tissue,0,0
+UWA7697eyes,113,Adjacent soft tissue,0,0
+UWA7697eyes,114,Adjacent soft tissue,0,0
+UWA7697eyes,115,Adjacent soft tissue,0,0
+UWA7697eyes,116,Adjacent soft tissue,0,0
+UWA7697eyes,117,Adjacent soft tissue,0,0
+UWA7697eyes,118,Adjacent soft tissue,0,0
+UWA7697eyes,119,Adjacent soft tissue,0,0
+UWA7697eyes,120,Adjacent soft tissue,0,0
+UWA7697eyes,121,Adjacent soft tissue,0,0
+UWA7697eyes,122,Adjacent soft tissue,0,0
+UWA7697eyes,123,Optic nerve,1,0
+UWA7697eyes,124,Optic nerve,0,0
+UWA7697eyes,125,Adjacent soft tissue,0,0
+UWA7697eyes,126,Adjacent soft tissue,0,0
+UWA7697eyes,127,Adjacent soft tissue,0,0
+UWA7697eyes,128,Adjacent soft tissue,0,0
+UWA7697eyes,129,Adjacent soft tissue,0,0
+UWA7697eyes,130,Adjacent soft tissue,0,0
+UWA7697eyes,131,Adjacent soft tissue,0,0
+UWA7697eyes,132,Adjacent soft tissue,0,0
+UWA7697eyes,133,Adjacent soft tissue,0,0
+UWA7697eyes,135,Retina,1,0
+UWA7697eyes,136,Retina,1,0
+UWA7697eyes,137,Retina,1,0
+UWA7697eyes,138,Retina,1,0
+UWA7697eyes,139,Retina,1,0
+UWA7697eyes,140,Retina,1,0
+UWA7697eyes,141,Retina,1,0
+UWA7697eyes,142,Retina,1,0
+UWA7697eyes,143,Retina,0,0
+UWA7697eyes,144,Retina,1,0
+UWA7697eyes,145,Retina,0,0
+UWA7697eyes,146,White matter,0,0
+UWA7697eyes,147,White matter,0,0
+UWA7697eyes,148,White matter,0,0
+UWA7697eyes,149,Gray matter,1,0
+UWA7697eyes,150,Gray matter,0,0
+UWA7697eyes,151,Gray matter,0,0
+UWA7697eyes,152,Gray matter,0,0
+UWA7697eyes,153,Gray matter,0,0
+UWA7697eyes,154,Gray matter,0,0
+UWA7697eyes,155,Gray matter,0,0
+UWA7697eyes,156,Gray matter,0,0
+UWA7697eyes,157,Gray matter,0,0
+UWA7697eyes,158,Gray matter,1,0
+UWA7697eyes,159,White matter,0,0
+UWA7697eyes,160,White matter,0,0
+UWA7697eyes,161,White matter,0,0
+UWA7697eyes,162,White matter,0,0
+UWA7697eyes,163,White matter,0,0
+UWA7697eyes,164,White matter,0,0
+UWA7697eyes,165,Gray matter,1,0
+UWA7697eyes,166,Gray matter,0,0
+UWA7697eyes,167,Gray matter,0,0
+UWA7697eyes,168,Gray matter,0,0
+UWA7697eyes,169,Gray matter,0,0
+UWA7697eyes,170,Gray matter,0,0
+UWA7697eyes,171,Gray matter,0,0
+UWA7697eyes,172,Gray matter,0,0
+UWA7697eyes,173,Gray matter,1,0
+UWA7697eyes,174,White matter,0,0
+UWA7697eyes,175,White matter,0,0
+UWA7697eyes,176,White matter,0,0
+UWA7697eyes,177,White matter,0,0
+UWA7697eyes,178,Gray matter,1,0
+UWA7697eyes,179,Gray matter,0,0
+UWA7697eyes,180,Gray matter,0,0
+UWA7697eyes,181,Gray matter,0,0
+UWA7697eyes,182,Gray matter,0,0
+UWA7697eyes,183,Gray matter,0,0
+UWA7697eyes,184,White matter,0,0
+UWA7697eyes,185,White matter,0,0
+UWA7697eyes,186,White matter,0,0
+UWA7697eyes,187,White matter,0,0
+UWA7697eyes,188,White matter,0,0
+UWA7697eyes,189,White matter,1,0
+UWA7697eyes,190,White matter,0,0
+UWA7697eyes,191,White matter,0,0
+UWA7697eyes,192,White matter,0,0
+UWA7697eyes,193,Gray matter,1,0
+UWA7697eyes,194,Gray matter,0,0
+UWA7697eyes,195,Gray matter,0,0
+UWA7697eyes,196,Gray matter,0,0
+UWA7697eyes,197,Gray matter,0,0
+UWA7697eyes,198,Gray matter,0,0
+UWA7697eyes,199,Gray matter,0,0
+UWA7697eyes,200,Gray matter,0,0
+UWA7697eyes,201,Gray matter,1,0
+UWA7697eyes,202,White matter,0,0
+UWA7697eyes,203,White matter,0,0
+UWA7697eyes,204,White matter,0,0
+UWA7697eyes,205,White matter,0,0
+UWA7697eyes,206,White matter,0,0
+UWA7697eyes,207,White matter,0,0
+UWA7697eyes,208,Gray matter,1,0
+UWA7697eyes,209,Gray matter,1,0
+UWA7697eyes,210,Gray matter,1,0
+UWA7697eyes,211,White matter,0,0
+UWA7697eyes,212,White matter,0,0
+UWA7697eyes,213,White matter,0,0
+UWA7697eyes,214,White matter,0,0
+UWA7697eyes,215,White matter,0,0
+UWA7697eyes,216,White matter,0,0
+UWA7697eyes,217,White matter,0,0
+UWA7697eyes,218,White matter,0,0
+UWA7697eyes,219,White matter,0,0
+UWA7697eyes,220,White matter,0,0
+UWA7697eyes,221,White matter,0,0
+UWA7697eyes,222,Gray matter,1,0
+UWA7697eyes,223,Gray matter,0,0
+UWA7697eyes,224,Gray matter,0,0
+UWA7697eyes,225,Gray matter,0,0
+UWA7697eyes,226,Gray matter,0,0
+UWA7697eyes,227,Gray matter,0,0
+UWA7697eyes,228,Gray matter,0,0
+UWA7697eyes,229,Gray matter,0,0
+UWA7740eyes,1,Adjacent soft tissue,0,0
+UWA7740eyes,2,Optic nerve,1,0
+UWA7740eyes,3,Optic nerve,0,0
+UWA7740eyes,4,Optic nerve,0,0
+UWA7740eyes,5,Optic nerve,1,0
+UWA7740eyes,6,Adjacent soft tissue,0,0
+UWA7740eyes,7,Optic nerve,0,0
+UWA7740eyes,8,Optic nerve,0,0
+UWA7740eyes,9,Optic nerve,0,0
+UWA7740eyes,10,Optic nerve,1,0
+UWA7740eyes,11,Adjacent soft tissue,1,0
+UWA7740eyes,12,Optic nerve,0,0
+UWA7740eyes,13,Optic nerve,0,0
+UWA7740eyes,14,Optic nerve,0,0
+UWA7740eyes,15,Optic nerve,0,0
+UWA7740eyes,16,Adjacent soft tissue,1,0
+UWA7740eyes,17,Optic nerve,0,0
+UWA7740eyes,18,Optic nerve,0,0
+UWA7740eyes,19,Optic nerve,0,0
+UWA7740eyes,20,Optic nerve,0,0
+UWA7740eyes,21,Adjacent soft tissue,1,0
+UWA7740eyes,22,Optic nerve,0,0
+UWA7740eyes,23,Optic nerve,0,0
+UWA7740eyes,24,Optic nerve,0,0
+UWA7740eyes,25,Optic nerve,1,0
+UWA7740eyes,26,Adjacent soft tissue,0,0
+UWA7740eyes,27,Optic nerve,1,0
+UWA7740eyes,28,Optic nerve,1,0
+UWA7740eyes,29,Optic nerve,1,0
+UWA7740eyes,30,Adjacent soft tissue,0,0
+UWA7740eyes,31,Adjacent soft tissue,0,0
+UWA7740eyes,32,Adjacent soft tissue,0,0
+UWA7740eyes,33,Adjacent soft tissue,0,0
+UWA7740eyes,34,Adjacent soft tissue,0,0
+UWA7740eyes,35,Adjacent soft tissue,0,0
+UWA7740eyes,41,Retina,1,0
+UWA7740eyes,42,Retina,0,0
+UWA7740eyes,47,Retina,1,0
+UWA7740eyes,48,Retina,1,0
+UWA7740eyes,49,Retina,1,0
+UWA7740eyes,50,Retina,0,0
+UWA7740eyes,51,Retina,1,0
+UWA7740eyes,52,Retina,1,0
+UWA7740eyes,53,Retina,1,0
+UWA7740eyes,54,Retina,0,0
+UWA7740eyes,55,Adjacent soft tissue,0,0
+UWA7740eyes,56,Retina,1,0
+UWA7740eyes,57,Retina,1,0
+UWA7740eyes,58,Retina,1,0
+UWA7740eyes,59,Retina,0,0
+UWA7740eyes,60,Retina,0,0
+UWA7740eyes,61,Retina,0,0
+UWA7740eyes,62,Retina,1,0
+UWA7740eyes,63,Retina,1,0
+UWA7740eyes,64,Retina,1,0
+UWA7740eyes,65,Retina,1,0
+UWA7740eyes,66,Retina,1,0
+UWA7740eyes,67,Retina,1,0
+UWA7740eyes,68,Retina,1,0
+UWA7740eyes,69,Retina,0,0
+UWA7740eyes,70,Retina,0,0
+UWA7740eyes,71,Retina,0,0
+UWA7740eyes,72,Retina,0,0
+UWA7740eyes,73,Retina,0,0
+UWA7740eyes,74,Retina,0,0
+UWA7740eyes,75,Retina,0,0
+UWA7740eyes,76,Retina,0,0
+UWA7740eyes,77,Retina,1,0
+UWA7740eyes,78,Retina,1,0
+UWA7740eyes,79,Retina,1,0
+UWA7740eyes,80,Retina,1,0
+UWA7740eyes,81,Retina,1,0
+UWA7740eyes,82,Retina,1,0
+UWA7740eyes,83,Retina,1,0
+UWA7740eyes,84,Retina,1,0
+UWA7740eyes,85,Retina,1,0
+UWA7740eyes,86,Retina,1,0
+UWA7740eyes,87,Retina,1,0
+UWA7740eyes,88,Retina,1,0
+UWA7740eyes,89,Retina,0,0
+UWA7740eyes,90,Adjacent soft tissue,0,0
+UWA7740eyes,91,Adjacent soft tissue,1,0
+UWA7740eyes,92,Adjacent soft tissue,0,0
+UWA7740eyes,93,Adjacent soft tissue,0,0
+UWA7740eyes,94,Adjacent soft tissue,0,0
+UWA7740eyes,95,Adjacent soft tissue,0,0
+UWA7740eyes,96,Adjacent soft tissue,0,0
+UWA7740eyes,97,Adjacent soft tissue,0,0
+UWA7740eyes,98,Adjacent soft tissue,0,0
+UWA7740eyes,99,Adjacent soft tissue,0,0
+UWA7740eyes,100,Adjacent soft tissue,0,0
+UWA7740eyes,101,Adjacent soft tissue,0,0
+UWA7740eyes,102,Adjacent soft tissue,0,0
+UWA7740eyes,103,Adjacent soft tissue,0,0
+UWA7740eyes,104,Adjacent soft tissue,0,0
+UWA7740eyes,105,Adjacent soft tissue,0,0
+UWA7740eyes,106,Adjacent soft tissue,0,0
+UWA7740eyes,107,Adjacent soft tissue,0,0
+UWA7740eyes,108,Adjacent soft tissue,0,0
+UWA7740eyes,109,Adjacent soft tissue,0,0
+UWA7740eyes,110,Adjacent soft tissue,0,0
+UWA7740eyes,111,Adjacent soft tissue,0,0
+UWA7740eyes,112,Adjacent soft tissue,0,0
+UWA7740eyes,113,Adjacent soft tissue,0,0
+UWA7740eyes,114,Adjacent soft tissue,0,0
+UWA7740eyes,115,Gray matter,0,0
+UWA7740eyes,116,Gray matter,0,0
+UWA7740eyes,117,Gray matter,0,0
+UWA7740eyes,118,Gray matter,0,0
+UWA7740eyes,119,Gray matter,0,0
+UWA7740eyes,120,Gray matter,0,0
+UWA7740eyes,121,Gray matter,0,0
+UWA7740eyes,122,Gray matter,0,0
+UWA7740eyes,123,Gray matter,0,0
+UWA7740eyes,124,Gray matter,0,0
+UWA7740eyes,125,Gray matter,1,0
+UWA7740eyes,126,White matter,0,0
+UWA7740eyes,127,White matter,0,0
+UWA7740eyes,128,White matter,0,0
+UWA7740eyes,129,White matter,0,0
+UWA7740eyes,130,White matter,0,0
+UWA7740eyes,131,White matter,0,0
+UWA7740eyes,132,Gray matter,1,0
+UWA7740eyes,133,Gray matter,0,0
+UWA7740eyes,134,Gray matter,0,0
+UWA7740eyes,135,Gray matter,0,0
+UWA7740eyes,136,Gray matter,0,0
+UWA7740eyes,137,Gray matter,0,0
+UWA7740eyes,138,Gray matter,0,0
+UWA7740eyes,139,Gray matter,0,0
+UWA7740eyes,140,Gray matter,0,0
+UWA7740eyes,141,Gray matter,0,0
+UWA7740eyes,142,Gray matter,0,0
+UWA7740eyes,143,Gray matter,0,0
+UWA7740eyes,144,Gray matter,0,0
+UWA7740eyes,145,Gray matter,0,0
+UWA7740eyes,146,Gray matter,1,0
+UWA7740eyes,147,White matter,0,0
+UWA7740eyes,148,White matter,0,0
+UWA7740eyes,149,White matter,0,0
+UWA7740eyes,150,White matter,0,0
+UWA7740eyes,151,White matter,0,0
+UWA7740eyes,152,White matter,0,0
+UWA7740eyes,153,White matter,0,0
+UWA7740eyes,154,Gray matter,1,0
+UWA7740eyes,155,Gray matter,0,0
+UWA7740eyes,156,Gray matter,0,0
+UWA7740eyes,157,Gray matter,0,0
+UWA7740eyes,158,Gray matter,0,0
+UWA7740eyes,159,Gray matter,0,0
+UWA7740eyes,160,Gray matter,0,0
+UWA7740eyes,161,Gray matter,0,0
+UWA7740eyes,162,Gray matter,0,0
+UWA7740eyes,163,Gray matter,0,0
+UWA7740eyes,164,Gray matter,0,0
+UWA7740eyes,165,Gray matter,0,0
+UWA7740eyes,166,Gray matter,0,0
+UWA7740eyes,167,Gray matter,0,0
+UWA7740eyes,168,Gray matter,1,0
+UWA7740eyes,175,Gray matter,1,0
+UWA7740eyes,176,Gray matter,0,0
+UWA7740eyes,177,Gray matter,0,0
+UWA7740eyes,178,Gray matter,0,0
+UWA7740eyes,179,Gray matter,0,0
+UWA7740eyes,180,Gray matter,0,0
+UWA7740eyes,181,Gray matter,0,0
+UWA7740eyes,182,Gray matter,0,0
+UWA7740eyes,183,Gray matter,0,0
+UWA7740eyes,184,Gray matter,0,0
+UWA7740eyes,185,Gray matter,0,0
+UWA7740eyes,186,Gray matter,0,0
+UWA7740eyes,187,Gray matter,0,0
+UWA7740eyes,188,Gray matter,0,0
+UWA7740eyes,189,Gray matter,1,0
+UWA7740eyes,190,White matter,0,0
+UWA7740eyes,191,White matter,0,0
+UWA7740eyes,192,White matter,0,0
+UWA7740eyes,193,White matter,0,0
+UWA7740eyes,194,White matter,0,0
+UWA7740eyes,195,White matter,0,0
+UWA7740eyes,196,White matter,0,0
+UWA7740eyes,197,Gray matter,1,0
+UWA7740eyes,198,Gray matter,0,0
+UWA7740eyes,199,Gray matter,0,0
+UWA7740eyes,200,Gray matter,0,0
+UWA7740eyes,201,Gray matter,0,0
+UWA7740eyes,202,Gray matter,0,0
+uwa7753eyes,1,Adjacent soft tissue,0,0
+uwa7753eyes,2,Adjacent soft tissue,0,0
+uwa7753eyes,3,Adjacent soft tissue,0,0
+uwa7753eyes,4,Adjacent soft tissue,1,0
+uwa7753eyes,5,Adjacent soft tissue,1,0
+uwa7753eyes,6,Adjacent soft tissue,0,0
+uwa7753eyes,7,Adjacent soft tissue,0,0
+uwa7753eyes,8,Optic nerve,0,0
+uwa7753eyes,9,Optic nerve,0,0
+uwa7753eyes,10,Optic nerve,1,0
+uwa7753eyes,11,Adjacent soft tissue,0,0
+uwa7753eyes,12,Adjacent soft tissue,0,0
+uwa7753eyes,13,Optic nerve,0,0
+uwa7753eyes,14,Optic nerve,0,0
+uwa7753eyes,15,Optic nerve,0,0
+uwa7753eyes,16,Optic nerve,1,0
+uwa7753eyes,17,Adjacent soft tissue,0,0
+uwa7753eyes,18,Optic nerve,0,0
+uwa7753eyes,19,Optic nerve,0,0
+uwa7753eyes,20,Optic nerve,0,0
+uwa7753eyes,21,Optic nerve,1,0
+uwa7753eyes,22,Adjacent soft tissue,0,0
+uwa7753eyes,23,Optic nerve,0,0
+uwa7753eyes,24,Optic nerve,0,0
+uwa7753eyes,25,Optic nerve,0,0
+uwa7753eyes,26,Optic nerve,1,0
+uwa7753eyes,27,Adjacent soft tissue,0,0
+uwa7753eyes,28,Optic nerve,0,0
+uwa7753eyes,29,Optic nerve,0,0
+uwa7753eyes,30,Optic nerve,0,0
+uwa7753eyes,31,Optic nerve,0,0
+uwa7753eyes,32,Adjacent soft tissue,0,0
+uwa7753eyes,33,Optic nerve,0,0
+uwa7753eyes,34,Optic nerve,0,0
+uwa7753eyes,35,Optic nerve,1,0
+uwa7753eyes,36,Adjacent soft tissue,0,0
+uwa7753eyes,37,Adjacent soft tissue,0,0
+uwa7753eyes,38,Adjacent soft tissue,0,0
+uwa7753eyes,39,Optic nerve,1,0
+uwa7753eyes,40,Optic nerve,0,0
+uwa7753eyes,41,Optic nerve,0,0
+uwa7753eyes,42,Optic nerve,0,0
+uwa7753eyes,43,Optic nerve,1,0
+uwa7753eyes,44,Optic nerve,1,0
+uwa7753eyes,45,Optic nerve,0,0
+uwa7753eyes,46,Optic nerve,0,0
+uwa7753eyes,47,Optic nerve,0,0
+uwa7753eyes,48,Optic nerve,0,0
+uwa7753eyes,49,Optic nerve,1,0
+uwa7753eyes,50,Optic nerve,0,0
+uwa7753eyes,51,Optic nerve,0,0
+uwa7753eyes,52,Optic nerve,0,0
+uwa7753eyes,53,Optic nerve,0,0
+uwa7753eyes,54,Optic nerve,0,0
+uwa7753eyes,55,Optic nerve,0,0
+uwa7753eyes,56,Optic nerve,0,0
+uwa7753eyes,57,Optic nerve,0,0
+uwa7753eyes,58,Optic nerve,0,0
+uwa7753eyes,59,Optic nerve,0,0
+uwa7753eyes,60,Optic nerve,0,0
+uwa7753eyes,61,Optic nerve,0,0
+uwa7753eyes,62,Optic nerve,1,0
+uwa7753eyes,63,Optic nerve,0,0
+uwa7753eyes,64,Optic nerve,0,0
+uwa7753eyes,65,Optic nerve,0,0
+uwa7753eyes,66,Optic nerve,0,0
+uwa7753eyes,67,Optic nerve,1,0
+uwa7753eyes,68,Optic nerve,1,0
+uwa7753eyes,69,Optic nerve,1,0
+uwa7753eyes,70,Optic nerve,1,0
+uwa7753eyes,71,Adjacent soft tissue,1,0
+uwa7753eyes,72,Adjacent soft tissue,0,0
+uwa7753eyes,73,Adjacent soft tissue,1,0
+uwa7753eyes,74,Adjacent soft tissue,1,0
+uwa7753eyes,75,Adjacent soft tissue,0,0
+uwa7753eyes,76,Adjacent soft tissue,0,0
+uwa7753eyes,77,Adjacent soft tissue,0,0
+uwa7753eyes,78,Adjacent soft tissue,0,0
+uwa7753eyes,79,Adjacent soft tissue,0,0
+uwa7753eyes,80,Adjacent soft tissue,0,0
+uwa7753eyes,81,Adjacent soft tissue,0,0
+uwa7753eyes,82,Adjacent soft tissue,0,0
+uwa7753eyes,83,Adjacent soft tissue,1,0
+uwa7753eyes,84,Adjacent soft tissue,1,0
+uwa7753eyes,85,Adjacent soft tissue,1,0
+uwa7753eyes,86,Optic nerve,0,0
+uwa7753eyes,87,Optic nerve,1,0
+uwa7753eyes,88,Adjacent soft tissue,0,0
+uwa7753eyes,89,Adjacent soft tissue,0,0
+uwa7753eyes,90,Adjacent soft tissue,0,0
+uwa7753eyes,91,Adjacent soft tissue,0,0
+uwa7753eyes,92,Adjacent soft tissue,0,0
+uwa7753eyes,93,Adjacent soft tissue,0,0
+uwa7753eyes,94,Adjacent soft tissue,0,0
+uwa7753eyes,95,Adjacent soft tissue,0,0
+uwa7753eyes,96,Adjacent soft tissue,0,0
+uwa7753eyes,97,Adjacent soft tissue,0,0
+uwa7753eyes,98,Adjacent soft tissue,0,0
+uwa7753eyes,99,Adjacent soft tissue,0,0
+uwa7753eyes,100,Adjacent soft tissue,0,0
+uwa7753eyes,101,Adjacent soft tissue,1,0
+uwa7753eyes,102,Adjacent soft tissue,1,0
+uwa7753eyes,103,Optic nerve,0,0
+uwa7753eyes,104,Adjacent soft tissue,1,0
+uwa7753eyes,105,Adjacent soft tissue,0,0
+uwa7753eyes,106,Adjacent soft tissue,0,0
+uwa7753eyes,107,Adjacent soft tissue,0,0
+uwa7753eyes,108,Adjacent soft tissue,0,0
+uwa7753eyes,109,Adjacent soft tissue,0,0
+uwa7753eyes,114,Retina,0,0
+uwa7753eyes,115,Retina,0,0
+uwa7753eyes,121,Adjacent soft tissue,0,0
+uwa7753eyes,122,Adjacent soft tissue,0,0
+uwa7753eyes,123,Adjacent soft tissue,0,0
+uwa7753eyes,124,Adjacent soft tissue,0,0
+uwa7753eyes,125,Retina,1,0
+uwa7753eyes,126,Retina,0,0
+uwa7753eyes,127,Retina,0,0
+uwa7753eyes,128,Retina,0,0
+uwa7753eyes,129,Adjacent soft tissue,0,0
+uwa7753eyes,130,Adjacent soft tissue,0,0
+uwa7753eyes,132,Optic nerve,1,0
+uwa7753eyes,133,Retina,1,0
+uwa7753eyes,134,Retina,1,0
+uwa7753eyes,135,Adjacent soft tissue,0,0
+uwa7753eyes,136,Adjacent soft tissue,0,0
+uwa7753eyes,137,Adjacent soft tissue,0,0
+uwa7753eyes,138,Retina,1,0
+uwa7753eyes,139,Retina,0,0
+uwa7753eyes,140,Retina,0,0
+uwa7753eyes,141,Retina,0,0
+uwa7753eyes,142,Retina,0,0
+uwa7753eyes,143,Retina,1,0
+uwa7753eyes,144,Retina,1,0
+uwa7753eyes,145,Adjacent soft tissue,0,0
+uwa7753eyes,146,Adjacent soft tissue,0,0
+uwa7753eyes,147,Adjacent soft tissue,0,0
+uwa7753eyes,148,Retina,0,0
+uwa7753eyes,149,Retina,1,0
+uwa7753eyes,150,Retina,1,0
+uwa7753eyes,151,Retina,1,0
+uwa7753eyes,152,Adjacent soft tissue,0,0
+uwa7753eyes,153,Adjacent soft tissue,0,0
+uwa7753eyes,154,Retina,0,0
+uwa7753eyes,155,Retina,1,0
+uwa7753eyes,156,Retina,1,0
+uwa7753eyes,157,Adjacent soft tissue,0,0
+uwa7753eyes,158,Adjacent soft tissue,0,0
+uwa7753eyes,159,Retina,0,0
+uwa7753eyes,160,Retina,1,0
+uwa7753eyes,161,Retina,1,0
+uwa7753eyes,162,Adjacent soft tissue,0,0
+uwa7753eyes,163,Adjacent soft tissue,0,0
+uwa7753eyes,164,White matter,0,0
+uwa7753eyes,165,White matter,0,0
+uwa7753eyes,166,White matter,0,0
+uwa7753eyes,167,White matter,0,0
+uwa7753eyes,168,White matter,0,0
+uwa7753eyes,169,White matter,0,0
+uwa7753eyes,170,Gray matter,1,0
+uwa7753eyes,171,Gray matter,1,0
+uwa7753eyes,172,Gray matter,0,0
+uwa7753eyes,173,Gray matter,0,0
+uwa7753eyes,174,Gray matter,0,0
+uwa7753eyes,175,Gray matter,0,0
+uwa7753eyes,176,Gray matter,0,0
+uwa7753eyes,177,Gray matter,0,0
+uwa7753eyes,178,Gray matter,0,0
+uwa7753eyes,179,Gray matter,0,0
+uwa7753eyes,180,Gray matter,0,0
+uwa7753eyes,181,Gray matter,0,0
+uwa7753eyes,182,Gray matter,0,0
+uwa7753eyes,183,Gray matter,0,0
+uwa7753eyes,184,Gray matter,1,0
+uwa7753eyes,185,Gray matter,1,0
+uwa7753eyes,186,Gray matter,0,0
+uwa7753eyes,187,Gray matter,0,0
+uwa7753eyes,188,Gray matter,0,0
+uwa7753eyes,189,Gray matter,1,0
+uwa7753eyes,190,Gray matter,1,0
+uwa7753eyes,191,Gray matter,1,0
+uwa7753eyes,192,White matter,0,0
+uwa7753eyes,195,White matter,0,0
+uwa7753eyes,198,White matter,0,0
+uwa7753eyes,199,White matter,0,0
+uwa7753eyes,200,White matter,0,0
+uwa7753eyes,201,White matter,0,0
+uwa7753eyes,202,White matter,0,0
+uwa7753eyes,203,White matter,0,0
+uwa7753eyes,204,White matter,0,0
+uwa7753eyes,205,White matter,0,0
+uwa7753eyes,206,White matter,0,0
+uwa7753eyes,207,White matter,1,0
+uwa7753eyes,208,White matter,1,0
+uwa7753eyes,209,White matter,1,0
+uwa7753eyes,210,Gray matter,0,0
+uwa7753eyes,211,Gray matter,0,0
+uwa7753eyes,212,Gray matter,0,0
+uwa7753eyes,213,Gray matter,0,0
+uwa7753eyes,214,Gray matter,0,0
+uwa7753eyes,215,Gray matter,0,0
+uwa7761eyes,1,Adjacent soft tissue,0,0
+uwa7761eyes,2,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,3,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,4,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,5,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,6,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,7,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,8,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,9,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,10,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,11,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,12,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,13,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,14,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,15,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,16,Retina,0,0
+uwa7761eyes,17,Retina,0,0
+uwa7761eyes,18,Retina,0,0
+uwa7761eyes,19,Retina,0,0
+uwa7761eyes,20,Retina,0,0
+uwa7761eyes,21,Retina,0,0
+uwa7761eyes,22,Retina,0,0
+uwa7761eyes,23,Retina,0,0
+uwa7761eyes,24,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,25,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,26,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,27,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,28,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,29,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,30,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,31,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,32,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,33,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,34,Retina,0,0
+uwa7761eyes,35,Retina,0,0
+uwa7761eyes,36,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,37,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,38,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,39,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,40,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,41,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,42,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,43,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,44,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,45,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,46,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,47,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,48,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,49,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,50,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,51,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,52,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,53,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,54,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,55,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,56,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,57,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,58,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,59,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,60,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,61,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,62,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,63,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,64,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,65,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,66,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,67,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,68,EXCLUDE_not_in_atlas,0,1
+uwa7761eyes,69,Adjacent soft tissue,0,0
+uwa7761eyes,70,Adjacent soft tissue,0,0
+uwa7761eyes,71,Adjacent soft tissue,0,0
+uwa7761eyes,72,Adjacent soft tissue,0,0
+uwa7761eyes,73,Adjacent soft tissue,0,0
+uwa7761eyes,74,Adjacent soft tissue,0,0
+uwa7761eyes,75,Adjacent soft tissue,1,0
+uwa7761eyes,76,Optic nerve,1,0
+uwa7761eyes,77,Optic nerve,1,0
+uwa7761eyes,78,Optic nerve,1,0
+uwa7761eyes,79,Adjacent soft tissue,0,0
+uwa7761eyes,80,Adjacent soft tissue,0,0
+uwa7761eyes,81,Optic nerve,1,0
+uwa7761eyes,82,Optic nerve,0,0
+uwa7761eyes,83,Optic nerve,0,0
+uwa7761eyes,84,Optic nerve,0,0
+uwa7761eyes,85,Optic nerve,1,0
+uwa7761eyes,86,Adjacent soft tissue,0,0
+uwa7761eyes,87,Adjacent soft tissue,0,0
+uwa7761eyes,88,Optic nerve,1,0
+uwa7761eyes,89,Optic nerve,0,0
+uwa7761eyes,90,Optic nerve,0,0
+uwa7761eyes,91,Optic nerve,0,0
+uwa7761eyes,92,Optic nerve,0,0
+uwa7761eyes,93,Adjacent soft tissue,0,0
+uwa7761eyes,94,Adjacent soft tissue,0,0
+uwa7761eyes,95,Optic nerve,1,0
+uwa7761eyes,96,Optic nerve,0,0
+uwa7761eyes,97,Optic nerve,0,0
+uwa7761eyes,98,Optic nerve,0,0
+uwa7761eyes,99,Optic nerve,0,0
+uwa7761eyes,100,Adjacent soft tissue,0,0
+uwa7761eyes,101,Adjacent soft tissue,0,0
+uwa7761eyes,102,Adjacent soft tissue,0,0
+uwa7761eyes,103,Adjacent soft tissue,0,0
+uwa7761eyes,104,Optic nerve,1,0
+uwa7761eyes,105,Optic nerve,1,0
+uwa7761eyes,106,Optic nerve,1,0
+uwa7761eyes,107,Optic nerve,1,0
+uwa7761eyes,108,Adjacent soft tissue,0,0
+uwa7761eyes,109,Adjacent soft tissue,0,0
+uwa7761eyes,110,Adjacent soft tissue,0,0
+uwa7761eyes,111,Adjacent soft tissue,0,0
+uwa7761eyes,112,Adjacent soft tissue,0,0
+uwa7761eyes,113,Adjacent soft tissue,0,0
+uwa7761eyes,114,Adjacent soft tissue,0,0
+uwa7761eyes,115,Adjacent soft tissue,0,0
+uwa7761eyes,116,Gray matter,0,0
+uwa7761eyes,117,Gray matter,0,0
+uwa7761eyes,118,Gray matter,0,0
+uwa7761eyes,119,Gray matter,0,0
+uwa7761eyes,120,Gray matter,0,0
+uwa7761eyes,121,Gray matter,1,0
+uwa7761eyes,122,White matter,0,0
+uwa7761eyes,123,White matter,0,0
+uwa7761eyes,124,White matter,0,0
+uwa7761eyes,125,White matter,0,0
+uwa7761eyes,126,White matter,0,0
+uwa7761eyes,127,White matter,0,0
+uwa7761eyes,128,White matter,0,0
+uwa7761eyes,129,White matter,0,0
+uwa7761eyes,130,White matter,0,0
+uwa7761eyes,131,Gray matter,1,0
+uwa7761eyes,132,Gray matter,0,0
+uwa7761eyes,133,Gray matter,0,0
+uwa7761eyes,134,Gray matter,0,0
+uwa7761eyes,135,Gray matter,0,0
+uwa7761eyes,136,Gray matter,0,0
+uwa7761eyes,137,Gray matter,0,0
+uwa7761eyes,138,Gray matter,0,0
+uwa7761eyes,139,Gray matter,0,0
+uwa7761eyes,140,Gray matter,0,0
+uwa7761eyes,141,Gray matter,0,0
+uwa7761eyes,142,Gray matter,0,0
+uwa7761eyes,143,Gray matter,0,0
+uwa7761eyes,144,Gray matter,0,0
+uwa7761eyes,145,Gray matter,0,0
+uwa7761eyes,146,Gray matter,1,0
+uwa7761eyes,147,White matter,0,0
+uwa7761eyes,148,White matter,0,0
+uwa7761eyes,149,White matter,0,0
+uwa7761eyes,150,White matter,0,0
+uwa7761eyes,151,White matter,0,0
+uwa7761eyes,152,White matter,0,0
+uwa7761eyes,153,White matter,0,0
+uwa7761eyes,154,White matter,0,0
+uwa7761eyes,155,Gray matter,1,0
+uwa7761eyes,156,Gray matter,0,0
+uwa7761eyes,157,Gray matter,0,0
+uwa7761eyes,158,Gray matter,0,0
+uwa7761eyes,159,Gray matter,0,0
+uwa7761eyes,160,Gray matter,0,0
+uwa7761eyes,161,Gray matter,0,0
+uwa7761eyes,162,Gray matter,0,0
+uwa7761eyes,163,Gray matter,0,0
+uwa7761eyes,164,Gray matter,0,0
+uwa7761eyes,165,Gray matter,0,0
+uwa7761eyes,166,Gray matter,0,0
+uwa7761eyes,167,Gray matter,0,0
+uwa7761eyes,168,Gray matter,0,0
+uwa7761eyes,169,Gray matter,0,0
+uwa7761eyes,170,Gray matter,0,0
+uwa7761eyes,171,Gray matter,0,0
+uwa7761eyes,172,Gray matter,1,0
+uwa7761eyes,173,White matter,0,0
+uwa7761eyes,174,White matter,0,0
+uwa7761eyes,175,White matter,0,0
+uwa7761eyes,176,White matter,0,0
+uwa7761eyes,177,White matter,0,0
+uwa7761eyes,178,White matter,0,0
+uwa7761eyes,179,White matter,0,0
+uwa7761eyes,180,Gray matter,1,0
+uwa7761eyes,181,Gray matter,0,0
+uwa7761eyes,182,Gray matter,0,0
+uwa7761eyes,183,Gray matter,0,0
+uwa7761eyes,184,Gray matter,0,0
+uwa7761eyes,185,Gray matter,0,0
+uwa7761eyes,186,Gray matter,0,0
+uwa7761eyes,187,Gray matter,0,0
+uwa7761eyes,188,Gray matter,0,0
+uwa7761eyes,189,Gray matter,0,0
+uwa7761eyes,190,Gray matter,0,0
+uwa7761eyes,191,Gray matter,0,0
+uwa7761eyes,192,Gray matter,0,0
+uwa7761eyes,193,Gray matter,0,0
+uwa7761eyes,194,Gray matter,0,0
+uwa7761eyes,195,Gray matter,0,0
+uwa7761eyes,196,Gray matter,0,0
+uwa7761eyes,197,Gray matter,0,0
+uwa7761eyes,198,Gray matter,0,0
+uwa7761eyes,199,Gray matter,0,0
+uwa7761eyes,200,Gray matter,1,0
+uwa7761eyes,201,White matter,0,0
+uwa7761eyes,202,White matter,0,0
+uwa7761eyes,203,White matter,0,0
+uwa7761eyes,204,White matter,0,0
+uwa7761eyes,205,White matter,0,0
+uwa7761eyes,206,White matter,0,0
+uwa7761eyes,207,White matter,0,0
+uwa7761eyes,208,Gray matter,1,0
+uwa7761eyes,209,Gray matter,0,0
+uwa7761eyes,210,Gray matter,0,0
+uwa7761eyes,211,Gray matter,0,0
+uwa7761eyes,212,Gray matter,0,0
+uwa7761eyes,213,Gray matter,0,0
+uwa7761eyes,214,Gray matter,0,0
+uwa7761eyes,215,Gray matter,0,0
