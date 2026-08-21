@@ -191,6 +191,70 @@ def test_3d_morphology_still_written_per_plane():
         print("  ok: genuine 3D morphology keeps every plane")
 
 
+def test_3d_labels_planes_are_distinct_and_pyramid_written():
+    """Per-plane assembly must place each plane's own tiles, not repeat one
+    plane, and must still produce a full multiscale pyramid.
+
+    This is the regression guard for building the volume plane-by-plane: a
+    z-indexing slip there would silently write the same plane everywhere,
+    which still yields correct shapes and non-empty data.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        inputdir = tmp / 'CellStatsDir'
+        offsetsdir = tmp / 'RunSummary'
+        morphology = inputdir / 'Morphology2D'
+        for d in (inputdir, offsetsdir, morphology):
+            d.mkdir(parents=True)
+        _write_offsets(offsetsdir, [1, 2])
+
+        seg = inputdir / 'Segmentation_abc_002'
+        z_planes = [1, 2, 3, 4]
+        for fov in (1, 2):
+            (seg / f'FOV{fov:05}').mkdir(parents=True)
+            for z in z_planes:
+                # Unique value per (fov, z) so a mixed-up plane is detectable
+                _write_labels(seg / f'FOV{fov:05}' / f'CellLabels_F{fov:05}_Z{z:03}.tif',
+                              fov * 100 + z)
+        _write_morphology(morphology / 'Run_C902_P99_N99_F00001.TIF')
+        _write_morphology(morphology / 'Run_C902_P99_N99_F00002.TIF')
+
+        stitch_images(args_list=[
+            '-i', inputdir.as_posix(), '-f', offsetsdir.as_posix(),
+            '-o', tmp.as_posix(), '--celllabels-subdir', 'Segmentation_abc_002',
+            '--input-ndim', '3', '--output-ndim', '3', '--z-step-um', '0.8',
+            '--labels',
+        ])
+
+        grp = zarr.open((tmp / 'images').as_posix(), mode='r')
+        labels = grp['labels']
+        level0 = np.asarray(labels['0'])
+        assert level0.shape[0] == len(z_planes), level0.shape
+
+        # Each plane must carry its own distinct label population.
+        per_plane = []
+        for z in range(len(z_planes)):
+            ids = set(np.unique(level0[z]).tolist()) - {0}
+            assert ids, f"plane {z} empty"
+            per_plane.append(frozenset(ids))
+        assert len(set(per_plane)) == len(z_planes), \
+            f"planes not distinct — a z-index slip would look like this: {per_plane}"
+
+        # Pyramid: every level present, halving in y/x, z preserved.
+        multiscales = labels.attrs['multiscales'][0]
+        level_paths = [d['path'] for d in multiscales['datasets']]
+        assert [a['name'] for a in multiscales['axes']] == ['z', 'y', 'x']
+        assert len(level_paths) >= 1
+        previous = None
+        for name in level_paths:
+            shape = labels[name].shape
+            assert shape[0] == len(z_planes), f"level {name} lost z planes: {shape}"
+            if previous is not None:
+                assert shape[1] <= max(1, previous[1] // 2 + 1), (name, shape, previous)
+            previous = shape
+        print(f"  ok: {len(z_planes)} distinct planes, {len(level_paths)} pyramid levels")
+
+
 def test_channel_name_override_renames_layers():
     """--channel-name pins the true panel when MorphologyKit metadata is wrong."""
     with tempfile.TemporaryDirectory() as tmp:

@@ -155,6 +155,78 @@ def _downsample_chunks(chunks, preserve_axes=None, preserve_last=False):
         new_chunks.append(tuple(max(1, chunk//2) for chunk in axis_chunks))
     return tuple(new_chunks)
 
+def _multiscale_datasets(levels, dimensions, um_per_px, z_step_um):
+    """OME-NGFF dataset entries, one per pyramid level, at doubling scale."""
+    datasets = []
+    pyramid_scale = 1
+    for i in range(levels):
+        if dimensions == ['z', 'y', 'x']:
+            scale = [z_step_um, um_per_px*pyramid_scale, um_per_px*pyramid_scale]
+        else:
+            scale = [um_per_px*pyramid_scale]*len(dimensions)
+        datasets.append({'path': str(i),
+                         'coordinateTransformations': [{'type': 'scale',
+                          'scale': scale}]})
+        pyramid_scale *= 2
+    return datasets
+
+
+def write_pyramid_by_plane(plane_builder, shape, chunks, dtype, scale_dict,
+                           store, path):
+    """Write a 3D multiscale pyramid one z plane at a time.
+
+    ``plane_builder(z_index)`` returns the ``(1, y, x)`` dask array for a plane.
+
+    Assembling a whole volume as a single dask array is what the obvious
+    implementation does, but dask adds a graph layer per ``__setitem__``, so the
+    graph grows with tiles x chunks across the *entire* volume. For a 200-FOV
+    slide at 8 z planes that is ~3.1M graph keys against ~49K for the same slide
+    in 2D, and it exhausts 60 GB while still assembling -- before a single chunk
+    is written. Building one plane at a time holds the graph at exactly the 2D
+    size no matter how many planes there are, and hands each finished plane
+    straight to zarr.
+
+    Pyramid levels are likewise derived by reading the previous level back from
+    zarr rather than chaining ``map_blocks`` onto the in-memory graph, so each
+    level starts from a shallow graph instead of re-deriving every level below it.
+    """
+    n_planes, height, width = shape
+    levels = max(1, math.floor(math.log2(max(height, width)/256)))
+    um_per_px = scale_dict["um_per_px"]
+    z_step_um = scale_dict.get("z_step_um", DEFAULT_Z_STEP_UM)
+    dimensions = ['z', 'y', 'x']
+
+    print(f"Writing {path} multiscale output to zarr.")
+    grp = zarr.open(store, mode='a')
+    base = grp.require_dataset(f"{path}/0", shape=shape, chunks=chunks,
+                               dtype=dtype, dimension_separator="/",
+                               exact=False, overwrite=True)
+    print(f"Writing level 1 of {levels}, shape: {shape}, chunksize: {chunks}")
+    for z_index in range(n_planes):
+        plane = plane_builder(z_index)
+        da.to_zarr(plane, base,
+                   region=(slice(z_index, z_index + 1), slice(None), slice(None)))
+
+    for i in range(1, levels):
+        previous = da.from_zarr(store, component=f"{path}/{i-1}")
+        new_chunks = _downsample_chunks(previous.chunks, preserve_axes={0},
+                                        preserve_last=False)
+        level = previous.map_blocks(_resize, dtype=previous.dtype,
+                                    chunks=new_chunks)
+        print(f"Writing level {i+1} of {levels}, shape: {level.shape}, "
+              f"chunksize: {level.chunksize}")
+        level.to_zarr(store, component=f"{path}/{i}", overwrite=True,
+                      write_empty_chunks=False, dimension_separator="/")
+
+    grp = zarr.open(store, mode='r+')
+    grp[path].attrs['multiscales'] = [{
+        'axes': [{'name': dim, 'type': 'space', 'unit': 'micrometer'}
+                 for dim in dimensions],
+        'datasets': _multiscale_datasets(levels, dimensions, um_per_px, z_step_um),
+        'type': 'resize'
+        }]
+
+
 def write_pyramid(image, scale_dict, store, path):
     spatial_shape = image.shape[-3:-1] if path == "composite" else image.shape[-2:]
     PYRAMID_LEVELS = max(1, math.floor(math.log2(max(spatial_shape)/256)))

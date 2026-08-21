@@ -522,9 +522,12 @@ def main(args_list=None):
     morphology_chunks = stitch.CHUNKS if (args.output_ndim == 2 or morphology_is_2d) else chunks
 
     if len(labels_res) != 0:
-        im = da.zeros(array_shape, dtype=np.uint32, chunks=chunks)
         print("Stitching cell segmentation labels.")
-        for z_index, zslice in enumerate(z_slices):
+
+        def _build_labels_plane(z_index, plane_shape, plane_chunks):
+            """Assemble one z plane's FOV tiles into a dask array."""
+            plane = da.zeros(plane_shape, dtype=np.uint32, chunks=plane_chunks)
+            zslice = z_slices[z_index]
             for fov in fov_tqdm(fov_offsets['FOV']):
                 tile_path = _resolve_tile(labels_tiles, fov, zslice, "CellLabels image")
                 if tile_path is None:
@@ -532,12 +535,23 @@ def main(args_list=None):
                 tile = tifffile.imread(tile_path).astype(np.uint32)
                 pair_np(fov, tile)
                 y, x = stitch.fov_origin(fov_offsets, fov, top_origin_px, left_origin_px, fov_height, scale_dict, dash)
-                if args.output_ndim == 2:
-                    im[y:y+tile.shape[0], x:x+tile.shape[1]] = tile
+                if len(plane_shape) == 2:
+                    plane[y:y+tile.shape[0], x:x+tile.shape[1]] = tile
                 else:
-                    im[z_index, y:y+tile.shape[0], x:x+tile.shape[1]] = tile
-        
-        stitch.write_pyramid(im, scale_dict, store=store, path="labels")
+                    plane[0, y:y+tile.shape[0], x:x+tile.shape[1]] = tile
+            return plane
+
+        if args.output_ndim == 2:
+            im = _build_labels_plane(0, array_shape, chunks)
+            stitch.write_pyramid(im, scale_dict, store=store, path="labels")
+        else:
+            # One plane at a time: a whole-volume dask graph grows with
+            # tiles x chunks across every plane and exhausts memory while
+            # still being assembled. See write_pyramid_by_plane.
+            stitch.write_pyramid_by_plane(
+                lambda z_index: _build_labels_plane(z_index, (1, height, width), chunks),
+                shape=array_shape, chunks=chunks, dtype=np.uint32,
+                scale_dict=scale_dict, store=store, path="labels")
         #TODO: Add .zarr extension to labels if --dotzarr is used. May not be recognized by previous reader versions.
              # Needs more work before readable by napari-ome-zarr anyway
 
