@@ -104,7 +104,8 @@ apptainer exec \
         --n-hvg "${N_HVG:-2000}" \
         --min-gene-counts "${MIN_GENE_COUNTS:-50}" \
         --max-area "${MAX_AREA:-30000}" \
-        --max-negprobe-prop "${MAX_NEGPROBE_PROP:-0.1}"
+        --max-negprobe-prop "${MAX_NEGPROBE_PROP:-0.1}" \
+        --exclude-regions "${EXCLUDE_REGIONS-}"
 
 echo "Uploading combined_qc artifacts to Kopah..."
 # .h5ad: full all-probe record for stage 3c + downstream.
