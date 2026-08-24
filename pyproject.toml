@@ -4,7 +4,6 @@ version = "0.1.0"
 requires-python = ">=3.8,<3.11"
 dependencies = [
     "anndata>=0.9.2",
-    "argparse>=1.4.0",
     "dask>=2023.5.0",
     "duckdb>=1.0.0",
     "numcodecs>=0.12.1",
