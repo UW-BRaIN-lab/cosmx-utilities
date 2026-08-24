@@ -149,6 +149,14 @@ The S3 URI may point at a whole study or at a single AtoMx run. Point it at one
 run when two studies cover the same slides but need different flags — a 3D
 resegmentation takes `--input-ndim 3` while the original 2D run does not.
 
+Before launching, `process-slides.py` checks that the registered task
+definition still matches `fargate/fargate-task-process-slide.json` and refuses
+to run if it has drifted. Nothing otherwise keeps the two in sync — the
+registered definition once kept pointing at a pre-rename image long after the
+repo moved, and every task died on an image pull whose error said nothing about
+the task definition. Re-register with `./fargate/register-task-defs.sh`, or pass
+`--allow-taskdef-drift` to launch anyway.
+
 Each Fargate task runs `process-slide.py`, which:
 1. Queries segmentation manifests in S3 via DuckDB to find the correct segmentation version
 2. Downloads only the needed CellLabels, morphology images, and AnalysisResults
