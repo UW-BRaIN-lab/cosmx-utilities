@@ -20,9 +20,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import boto3
+import json
 from dotenv import load_dotenv
 
 ENV_PATH = Path(__file__).resolve().parent.parent / "fargate" / ".env"
+TASK_DEFINITION_FAMILY = "cosmx-process-slide"
+TASK_DEFINITION_TEMPLATE = (
+    Path(__file__).resolve().parent.parent
+    / "fargate" / "fargate-task-process-slide.json"
+)
+# Fields pinned by the checked-in template that a run actually depends on.
+# cpu/memory are omitted deliberately: --cpu/--memory override them per run.
+TASK_DEFINITION_PINNED = ("image", "taskRoleArn", "executionRoleArn",
+                          "ephemeralStorage")
 
 # Fargate hardware profiles for benchmarking: (vCPU units, memory MB).
 # Each entry uses the maximum memory for that vCPU tier.
@@ -191,6 +201,58 @@ def worker_flags(args) -> list[str]:
     if args.fill_from:
         flags += ["--fill-from", args.fill_from]
     return flags
+
+
+def _template_task_definition() -> dict | None:
+    """The checked-in task definition, with ACCOUNT_ID substituted."""
+    if not TASK_DEFINITION_TEMPLATE.exists():
+        return None
+    raw = TASK_DEFINITION_TEMPLATE.read_text().replace(
+        "ACCOUNT_ID", env("AWS_ACCOUNT_ID"))
+    return json.loads(raw)
+
+
+def _pinned_fields(task_def: dict) -> dict:
+    """Pull the pinned fields out of a task definition, container ones included."""
+    container = (task_def.get("containerDefinitions") or [{}])[0]
+    values = {}
+    for field in TASK_DEFINITION_PINNED:
+        if field in container:
+            values[field] = container[field]
+        elif field in task_def:
+            values[field] = task_def[field]
+    return values
+
+
+def task_definition_drift() -> list[tuple[str, object, object]]:
+    """Differences between the registered task definition and the repo's template.
+
+    Nothing keeps the two in sync: `register-task-defs.sh` pushes the template
+    but nothing re-runs it, so the live definition silently ages. That is not
+    hypothetical -- the registered definition kept pointing at a pre-rename
+    `ghcr.io/keene-lab/...` image long after the repo moved, and every task
+    launched against it died on an image pull it could not authorize. The
+    failure surfaces a minute into a run, per task, with an error that says
+    nothing about drift.
+
+    Returns [(field, registered, expected)], empty when they agree or when the
+    comparison cannot be made.
+    """
+    template = _template_task_definition()
+    if template is None:
+        return []
+    try:
+        registered = _get_ecs().describe_task_definition(
+            taskDefinition=TASK_DEFINITION_FAMILY)["taskDefinition"]
+    except Exception as e:
+        print(f"WARNING: could not read task definition {TASK_DEFINITION_FAMILY}: {e}",
+              file=sys.stderr)
+        return []
+
+    expected = _pinned_fields(template)
+    active = _pinned_fields(registered)
+    return [(field, active.get(field), value)
+            for field, value in expected.items() if active.get(field) != value]
 
 
 def launch_fargate_task(
@@ -368,6 +430,12 @@ def main() -> None:
              "that renamed a column between AtoMx runs.",
     )
     parser.add_argument(
+        "--allow-taskdef-drift",
+        action="store_true",
+        help="Launch even if the registered task definition differs from "
+             "fargate/fargate-task-process-slide.json.",
+    )
+    parser.add_argument(
         "--annotations-prefix",
         default="",
         metavar="S3URI",
@@ -391,6 +459,27 @@ def main() -> None:
         load_dotenv(ENV_PATH)
 
     flags = worker_flags(args)
+
+    # Catch a stale registration before spending tasks on it: every task would
+    # otherwise fail a minute in, individually, on an error that never mentions
+    # the task definition.
+    if not args.local and not args.whatif:
+        drift = task_definition_drift()
+        if drift:
+            print(f"ERROR: registered task definition '{TASK_DEFINITION_FAMILY}' "
+                  f"does not match fargate/fargate-task-process-slide.json:",
+                  file=sys.stderr)
+            for field, registered, expected in drift:
+                print(f"  {field}:", file=sys.stderr)
+                print(f"      registered: {registered}", file=sys.stderr)
+                print(f"      expected  : {expected}", file=sys.stderr)
+            print("\nRe-register it with:  ./fargate/register-task-defs.sh",
+                  file=sys.stderr)
+            print("Or pass --allow-taskdef-drift to launch anyway.", file=sys.stderr)
+            if not args.allow_taskdef_drift:
+                sys.exit(1)
+            print("Continuing despite drift (--allow-taskdef-drift).", file=sys.stderr)
+
     bucket, prefix = parse_s3_uri(args.s3_uri)
 
     print(f"Discovering slides under s3://{bucket}/{prefix}/ ...")
