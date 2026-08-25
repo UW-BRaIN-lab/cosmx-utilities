@@ -179,9 +179,16 @@ def main() -> None:
         slide_id + "_F" + merged["fov"].astype(str) + "_C" + merged["cell_ID"].astype(str)
     )
     merged["FOV"] = slide_id + "_F" + merged["fov"].astype(str)
-    # Drop the redundant per-FOV cell_ID and the duplicate cell_id column (if
-    # present); `fov` (integer, per-slide) is preserved for within-slide work.
-    merged = merged.drop(columns=["cell_ID", "cell_id"], errors="ignore")
+    # Keep the flat file's own `cell_id` under an unambiguous name: it is the key Napari
+    # and every other AtoMx-derived artifact joins on, and it is NOT derivable from our
+    # slide-prefixed index (nor the reverse). Dropping it forced downstream tools to
+    # reconstruct it by re-joining the flat files on (fov, cell_ID), which is fragile and
+    # needs the flat files on hand. Costs one string column per cell.
+    if "cell_id" in merged:
+        merged = merged.rename(columns={"cell_id": "flatfile_cell_id"})
+    # The per-FOV `cell_ID` is redundant once it is in the index; `fov` (integer,
+    # per-slide) is preserved for within-slide work.
+    merged = merged.drop(columns=["cell_ID"], errors="ignore")
 
     merged["slide_id"] = slide_id
     uns: dict = {"slide_id": slide_id}
