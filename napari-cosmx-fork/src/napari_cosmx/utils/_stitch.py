@@ -1,7 +1,9 @@
 from napari_cosmx import DASH_UM_PER_PX, ALPHA_UM_PER_PX, BETA_UM_PER_PX, DEFAULT_COLORMAPS, DEFAULT_Z_STEP_UM
 
 import pandas as pd
+import dask
 import dask.array as da
+import numpy as np
 import os
 import zarr
 from skimage.transform import resize
@@ -202,10 +204,18 @@ def write_pyramid_by_plane(plane_builder, shape, chunks, dtype, scale_dict,
                                dtype=dtype, dimension_separator="/",
                                exact=False, overwrite=True)
     print(f"Writing level 1 of {levels}, shape: {shape}, chunksize: {chunks}")
-    for z_index in range(n_planes):
-        plane = plane_builder(z_index)
-        da.to_zarr(plane, base,
-                   region=(slice(z_index, z_index + 1), slice(None), slice(None)))
+    # dask splits its input to `array.chunk-size` (128 MiB by default) before
+    # writing. A zarr chunk here is 8192x8192x4 = 256 MiB, so the default splits
+    # every zarr chunk across several write tasks, which then overwrite each
+    # other's work -- silent corruption, not an error. Observed as ~24-38% of
+    # pixels wrong and whole cells missing. Raise the target to one whole zarr
+    # chunk so each chunk is written by exactly one task.
+    chunk_bytes = int(np.prod(chunks)) * np.dtype(dtype).itemsize
+    with dask.config.set({"array.chunk-size": chunk_bytes}):
+        for z_index in range(n_planes):
+            plane = plane_builder(z_index)
+            da.to_zarr(plane, base,
+                       region=(slice(z_index, z_index + 1), slice(None), slice(None)))
 
     for i in range(1, levels):
         previous = da.from_zarr(store, component=f"{path}/{i-1}")

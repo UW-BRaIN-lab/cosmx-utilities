@@ -255,6 +255,63 @@ def test_3d_labels_planes_are_distinct_and_pyramid_written():
         print(f"  ok: {len(z_planes)} distinct planes, {len(level_paths)} pyramid levels")
 
 
+# Real geometry: zarr chunks of 8192 hold ~2x2 of the 4256-pixel FOV tiles, so
+# tiles straddle chunk boundaries and several tiles land in one chunk. Anything
+# smaller than this does not exercise the write path that corrupted data.
+ZARR_CHUNK = 8192
+FOV_TILE = 4256
+
+
+def test_written_volume_matches_expected_exactly():
+    """Compare what lands in zarr against what was asked for, pixel for pixel.
+
+    dask splits its input to `array.chunk-size` before writing. When a zarr
+    chunk is larger than that target, one chunk gets written by several tasks
+    that overwrite each other -- silently, with no error and no warning in the
+    job log. It cost a full 3D run: ~24-38% of pixels wrong and whole cells
+    gone, while shapes, chunk counts, pyramid levels and per-plane cell counts
+    all still looked healthy.
+
+    Checking structure is therefore not enough; only comparing values catches it.
+    """
+    import dask.array as da
+    from napari_cosmx.utils._stitch import write_pyramid_by_plane
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = Path(tmp) / "images"
+        size = 20000                      # spans 3 zarr chunks per axis
+        n_planes = 2
+        shape = (n_planes, size, size)
+        chunks = (1, ZARR_CHUNK, ZARR_CHUNK)
+        expected = np.zeros(shape, dtype=np.uint32)
+
+        def plane_builder(z_index):
+            plane = da.zeros((1, size, size), dtype=np.uint32, chunks=chunks)
+            label = 0
+            for row in range(4):
+                for col in range(4):
+                    y, x = row * FOV_TILE, col * FOV_TILE
+                    label += 1
+                    value = z_index * 1000 + label
+                    tile = np.full((FOV_TILE, FOV_TILE), value, dtype=np.uint32)
+                    plane[0, y:y + FOV_TILE, x:x + FOV_TILE] = tile
+                    expected[z_index, y:y + FOV_TILE, x:x + FOV_TILE] = tile
+            return plane
+
+        write_pyramid_by_plane(
+            plane_builder, shape, chunks, np.uint32,
+            {"um_per_px": 0.12, "z_step_um": 0.8}, str(store), "labels")
+
+        written = np.asarray(zarr.open(str(store), mode="r")["labels"]["0"])
+        for z in range(n_planes):
+            want = set(np.unique(expected[z]).tolist()) - {0}
+            got = set(np.unique(written[z]).tolist()) - {0}
+            assert want == got, f"plane {z} lost labels {sorted(want - got)}"
+        wrong = int((expected != written).sum())
+        assert wrong == 0, f"{wrong} pixels differ from what was written"
+        print("  ok: written volume is byte-identical to expected")
+
+
 def test_channel_name_override_renames_layers():
     """--channel-name pins the true panel when MorphologyKit metadata is wrong."""
     with tempfile.TemporaryDirectory() as tmp:
