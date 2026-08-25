@@ -8,15 +8,23 @@ which is what lets a neuropathologist say what `o` or `m` actually is.
 
 THE CELL-ID JOIN IS THE WHOLE PROBLEM. Stage 1 replaces the per-FOV `cell_ID` with a
 globally unique index (`<slide_id>_F<fov>_C<cell_ID>`) so per-slide AnnDatas can be
-concatenated, but Napari keys on the flat file's own `cell_id` (e.g. `c_1_2_345`). Neither
-is derivable from the other, so this parses `fov` and `cell_ID` back out of the pipeline
-index and joins them against the slide's `_metadata_file.csv.gz` on that pair -- the same
-(fov, cell_ID) key `flatfiles_to_anndata.py` used to build the index in the first place.
-Any cell that fails to join is reported, never silently dropped.
+concatenated, while Napari keys on the flat file's own `cell_id` (e.g. `c_2_1_96`). Neither
+is derivable from the other. Two ways across:
+
+  --combined-h5ad  PREFERRED. Stage 1 now keeps the flat file's key as
+                   obs['flatfile_cell_id'], so the join is a straight lookup on the
+                   pipeline index -- nothing is reconstructed and the flat files are not
+                   needed at all.
+  --flatfiles      FALLBACK, for results built before stage 1 kept that column. Parses fov
+                   and cell_ID back out of the pipeline index and re-joins the slide's
+                   `_metadata_file.csv.gz` on that pair -- the same (fov, cell_ID) key
+                   flatfiles_to_anndata.py used to build the index in the first place.
+
+Either way, cells on the slide with no typing call (stage-3a QC dropped them) are written
+with an empty value so Napari still draws them uncoloured; the count is always reported.
 
 Reads:
   --typing-h5   stage-4 insitutype_result.h5 (/cell_id, /cell_type, /prob)
-  --flatfiles   directory of <slide>_metadata_file.csv.gz, one per slide
 
 Writes one `<slide>_metadata.csv` per slide with `cell_id`, the cell-type column, and its
 posterior, ready to drop next to the Napari slide directory.
@@ -51,8 +59,14 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--typing-h5", type=Path, required=True,
                    help="Stage-4 insitutype_result.h5.")
-    p.add_argument("--flatfiles", type=Path, required=True,
-                   help="Directory holding <slide>_metadata_file.csv.gz.")
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--combined-h5ad", type=Path,
+                     help="Stage-3a combined_qc.h5ad carrying obs['flatfile_cell_id'] — "
+                          "the direct route, no re-joining. Preferred.")
+    src.add_argument("--flatfiles", type=Path,
+                     help="Directory of <slide>_metadata_file.csv.gz. Fallback for data "
+                          "built before stage 1 kept flatfile_cell_id: rebuilds the key by "
+                          "re-joining on (fov, cell_ID).")
     p.add_argument("--out-dir", type=Path, required=True,
                    help="Directory to write <slide>_metadata.csv into.")
     p.add_argument("--column", default="cell_type",
@@ -90,6 +104,43 @@ def load_typing(path: Path) -> pd.DataFrame:
     return df
 
 
+def write_from_obs(args, typed: pd.DataFrame) -> None:
+    """Direct path: obs already carries the Napari key, so just look it up.
+
+    Requires stage 1 to have kept `flatfile_cell_id`. Errors rather than falling back
+    silently, since a silent fallback would hide that the AnnData predates that change.
+    """
+    import anndata as ad
+
+    print(f"Reading {args.combined_h5ad} (backed)")
+    adata = ad.read_h5ad(args.combined_h5ad, backed="r")
+    missing = [c for c in ("flatfile_cell_id", "slide_id") if c not in adata.obs]
+    if missing:
+        print(f"ERROR: obs is missing {missing}. This AnnData predates stage 1 keeping the "
+              f"flat-file key — re-run stage 1, or use --flatfiles instead.", file=sys.stderr)
+        sys.exit(1)
+
+    obs = adata.obs[["flatfile_cell_id", "slide_id"]].copy()
+    joined = obs.join(typed.set_index("cell")[["cell_type", "prob"]], how="left")
+    n_typed = int(joined["cell_type"].notna().sum())
+    print(f"{n_typed:,} of {len(joined):,} cells have a typing call "
+          f"({len(joined) - n_typed:,} without)")
+
+    total = 0
+    for slide_id, grp in joined.groupby("slide_id", observed=True):
+        out = pd.DataFrame({
+            "cell_id": grp["flatfile_cell_id"].astype(str),
+            args.column: grp["cell_type"].fillna(""),
+            f"{args.column}_prob": grp["prob"].round(4).fillna(""),
+        })
+        out_path = args.out_dir / f"{slide_id}_metadata.csv"
+        out.to_csv(out_path, index=False)
+        total += len(out)
+        print(f"  {str(slide_id):14s} {len(out):7,d} cells  "
+              f"{int(grp['cell_type'].notna().sum()):7,d} typed  -> {out_path.name}")
+    print(f"\nWrote {total:,} rows to {args.out_dir}")
+
+
 def main() -> None:
     args = parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -107,6 +158,10 @@ def main() -> None:
         print(f"--denovo-only: blanking {int(named.sum()):,} named calls, keeping "
               f"{int((~named).sum()):,} de novo")
         typed.loc[named, "cell_type"] = ""
+
+    if args.combined_h5ad:
+        write_from_obs(args, typed)
+        return
 
     total_written = 0
     for slide_id, grp in typed.groupby("slide_id", observed=True):
