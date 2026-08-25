@@ -3,6 +3,7 @@
 Runnable under pytest or directly:
     uv run python napari-cosmx-fork/src/napari_cosmx/_tests/test_colors.py
 """
+import io
 import numpy as np
 import pandas as pd
 
@@ -70,3 +71,40 @@ if __name__ == "__main__":
         t()
         print(f"PASS {t.__name__}")
     print(f"\nAll {len(tests)} tests passed.")
+
+
+def test_blank_annotation_values_do_not_break_sorting():
+    """A column with unassigned cells must still produce a sorted category list.
+
+    AtoMx types only QC-passing cells, so a cell-type column legitimately has
+    blanks. pandas reads a blank field as NaN, NaN is a float, and
+    `sorted(np.unique(column))` then sorts str against float and raises
+    TypeError. That fired while building the widget, so the viewer died before
+    opening rather than degrading.
+    """
+    import numpy as np
+    import pandas as pd
+
+    # Two columns, so a blank is an empty *field* -- a blank line would be
+    # skipped by read_csv and would not reproduce anything.
+    csv_text = (
+        "cell_ID,Cell Type\n"
+        "c_1_1_1,Microglia.A\n"
+        "c_1_1_2,\n"
+        "c_1_1_3,Astrocyte.B\n"
+        "c_1_1_4,\n"
+        "c_1_1_5,Endothelial\n"
+    )
+    values = pd.read_csv(io.StringIO(csv_text))["Cell Type"]
+    assert values.isna().sum() == 2, "fixture must contain blanks to be meaningful"
+
+    try:
+        sorted(np.unique(values))
+    except TypeError as e:
+        assert "not supported between instances" in str(e), e
+    else:
+        raise AssertionError("fixture no longer reproduces the original crash")
+
+    # What the widget does now.
+    assert sorted(pd.unique(values.dropna())) == [
+        "Astrocyte.B", "Endothelial", "Microglia.A"]

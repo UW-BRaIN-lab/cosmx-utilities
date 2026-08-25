@@ -80,6 +80,11 @@ SEG_ID_COLUMN = "cellSegmentationSetId"
 FOV_COLUMN = "fov"
 LEGACY_OUTPUT_NAME = "cell_type"
 LEGACY_COLOR_COLUMN = "hex_color"
+# Cell typing runs on QC-passing cells only, so a typing column is blank for
+# every cell that failed QC. Naming that explicitly beats an empty string: the
+# category shows up in the viewer's color-by list and gets a color, so those
+# cells are visible and countable instead of silently invisible.
+UNASSIGNED_LABEL = "Unassigned"
 SOURCE_FALLBACK_SEPARATOR = "|"
 # Column naming AtoMx annotation sheets use for the FOV number, most specific first.
 ANNOTATION_FOV_COLUMNS = ("FOVs", "FOV", "fov")
@@ -365,10 +370,11 @@ def write_output(
     Colors are deterministic per value, built over the full set of collected
     rows so they are stable across slides. Returns a stats dict.
     """
-    # One color map per column, over that column's unique non-empty values.
+    # One color map per column. Blanks become an explicit category so every cell
+    # carries a value and a color.
     color_maps: list[dict[str, str]] = []
     for i, _spec in enumerate(specs):
-        values = sorted({r[2][i] for r in rows if r[2][i]})
+        values = sorted({r[2][i] or UNASSIGNED_LABEL for r in rows})
         color_maps.append({v: deterministic_color(v) for v in values})
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
@@ -381,7 +387,7 @@ def write_output(
         for cell_id, _fov, values in rows:
             out_row = [cell_id]
             for i, spec in enumerate(specs):
-                value = values[i]
+                value = values[i] or UNASSIGNED_LABEL
                 out_row += [value, color_maps[i].get(value, "")]
             writer.writerow(out_row)
 
