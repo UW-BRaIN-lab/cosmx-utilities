@@ -90,8 +90,13 @@ def test_seg_id_filter():
         assert len(rows) == 1 and rows[0][0] == "c_1_1_3"
 
 
-def test_missing_source_column_is_empty_not_crash():
-    """A requested source header absent from the file yields empty values."""
+def test_missing_source_column_becomes_unassigned_not_crash():
+    """A requested source header absent from the file yields Unassigned, not blanks.
+
+    An all-blank column is invisible in the viewer and, because pandas reads
+    blanks as NaN, used to crash the color-by widget outright. Naming the
+    category keeps those cells visible and countable.
+    """
     specs = [gsm.ColumnSpec("niche", "DoesNotExist", "niche_color")]
     with tempfile.TemporaryDirectory() as d:
         gz = os.path.join(d, "in.csv.gz")
@@ -99,10 +104,36 @@ def test_missing_source_column_is_empty_not_crash():
         _write_gz(gz, FIELDS, ROWS)
         rows, _ = gsm.read_rows(gz, None, specs)
         stats = gsm.write_output(out, specs, rows)
-        assert stats["value_counts"] == {"niche": 0}
+        assert stats["value_counts"] == {"niche": 1}, stats
         table = _read_out(out)
         assert table[0] == ["cell_ID", "niche", "niche_color"]
-        assert all(r[1] == "" and r[2] == "" for r in table[1:])
+        assert all(r[1] == gsm.UNASSIGNED_LABEL for r in table[1:])
+        # Every value carries a color, so nothing renders as an unlabelled gap.
+        assert all(r[2].startswith("#") for r in table[1:])
+
+
+def test_blank_typing_values_become_unassigned():
+    """Cells that failed QC are left blank by cell typing; they must come out as
+    an explicit category alongside the real types."""
+    specs = [gsm.ColumnSpec("Cell Type", "TypeA", "Cell Type_color")]
+    fields = ["cell_id", "cellSegmentationSetId", "TypeA"]
+    with tempfile.TemporaryDirectory() as d:
+        gz = os.path.join(d, "in.csv.gz")
+        out = os.path.join(d, "_metadata.csv")
+        _write_gz(gz, fields, [
+            {"cell_id": "c_1_1_1", "cellSegmentationSetId": "s", "TypeA": "Microglia.A"},
+            {"cell_id": "c_1_1_2", "cellSegmentationSetId": "s", "TypeA": ""},
+            {"cell_id": "c_1_1_3", "cellSegmentationSetId": "s", "TypeA": "Astrocyte.B"},
+        ])
+        rows, _ = gsm.read_rows(gz, None, specs)
+        gsm.write_output(out, specs, rows)
+        table = _read_out(out)
+        values = [r[1] for r in table[1:]]
+        assert values == ["Microglia.A", gsm.UNASSIGNED_LABEL, "Astrocyte.B"], values
+        colors = {r[1]: r[2] for r in table[1:]}
+        assert colors[gsm.UNASSIGNED_LABEL].startswith("#")
+        # Unassigned must not collide with a real type's color.
+        assert len(set(colors.values())) == 3, colors
 
 
 def test_legacy_mode_emits_cell_type_and_hex_color():

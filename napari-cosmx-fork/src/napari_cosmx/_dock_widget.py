@@ -1107,7 +1107,12 @@ class GeminiQWidget(QWidget):
 
     def updateLabelsWidget(self, meta_col):
         self.labelListWidget.clear()
-        vals = sorted(np.unique(self.gem.metadata[meta_col]))
+        # Drop NaN before sorting. A cell typing run leaves unassigned cells
+        # blank, pandas reads a blank cell as NaN, and NaN is a float -- so a
+        # column of strings with any blank sorts str against float and raises
+        # TypeError, taking the whole viewer down before it opens. Unassigned
+        # cells have no category to list; color_cells renders them transparent.
+        vals = sorted(pd.unique(self.gem.metadata[meta_col].dropna()))
         if self.gem.adata is not None and meta_col + "_colors" in self.gem.adata.uns:
             # get colors from AnnData object
             color = dict(zip(self.gem.adata.obs[meta_col].cat.categories, self.gem.adata.uns[meta_col + "_colors"]))
