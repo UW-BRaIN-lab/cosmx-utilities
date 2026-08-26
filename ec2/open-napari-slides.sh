@@ -34,8 +34,14 @@ open_slide() {
         cd "$REPO_DIR" && uv run python - "$slide" <<'PY'
 import sys
 import napari
+from napari.settings import get_settings
 from napari_cosmx.gemini import Gemini
 from napari_cosmx._dock_widget import GeminiQWidget
+
+# napari 0.6 defaults this off, which drops the per-cell readout on hover --
+# cell_ID, cell type and the rest live in the Metadata layer's features and are
+# surfaced through this tooltip.
+get_settings().appearance.layer_tooltip_visibility = True
 
 # Mirror napari_cosmx's reader_function: create the viewer, load the slide, and
 # add the Gemini control panel (Color Cells + channels) on the right.
