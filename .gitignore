@@ -206,6 +206,7 @@ cosmx-utilities-lab-meeting.pptx
 *.png
 histograms/
 sankey/
+crosstabs/
 
 # Pipeline runtime artifacts
 pipeline/manifest.csv
