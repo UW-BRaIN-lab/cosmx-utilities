@@ -10,15 +10,24 @@ Nodes are ordered by total size; ribbons below --min-frac of all cells are accou
 the layout but not drawn (keeps it legible). Ribbons are coloured by their source (left)
 node so you can trace where each left type's cells go.
 
-Usage:
+Usage (one typing vs another):
     uv run python pipeline/python/plot_crosstab_sankey.py \\
         --crosstab stage4_qc/wenyu_compare/external_vs_ours_crosstab.csv \\
         --label-left Wenyu --label-right "keeper (Ext L3 rescale)" \\
         --output stage4_qc/figures/wenyu_vs_keeper_sankey.png
+
+Usage (unsupervised Leiden vs InSituType, off the 85d crosstab — --sort-left
+natural keeps the cluster axis in 0,1,2,... order rather than by size):
+    uv run python pipeline/python/plot_crosstab_sankey.py \\
+        --crosstab leiden_crosstab/leiden_celltype_counts.csv \\
+        --label-left "Leiden (Stage 3c)" --label-right "InSituType" \\
+        --sort-left natural \\
+        --output leiden_crosstab/leiden_vs_insitutype_sankey.png
 """
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import matplotlib
@@ -28,6 +37,22 @@ import numpy as np
 import pandas as pd
 from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.path import Path as MPath
+
+
+NATURAL_CHUNK = re.compile(r"(\d+)")
+
+
+def natural_key(label: str) -> list:
+    """Sort key placing '2' before '10' — Leiden clusters are numeric strings."""
+    return [int(c) if c.isdigit() else c.lower()
+            for c in NATURAL_CHUNK.split(str(label))]
+
+
+def order_axis(totals: pd.Series, how: str) -> list:
+    """Node order for one axis: by descending size, or by natural label order."""
+    if how == "natural":
+        return sorted(totals.index, key=natural_key)
+    return list(totals.sort_values(ascending=False).index)
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,14 +65,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--label-right", default="right")
     p.add_argument("--min-frac", type=float, default=0.0015,
                    help="Don't draw ribbons smaller than this fraction of all cells.")
+    p.add_argument("--sort-left", choices=("size", "natural"), default="size",
+                   help="Left node order: descending size (default), or natural label "
+                        "order — use 'natural' for Leiden clusters so they read 0,1,2,...")
+    p.add_argument("--sort-right", choices=("size", "natural"), default="size",
+                   help="Right node order: descending size (default), or natural label order.")
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     ct = pd.read_csv(args.crosstab, index_col=0)
-    ct = ct.loc[ct.sum(1).sort_values(ascending=False).index,
-                ct.sum(0).sort_values(ascending=False).index]
+    ct = ct.loc[order_axis(ct.sum(1), args.sort_left),
+                order_axis(ct.sum(0), args.sort_right)]
     L, R = list(ct.index), list(ct.columns)
     total = ct.values.sum()
     thresh = args.min_frac * total
@@ -93,7 +123,7 @@ def main() -> None:
     ax.set_xlim(-0.30, 1.30); ax.set_ylim(0, max(yL, yR)); ax.invert_yaxis(); ax.axis("off")
     ax.text(xL1, -gap * 1.5, args.label_left, ha="center", va="bottom", fontsize=12, weight="bold")
     ax.text(xR0, -gap * 1.5, args.label_right, ha="center", va="bottom", fontsize=12, weight="bold")
-    ax.set_title(f"{args.label_left} cell type → {args.label_right}  "
+    ax.set_title(f"{args.label_left} → {args.label_right}  "
                  f"({int(total):,} shared cells)", fontsize=13, pad=22)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=200, bbox_inches="tight"); plt.close(fig)
