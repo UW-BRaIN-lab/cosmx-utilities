@@ -41,7 +41,19 @@ from napari_cosmx._dock_widget import GeminiQWidget
 # add the Gemini control panel (Color Cells + channels) on the right.
 viewer = napari.Viewer()
 gem = Gemini(sys.argv[1], viewer=viewer)
-viewer.window.add_dock_widget(GeminiQWidget(viewer, gem), area="right", name=gem.name)
+# show_stitching_widget=False as the reader does. That panel builds mosaics
+# rather than viewing them, so it is dead weight here -- and its height pushes
+# the window's minimum past the desktop's, leaving a window taller than the
+# screen that xfwm will only resize sideways, with the status bar and console
+# unreachable below the bottom edge.
+viewer.window.add_dock_widget(
+    GeminiQWidget(viewer, gem, show_stitching_widget=False),
+    area="right", name=gem.name)
+# napari opens at 640x480; size to the desktop so the whole UI is reachable.
+window = viewer.window._qt_window
+available = window.screen().availableGeometry()
+window.move(available.left(), available.top())
+window.resize(available.width(), available.height())
 napari.run()
 PY
     ) >"/tmp/napari-${name}.log" 2>&1 &
