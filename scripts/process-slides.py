@@ -21,6 +21,7 @@ from pathlib import Path
 
 import boto3
 import json
+import urllib.request
 from dotenv import load_dotenv
 
 ENV_PATH = Path(__file__).resolve().parent.parent / "fargate" / ".env"
@@ -162,12 +163,101 @@ def discover_slides(bucket: str, experiment_prefix: str) -> list[Slide]:
     return slides
 
 
-def is_already_processed(slide: Slide) -> bool:
-    """Check if output already exists for this slide in S3."""
-    response = _get_s3().list_objects_v2(
-        Bucket=slide.bucket, Prefix=slide.output_prefix + "/", MaxKeys=1,
-    )
-    return response.get("KeyCount", 0) > 0
+def _registry_digest(image_ref: str) -> str:
+    """Resolve a registry image reference to the digest it currently points at.
+
+    The task definition names a moving tag, so the tag alone says nothing about
+    which code a task will run. GHCR serves the digest for a public package
+    without credentials. Returns "" when it cannot be resolved, which callers
+    treat as "cannot tell".
+    """
+    if "/" not in image_ref:
+        return ""
+    registry, _, remainder = image_ref.partition("/")
+    repository, _, tag = remainder.partition(":")
+    tag = tag or "latest"
+    if registry != "ghcr.io":
+        return ""
+    try:
+        token_url = (f"https://ghcr.io/token?scope=repository:{repository}:pull"
+                     f"&service=ghcr.io")
+        with urllib.request.urlopen(token_url, timeout=10) as response:
+            token = json.load(response).get("token", "")
+        if not token:
+            return ""
+        request = urllib.request.Request(
+            f"https://ghcr.io/v2/{repository}/manifests/{tag}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": ", ".join([
+                    "application/vnd.oci.image.index.v1+json",
+                    "application/vnd.docker.distribution.manifest.list.v2+json",
+                    "application/vnd.docker.distribution.manifest.v2+json",
+                ]),
+            },
+            method="HEAD",
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.headers.get("Docker-Content-Digest", "")
+    except Exception as e:
+        print(f"WARNING: could not resolve digest for {image_ref}: {e}", file=sys.stderr)
+        return ""
+
+
+def expected_code_version() -> str:
+    """The code version a task launched now would run, or "" if undeterminable."""
+    override = os.environ.get("COSMX_CODE_VERSION")
+    if override:
+        return override
+    try:
+        task_def = _get_ecs().describe_task_definition(
+            taskDefinition=TASK_DEFINITION_FAMILY)["taskDefinition"]
+        image = (task_def.get("containerDefinitions") or [{}])[0].get("image", "")
+    except Exception as e:
+        print(f"WARNING: could not read task definition: {e}", file=sys.stderr)
+        return ""
+    return _registry_digest(image)
+
+
+def read_success_marker(slide: Slide) -> dict | None:
+    """The slide's _SUCCESS marker, or None when absent or unreadable."""
+    try:
+        body = _get_s3().get_object(
+            Bucket=slide.bucket, Key=f"{slide.output_prefix}/_SUCCESS",
+        )["Body"].read()
+    except Exception:
+        return None
+    if not body.strip():
+        return {}          # legacy zero-byte marker: finished, provenance unknown
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        return {}
+
+
+def is_already_processed(slide: Slide, expected_version: str = "") -> bool:
+    """Whether this slide's output can be trusted as already done.
+
+    A marker on its own only says some run finished here. That is what let a
+    run which completed but wrote corrupt data keep its _SUCCESS, so --skip
+    skipped the slide and protected the bad output from being replaced.
+
+    So when the marker records which code produced it, and that differs from
+    the code a task would run now, the slide is not treated as done. Where
+    either side is unknown -- a legacy marker, or a digest that cannot be
+    resolved -- fall back to presence, which is the old behaviour.
+    """
+    marker = read_success_marker(slide)
+    if marker is None:
+        return False
+    recorded = marker.get("code_version", "")
+    if not recorded or not expected_version:
+        return True
+    if recorded == expected_version:
+        return True
+    print(f"  {slide.slide_name}: output was produced by different code "
+          f"({recorded[:20]}... vs {expected_version[:20]}...), not skipping")
+    return False
 
 
 _ecs = None
@@ -495,7 +585,11 @@ def main() -> None:
 
     if args.skip:
         before = len(slides)
-        slides = [s for s in slides if not is_already_processed(s)]
+        expected_version = expected_code_version()
+        if not expected_version:
+            print("  (could not determine the running code version; skipping on "
+                  "marker presence alone)")
+        slides = [s for s in slides if not is_already_processed(s, expected_version)]
         skipped = before - len(slides)
         if skipped:
             print(f"\nSkipping {skipped} already-processed slide(s).")

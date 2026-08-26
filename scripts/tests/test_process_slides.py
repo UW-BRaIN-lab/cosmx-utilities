@@ -85,6 +85,82 @@ def test_missing_template_does_not_block():
     assert ps.task_definition_drift() == []
 
 
+# ---- Trustworthy re-runs: versioned marker + replacing upload ---------------
+
+class _FakeS3Marker:
+    """S3 stand-in serving one slide's _SUCCESS body (or absence)."""
+
+    def __init__(self, body):
+        self.body = body
+
+    def get_object(self, Bucket, Key):
+        if self.body is None:
+            raise RuntimeError("NoSuchKey")
+        import io
+        return {"Body": io.BytesIO(self.body)}
+
+
+def _slide():
+    return ps.Slide(bucket="b", base_path="Study/Run/DecodedFiles/Slide/Scan")
+
+
+def _with_marker(body):
+    ps._get_s3 = lambda: _FakeS3Marker(body)
+    return _slide()
+
+
+CURRENT = "sha256:aaaa"
+OLDER = "sha256:bbbb"
+
+
+def _marker_body(version):
+    return json.dumps({"code_version": version, "completed_at": "t"}).encode()
+
+
+def test_skip_when_same_code_produced_the_output():
+    """The normal case: output made by the code about to run is genuinely done."""
+    slide = _with_marker(_marker_body(CURRENT))
+    assert ps.is_already_processed(slide, CURRENT) is True
+
+
+def test_do_not_skip_when_different_code_produced_the_output():
+    """The failure this exists for: a run finished and wrote _SUCCESS, but the
+    data was wrong. After fixing the code, the stale marker must not protect the
+    bad output from being replaced."""
+    slide = _with_marker(_marker_body(OLDER))
+    assert ps.is_already_processed(slide, CURRENT) is False
+
+
+def test_missing_marker_is_not_processed():
+    slide = _with_marker(None)
+    assert ps.is_already_processed(slide, CURRENT) is False
+
+
+def test_legacy_zero_byte_marker_still_skips():
+    """Markers written before this change carry no version. Falling back to
+    presence keeps existing outputs from being re-stitched wholesale."""
+    slide = _with_marker(b"")
+    assert ps.is_already_processed(slide, CURRENT) is True
+
+
+def test_unresolvable_expected_version_falls_back_to_presence():
+    """If the running version cannot be determined, behave as before rather than
+    re-running everything."""
+    slide = _with_marker(_marker_body(OLDER))
+    assert ps.is_already_processed(slide, "") is True
+
+
+def test_unparseable_marker_treated_as_versionless():
+    slide = _with_marker(b"not json at all")
+    assert ps.is_already_processed(slide, CURRENT) is True
+
+
+def test_registry_digest_ignores_non_ghcr_and_malformed():
+    """Resolution must degrade to "unknown" rather than raising mid-launch."""
+    assert ps._registry_digest("docker.io/library/x:1") == ""
+    assert ps._registry_digest("bare-name") == ""
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

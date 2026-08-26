@@ -145,6 +145,20 @@ uv run python scripts/process-slides.py s3://bucket/project/study/
 uv run python scripts/process-slides.py s3://bucket/project/study/ --skip
 ```
 
+`--skip` skips a slide when its `_SUCCESS` marker records the same code version
+as the image a task would run now. A marker only ever meant "some run finished
+here", which is not the same as "the output is good" — after a run that
+completed but wrote bad data, `--skip` would protect that output from being
+replaced. Comparing versions makes a slide re-run automatically once the code
+that produced it has changed. Markers written before this existed carry no
+version and still skip on presence alone.
+
+Uploads replace the previous output rather than merging into it. Without that a
+re-run can only add to and overwrite, so any object the new run does not happen
+to write survives — for zarr, a chunk left behind by an older run is read back
+as data. Deleting requires credentials the bucket allows to delete, which the
+Fargate role has; pass `--no-replace-output` when running locally without them.
+
 The S3 URI may point at a whole study or at a single AtoMx run. Point it at one
 run when two studies cover the same slides but need different flags — a 3D
 resegmentation takes `--input-ndim 3` while the original 2D run does not.
