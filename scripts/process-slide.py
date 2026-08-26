@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import multiprocessing
 import os
 import re
@@ -216,8 +217,11 @@ def s3_sync(
     exclude: str | None = None,
     includes: list[str] | None = None,
     dryrun: bool = False,
+    delete: bool = False,
 ) -> None:
     cmd = ["aws", "s3", "sync", src, dst]
+    if delete:
+        cmd.append("--delete")
     if exclude:
         cmd += ["--exclude", exclude]
     for inc in (includes or []):
@@ -647,26 +651,79 @@ def generate_metadata(
 # ── Step 5: Upload results ─────────────────────────────────────────────────
 
 
-def upload_results(ctx: SlideContext) -> None:
+def upload_results(ctx: SlideContext, replace: bool = True) -> None:
+    """Upload the stitched output, replacing whatever was there before.
+
+    Without --delete a re-run can only ever add to and overwrite the previous
+    output; anything the new run does not happen to write survives. For zarr
+    that matters -- a chunk the old run wrote and the new one skips stays behind
+    and is read back as data, silently mixing two runs together.
+
+    The bucket denies s3:DeleteObject to everything except the DELETER and
+    Fargate roles, so this works from a Fargate task but not from a local run
+    with ordinary credentials; pass replace=False there.
+    """
     s3_sync(
         str(ctx.work_dir / "output/"),
         f"s3://{ctx.bucket}/{ctx.output_prefix}/",
+        delete=replace,
     )
 
 
-def _write_success_marker(ctx: SlideContext) -> None:
-    """Write a zero-byte _SUCCESS marker to the S3 output prefix.
+def code_version() -> str:
+    """Identifier for the code that produced this output.
 
-    The bucket policy on keene-cosmx-data denies s3:DeleteObject to everything
-    except the DELETER role, so we can't toggle a separate _FAILED marker —
-    PutObject is the only mutation available. Absence of _SUCCESS means the
-    slide isn't done (failed, in-flight, or never run); the ECS task history
-    is the authoritative source for the "why" of any failure.
+    On Fargate the container's image digest is exact, and ECS publishes it on
+    the task metadata endpoint. Running locally there is no image, so fall back
+    to the checkout's git revision. "unknown" when neither is available, which
+    callers treat as "cannot vouch for this output".
     """
+    metadata_uri = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
+    if metadata_uri:
+        try:
+            import urllib.request
+            with urllib.request.urlopen(f"{metadata_uri}", timeout=5) as response:
+                image_id = json.load(response).get("ImageID", "")
+            if image_id:
+                return image_id
+        except Exception as e:
+            print(f"WARNING: could not read ECS image digest: {e}", file=sys.stderr)
+
+    try:
+        revision = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        if revision:
+            return f"git:{revision}"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _write_success_marker(ctx: SlideContext) -> None:
+    """Write the _SUCCESS marker, recording which code produced the output.
+
+    The marker used to be zero bytes, which says only "some run finished here".
+    That is not enough: after a run that completed but produced bad data, the
+    marker still said success and --skip duly skipped the slide, protecting the
+    bad output from being replaced. Recording the code version lets --skip tell
+    "already done by the code I am about to run" from "done by something else".
+
+    Absence of the marker still means not done — failed, in-flight, or never
+    run; the ECS task history remains the place to find out which.
+    """
+    marker = {
+        "code_version": code_version(),
+        "completed_at": now_iso(),
+        "slide": ctx.slide_name,
+        "output_prefix": ctx.output_prefix,
+    }
     marker_path = ctx.work_dir / "_SUCCESS"
-    marker_path.touch()
+    marker_path.write_text(json.dumps(marker, indent=2) + "\n")
     _get_s3().upload_file(str(marker_path), ctx.bucket, f"{ctx.output_prefix}/_SUCCESS")
-    log(f"  Status marker: s3://{ctx.bucket}/{ctx.output_prefix}/_SUCCESS")
+    log(f"  Status marker: s3://{ctx.bucket}/{ctx.output_prefix}/_SUCCESS "
+        f"(code {marker['code_version'][:20]})")
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
@@ -678,6 +735,7 @@ def process_slide(
     whatif: bool = False,
     seg_version_override: str = "",
     channel_names: list[str] | None = None,
+    replace_output: bool = True,
     input_ndim: int | None = None,
     output_ndim: int | None = None,
     columns: list[str] | None = None,
@@ -756,7 +814,7 @@ def process_slide(
 
             bench.start("upload")
             log(f"[{now_iso()}] Uploading results ...")
-            upload_results(ctx)
+            upload_results(ctx, replace=replace_output)
             bench.end("upload")
             log(f"[{now_iso()}] Upload complete ({bench._duration_seconds('upload')}s)")
 
@@ -826,6 +884,13 @@ def main() -> None:
              "SOURCE_HEADER may list fallbacks separated by '|'.",
     )
     parser.add_argument(
+        "--no-replace-output",
+        action="store_true",
+        help="Merge into any existing output instead of replacing it. Needed "
+             "when running with credentials that cannot delete from the bucket; "
+             "leaves stale objects from earlier runs in place.",
+    )
+    parser.add_argument(
         "--annotations-prefix",
         default="",
         metavar="PATH_OR_S3URI",
@@ -847,6 +912,7 @@ def main() -> None:
         whatif=args.whatif,
         seg_version_override=args.segmentation_version,
         channel_names=args.channel_name,
+        replace_output=not args.no_replace_output,
         input_ndim=args.input_ndim,
         output_ndim=args.output_ndim,
         columns=args.column,
