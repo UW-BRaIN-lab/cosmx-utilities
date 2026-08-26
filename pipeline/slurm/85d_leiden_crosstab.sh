@@ -69,8 +69,22 @@ apptainer exec \
         --typed-h5ad "$WORK/cosmx_typed.h5ad" \
         --output-dir "$WORK/out"
 
+# Leiden x InSituType Sankey, straight off the counts contingency the step above
+# wrote. Leiden goes in natural order (0,1,2,...) so clusters are scannable; the
+# type axis stays size-ordered so the dominant types sit together.
+apptainer exec \
+    --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
+    --bind "${WORK}:${WORK}" \
+    "$APPTAINER_RSC" \
+    python -u "${PIPELINE_DIR}/python/plot_crosstab_sankey.py" \
+        --crosstab "$WORK/out/leiden_celltype_counts.csv" \
+        --label-left "Leiden (Stage 3c)" \
+        --label-right "InSituType" \
+        --sort-left natural \
+        --output "$WORK/out/leiden_vs_insitutype_sankey.png"
+
 echo "Uploading crosstab outputs to Kopah (${STAGE4}/leiden_crosstab)..."
 s5cmd cp "$WORK/out/*" \
     "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/leiden_crosstab/"
 
-echo "Done: Leiden x InSituTree crosstab + Low_signal diagnosis."
+echo "Done: Leiden x InSituTree crosstab + Sankey + Low_signal diagnosis."
