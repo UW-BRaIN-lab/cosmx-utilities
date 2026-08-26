@@ -732,7 +732,13 @@ class Gemini:
             rotate=self.rotate)
         if z_plane is None:
             self.cells_layer = layer
-            self.cells_layer.opacity = 1.0
+            # Opacity 0, not 1. This layer exists to be hovered over -- it carries
+            # the per-cell features -- so it gets switched on to inspect cells while
+            # a coloured layer sits above it. At full opacity switching it on paints
+            # every cell in raw label colours underneath, which shows through
+            # wherever the coloured layer is transparent: filtering to a few cell
+            # types then looks like it did nothing, because the rest are still drawn.
+            self.cells_layer.opacity = 0.0
             self.cells_layer.visible = False
         if self.metadata is not None:
             df = self.metadata.copy()
