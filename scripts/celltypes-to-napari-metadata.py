@@ -45,6 +45,7 @@ import re
 import sys
 from pathlib import Path
 
+import duckdb
 import h5py
 import numpy as np
 import pandas as pd
@@ -54,6 +55,11 @@ import pandas as pd
 INDEX_RE = re.compile(r"^(?P<slide>.+)_F(?P<fov>\d+)_C(?P<cell>.+)$")
 # InSituType names de novo clusters with bare letters; everything else is a reference type.
 DENOVO_RE = re.compile(r"^[a-z]{1,2}$")
+# napari-cosmx conventions, matching scripts/generate-slide-metadata.py: the key column is
+# spelled `cell_ID` even though it holds the flat file's `cell_id` VALUES, and every value
+# column must be paired with a `<name>_color` or the layer renders uncoloured.
+CELL_ID_COLUMN = "cell_ID"
+COLOR_SUFFIX = "_color"
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,6 +84,10 @@ def parse_args() -> argparse.Namespace:
                         "so they stand out against an uncoloured background.")
     p.add_argument("--min-prob", type=float, default=0.0,
                    help="Blank calls below this posterior (default 0 = keep all).")
+    p.add_argument("--with-prob", action="store_true",
+                   help="Also write a <column>_prob column. Off by default: napari-cosmx "
+                        "expects every value column to have a paired _color, and a bare "
+                        "numeric column has none.")
     p.add_argument("--merge-into", type=Path,
                    help="Directory of existing <slide>_metadata.csv to add our column(s) "
                         "to, rather than writing a fresh file. Keeps every existing column "
@@ -111,6 +121,31 @@ def load_typing(path: Path) -> pd.DataFrame:
     return df
 
 
+def deterministic_color(value: str) -> str:
+    """Deterministic hex colour for a label — identical to generate-slide-metadata.py.
+
+    Sharing the implementation matters: a label must keep the same colour whichever script
+    wrote the column, or the same cell type changes colour between layers.
+    """
+    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
+                      params=[value]).fetchone()[0]
+
+
+def napari_frame(args, cell_ids: pd.Series, calls: pd.Series,
+                 probs: pd.Series) -> pd.DataFrame:
+    """Assemble one slide's columns in napari-cosmx's expected shape."""
+    calls = calls.fillna("").astype(str)
+    colors = {v: deterministic_color(v) for v in sorted(set(calls)) if v}
+    frame = pd.DataFrame({
+        CELL_ID_COLUMN: cell_ids.astype(str).to_numpy(),
+        args.column: calls.to_numpy(),
+        args.column + COLOR_SUFFIX: calls.map(colors).fillna("").to_numpy(),
+    })
+    if args.with_prob:
+        frame[f"{args.column}_prob"] = probs.round(4).fillna("").to_numpy()
+    return frame
+
+
 def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
     """Write one slide's metadata, optionally merged into an existing Napari file.
 
@@ -133,17 +168,17 @@ def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
         return len(out)
 
     existing = pd.read_csv(existing_path, dtype=str)
-    if "cell_id" not in existing.columns:
-        print(f"ERROR: {existing_path} has no 'cell_id' column to join on; "
+    if CELL_ID_COLUMN not in existing.columns:
+        print(f"ERROR: {existing_path} has no '{CELL_ID_COLUMN}' column to join on; "
               f"columns are {list(existing.columns)}", file=sys.stderr)
         sys.exit(1)
-    clash = [c for c in out.columns if c != "cell_id" and c in existing.columns]
+    clash = [c for c in out.columns if c != CELL_ID_COLUMN and c in existing.columns]
     if clash:
         print(f"ERROR: {existing_path} already has column(s) {clash}. Refusing to "
               f"overwrite — pass a different --column.", file=sys.stderr)
         sys.exit(1)
 
-    merged = existing.merge(out, on="cell_id", how="left")
+    merged = existing.merge(out, on=CELL_ID_COLUMN, how="left")
     if len(merged) != len(existing):
         # Duplicate cell_ids on either side would silently multiply rows.
         print(f"ERROR: merge changed the row count for {slide_id} "
@@ -182,11 +217,7 @@ def write_from_obs(args, typed: pd.DataFrame) -> None:
 
     total = 0
     for slide_id, grp in joined.groupby("slide_id", observed=True):
-        out = pd.DataFrame({
-            "cell_id": grp["flatfile_cell_id"].astype(str),
-            args.column: grp["cell_type"].fillna(""),
-            f"{args.column}_prob": grp["prob"].round(4).fillna(""),
-        })
+        out = napari_frame(args, grp["flatfile_cell_id"], grp["cell_type"], grp["prob"])
         print(f"  {str(slide_id):14s} {len(out):7,d} cells  "
               f"{int(grp['cell_type'].notna().sum()):7,d} typed")
         total += write_slide(args, str(slide_id), out)
@@ -233,11 +264,7 @@ def main() -> None:
         # Cells present on the slide but absent from the typing were dropped by stage-3a QC.
         # They stay in the file with an empty call so Napari still draws them uncoloured.
         n_missing = len(merged) - n_typed
-        out = pd.DataFrame({
-            "cell_id": merged["cell_id"],
-            args.column: merged["cell_type"].fillna(""),
-            f"{args.column}_prob": merged["prob"].round(4).fillna(""),
-        })
+        out = napari_frame(args, merged["cell_id"], merged["cell_type"], merged["prob"])
         print(f"  {slide_id:14s} {len(out):7,d} cells  {n_typed:7,d} typed  "
               f"{n_missing:6,d} not in typing (QC-dropped)")
         total_written += write_slide(args, str(slide_id), out)
