@@ -27,7 +27,9 @@ Reads:
   --typing-h5   stage-4 insitutype_result.h5 (/cell_id, /cell_type, /prob)
 
 Writes one `<slide>_metadata.csv` per slide with `cell_id`, the cell-type column, and its
-posterior, ready to drop next to the Napari slide directory.
+posterior, ready to drop next to the Napari slide directory. With `--merge-into` it instead
+adds those columns to an existing Napari metadata file, so one slide can carry AtoMx's
+cell-typing column and ours side by side and be toggled between them.
 
 Usage:
     uv run python scripts/celltypes-to-napari-metadata.py \\
@@ -76,6 +78,11 @@ def parse_args() -> argparse.Namespace:
                         "so they stand out against an uncoloured background.")
     p.add_argument("--min-prob", type=float, default=0.0,
                    help="Blank calls below this posterior (default 0 = keep all).")
+    p.add_argument("--merge-into", type=Path,
+                   help="Directory of existing <slide>_metadata.csv to add our column(s) "
+                        "to, rather than writing a fresh file. Keeps every existing column "
+                        "-- so a slide can carry AtoMx's call and ours side by side and be "
+                        "toggled between them in Napari.")
     return p.parse_args()
 
 
@@ -102,6 +109,53 @@ def load_typing(path: Path) -> pd.DataFrame:
     df["fov"] = parts["fov"].astype(int)
     df["cell_ID"] = parts["cell"].astype(str)
     return df
+
+
+def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
+    """Write one slide's metadata, optionally merged into an existing Napari file.
+
+    Merging is a LEFT join from the existing file, so its rows, their order, and every
+    column it already had are preserved exactly -- Napari keeps working with the old
+    colouring and simply gains another column to switch to. A name collision is a hard
+    error rather than an overwrite: silently replacing AtoMx's own cell-typing column is
+    the one outcome that would destroy the comparison this flag exists to enable.
+    """
+    out_path = args.out_dir / f"{slide_id}_metadata.csv"
+    if not args.merge_into:
+        out.to_csv(out_path, index=False)
+        return len(out)
+
+    existing_path = args.merge_into / f"{slide_id}_metadata.csv"
+    if not existing_path.exists():
+        print(f"WARN: nothing to merge into at {existing_path}; writing our columns alone",
+              file=sys.stderr)
+        out.to_csv(out_path, index=False)
+        return len(out)
+
+    existing = pd.read_csv(existing_path, dtype=str)
+    if "cell_id" not in existing.columns:
+        print(f"ERROR: {existing_path} has no 'cell_id' column to join on; "
+              f"columns are {list(existing.columns)}", file=sys.stderr)
+        sys.exit(1)
+    clash = [c for c in out.columns if c != "cell_id" and c in existing.columns]
+    if clash:
+        print(f"ERROR: {existing_path} already has column(s) {clash}. Refusing to "
+              f"overwrite — pass a different --column.", file=sys.stderr)
+        sys.exit(1)
+
+    merged = existing.merge(out, on="cell_id", how="left")
+    if len(merged) != len(existing):
+        # Duplicate cell_ids on either side would silently multiply rows.
+        print(f"ERROR: merge changed the row count for {slide_id} "
+              f"({len(existing):,} -> {len(merged):,}); duplicate cell_id?", file=sys.stderr)
+        sys.exit(1)
+    # Count non-EMPTY, not non-null: untyped cells are written as "" so Napari still draws
+    # them, so notna() would report every row as matched and hide a broken join.
+    filled = int((merged[args.column].fillna("").astype(str) != "").sum())
+    print(f"    merged into {existing_path.name}: {filled:,} of {len(existing):,} "
+          f"existing rows got a call, {len(existing.columns)} existing column(s) kept")
+    merged.fillna("").to_csv(out_path, index=False)
+    return len(merged)
 
 
 def write_from_obs(args, typed: pd.DataFrame) -> None:
@@ -133,11 +187,9 @@ def write_from_obs(args, typed: pd.DataFrame) -> None:
             args.column: grp["cell_type"].fillna(""),
             f"{args.column}_prob": grp["prob"].round(4).fillna(""),
         })
-        out_path = args.out_dir / f"{slide_id}_metadata.csv"
-        out.to_csv(out_path, index=False)
-        total += len(out)
         print(f"  {str(slide_id):14s} {len(out):7,d} cells  "
-              f"{int(grp['cell_type'].notna().sum()):7,d} typed  -> {out_path.name}")
+              f"{int(grp['cell_type'].notna().sum()):7,d} typed")
+        total += write_slide(args, str(slide_id), out)
     print(f"\nWrote {total:,} rows to {args.out_dir}")
 
 
@@ -186,11 +238,9 @@ def main() -> None:
             args.column: merged["cell_type"].fillna(""),
             f"{args.column}_prob": merged["prob"].round(4).fillna(""),
         })
-        out_path = args.out_dir / f"{slide_id}_metadata.csv"
-        out.to_csv(out_path, index=False)
-        total_written += len(out)
         print(f"  {slide_id:14s} {len(out):7,d} cells  {n_typed:7,d} typed  "
-              f"{n_missing:6,d} not in typing (QC-dropped)  -> {out_path.name}")
+              f"{n_missing:6,d} not in typing (QC-dropped)")
+        total_written += write_slide(args, str(slide_id), out)
 
     print(f"\nWrote {total_written:,} rows to {args.out_dir}")
 
