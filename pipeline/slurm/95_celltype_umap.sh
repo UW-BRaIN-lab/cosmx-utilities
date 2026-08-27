@@ -9,6 +9,11 @@
 #   for r in stage4 stage4_refit stage4_ext_l3 stage4_extl3_rescale; do
 #     RUN=$r sbatch pipeline/slurm/95_celltype_umap.sh; done
 #
+# ANNOTATION_TABLE overrides the RUN-derived table name. Needed when two studies share a
+# sub-prefix: the retina cohort's typing also lives under stage4/, so RUN=stage4 alone would
+# label its clusters with the GBM annotations. The retina run is:
+#   RUN=stage4 ANNOTATION_TABLE=retina_stage4 sbatch pipeline/slurm/95_celltype_umap.sh
+#
 # Required env (from pipeline/.env): KOPAH_*, APPTAINER_RSC.
 
 #SBATCH --job-name=cosmx-celltype-umap
@@ -43,7 +48,7 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 RUN="${RUN:?set RUN to the Kopah sub-prefix for the run, e.g. stage4_extl3_rescale}"
-MAPPING="${PIPELINE_DIR}/reference/denovo_annotations/${RUN}.csv"
+MAPPING="${PIPELINE_DIR}/reference/denovo_annotations/${ANNOTATION_TABLE:-$RUN}.csv"
 [[ -f "$MAPPING" ]] || { echo "ERROR: no annotation table $MAPPING" >&2; exit 1; }
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"

@@ -1,0 +1,20 @@
+denovo_label,annotation,top_markers,quality
+o,o - UNKNOWN (sheath/perineurium?),"KDR,SLC2A1,NGFR,WIF1,HES1,COL9A2,COL4A3,SPON1,ABI3BP,GPX3",novel (cos 0.824); nearest-named 'amacrine cell' is biologically absurd - read the markers
+m,m - Reactive/fibrous astrocyte,"GFAP,SERPINA3,TNC,AQP4,AQP1,S100B,PAX8,TGFBI,CTSH",novel (cos 0.760); all 3 reference astrocytes are healthy-tissue
+a,a - Fibroblast/stromal (sclera/sheath/choroid),"DCN,MGP,COL1A2,FBLN1,PLA2G2A,SCARA5,CFH,GSN",novel (cos 0.733); atlases lack ocular connective tissue
+h,h - Oligodendrocyte (unanchored),"PLP1,MAG,MOBP,MYRF,UGT8,CNP,MAL",known type that failed to anchor (cos 0.955)
+f,f - Microglia (unanchored),"HLA-DRA,C1QB,CD74,CSF1R,CYBB,CD14",known type that failed to anchor (cos 0.850)
+j,j - Endothelium (unanchored),"CLDN5,PECAM1,VWF,FLT1,TM4SF1,KLF2",known type that failed to anchor (cos 0.857)
+s,s - Astrocyte non-reactive (unanchored),"GJA1,SLC1A2,SLC1A3,SOX9,AQP4,FGFR3",known type that failed to anchor (cos 0.855)
+n,n - Retinal ganglion (unanchored),"SNCG,NEFL,PVALB,CALB2,L1CAM,ALDOC",known type that failed to anchor (cos 0.874)
+d,d - Oligodendrocyte newly-formed (unanchored),"SOX10,ANLN,PLP1,MAG,MOBP,HHIP",known type that failed to anchor (cos 0.795)
+k,k - Cortical excitatory (unanchored),"CDH18,CDH10,SLIT1,NPY1R,GRM7,EPHA4",known type that failed to anchor (cos 0.946)
+i,i - Cortical excitatory (unanchored),"NRGN,CAMK2A,PTK2B,KCNQ5,EPHA4,HTR2A",known type that failed to anchor (cos 0.899)
+c,c - Cortical excitatory (unanchored),"NRGN,VSNL1,GAP43,YWHAG,CTXN1,MAP1B",known type that failed to anchor (cos 0.818)
+r,r - SST+ interneuron (unanchored),"SST,GAD1,GAD2,CNR1,PENK,CXCL14",known type that failed to anchor (cos 0.888)
+q,q - GABAergic interneuron (unanchored),"GAD1,GAD2,TAC1,ARX,MAFB,SOX6",known type that failed to anchor (cos 0.835)
+g,g - Stress response,"HSPA1A,HSPA1B,DNAJA1,PPP1R15A,CCN1,CACYBP",state not a cell type; annotate + exclude
+b,b - Stress response,"ATF3,DNAJB1,CRYAB,HSPA1B,TIMP1,SERPINE1",state not a cell type; annotate + exclude
+l,l - Stress response,"FOS,ATF3,CRYAB,HSPB1,TIMP1,SERPINE1",state not a cell type; annotate + exclude
+e,e - Incoherent (set aside),"SNRPA1,B9D2,IL22RA2,IGLL1,CTSC,BLK",no consistent identity
+p,p - Too small (9 cells),,9 cells
