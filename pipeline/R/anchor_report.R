@@ -245,13 +245,20 @@ lines <- c(
           sum(report$n_anchors), nrow(x), 100 * sum(report$n_anchors) / nrow(x))
 )
 if (nrow(failed) > 0) {
-  lines <- c(lines, "", "Unanchored types (max_cosine, cells above min_cosine, absorber,",
-             "                  nearest reference type / its profile cosine):")
+  # best= is the discriminating column: a type that is the best cosine match for MANY cells
+  # yet still unanchored is dying at the likelihood-ratio tie-break, which is a different
+  # problem from one that is never any cell's best match. absorbed_by= is weaker evidence
+  # than it looks — in a cohort dominated by a few populations it largely reports which
+  # types are abundant, so read it together with nearest=.
+  lines <- c(lines, "",
+             "Unanchored types. cos = best cosine any cell reached; n>=cut = cells clearing",
+             "min_cosine; best = cells this type was the TOP cosine match for; absorbed_by =",
+             "which type took them; nearest = closest reference profile (cosine).")
   for (i in seq_len(nrow(failed))) {
     r <- failed[i]
     lines <- c(lines, sprintf(
-      "  %-38s cos=%.3f  n>=cut=%-8d absorbed_by=%-24s nearest=%s (%.3f)",
-      r$cell_type, r$max_cosine, r$n_cells_above_min_cosine,
+      "  %-34s cos=%.3f n>=cut=%-7d best=%-7d absorbed_by=%-22s nearest=%s (%.3f)",
+      r$cell_type, r$max_cosine, r$n_cells_above_min_cosine, r$n_cells_best_on_cosine,
       r$empirical_absorber, r$nearest_reference_type,
       r$nearest_reference_cosine))
   }
