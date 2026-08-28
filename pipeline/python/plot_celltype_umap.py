@@ -9,6 +9,11 @@ on the fly from a denovo_annotations mapping CSV (so `a` shows as `a - MES/AC-li
 
 Reads a stage-4c cosmx_typed.h5ad (obs has cell_type, obsm has X_umap).
 
+Axes are clipped to a percentile view (plot_qc.umap_view_limits) when UMAP outliers would
+otherwise squash the manifold into a few pixels - the same failure the stage-3c QC plots hit.
+Outliers are reported on stdout, never silently dropped: they stay in the counts and the
+legend, they just fall outside the drawn view.
+
 Memory: loads the full typed AnnData (~3.6GB at cohort scale) — run in a Slurm/salloc
 job (e.g. via 95_celltype_umap.sh), not on a login node.
 
@@ -29,6 +34,8 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 import pandas as pd
+
+from plot_qc import umap_view_limits
 
 
 def parse_args() -> argparse.Namespace:
@@ -86,6 +93,11 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.scatter(xy[order, 0], xy[order, 1], c=point_colors[order],
                s=args.point_size, linewidths=0, rasterized=True)
+    xlim, ylim, n_outside, ratio = umap_view_limits(xy)
+    if xlim is not None:
+        ax.set_xlim(*xlim); ax.set_ylim(*ylim)
+        print(f"Clipped axes to the percentile view: the autoscaled view was {ratio:.0f}x "
+              f"too wide, {n_outside:,} of {len(codes):,} cells fall outside it")
     ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_visible(False)
