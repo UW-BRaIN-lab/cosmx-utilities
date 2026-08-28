@@ -4,13 +4,14 @@
 Repeats the Wenyu-cohort Pattern A/B split at full-cohort scope. Reads obs ONLY -- the
 counts matrix is never touched -- so a 12 GB .h5ad costs a few seconds and a few hundred MB.
 
-The sink label is NOT hardcoded. The full-cohort run is Core-L4 InSituType on a pruned
-panel, so its de-novo clusters are still bare letters awaiting SME annotation, and which
-letter is the low-signal sink is a belief rather than a fact. This reports EVERY de-novo
-letter per donor plus a nominated sink, so the donor pattern can be re-read against a
-different letter without re-running anything.
+The sink label is NOT hardcoded, and no label convention is assumed. Runs differ: bare
+de-novo letters awaiting SME annotation, renamed "<name>_denovo" clusters, or a named
+Low_signal type. So this ALWAYS prints the real cell_type inventory first, then measures
+whichever label you nominate -- and refuses, listing the candidates, if that label is not
+in the object. Which cluster is the low-signal sink is a belief, so it must stay a
+parameter rather than an assumption.
 
-    python3 donor_sink_profile.py <typed.h5ad> [--sink b] [--top-denovo 6]
+    python3 donor_sink_profile.py <typed.h5ad> --sink '<label>' [--top-labels 6]
 """
 import argparse
 import collections
@@ -51,8 +52,9 @@ def read_obs_column(obs, name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("h5ad")
-    ap.add_argument("--sink", default="b", help="de-novo letter believed to be the sink")
-    ap.add_argument("--top-denovo", type=int, default=6)
+    ap.add_argument("--sink", default="b", help="cell_type label believed to be the sink")
+    ap.add_argument("--top-labels", type=int, default=6,
+                    help="how many cell_type labels to list in the inventory")
     ap.add_argument("--celltype-key", default="cell_type")
     ap.add_argument("--donor-key", default="Case")
     ap.add_argument("--region-key", default="Region")
@@ -70,15 +72,28 @@ def main():
     n = len(donor)
     print(f"{n:,} cells, {len(set(donor))} donors\n")
 
-    denovo_total = collections.Counter(t for t in cell_type if DENOVO(t))
-    print("de-novo clusters cohort-wide (letters awaiting annotation):")
-    for lab, cnt in denovo_total.most_common(args.top_denovo):
+    # ALWAYS show the real label inventory. Label conventions differ between runs -- bare
+    # de-novo letters, renamed "<name>_denovo", a named Low_signal type -- and a heuristic
+    # that silently matches nothing would otherwise report 0.0% for every donor.
+    label_total = collections.Counter(cell_type)
+    print(f"cell_type inventory ({len(label_total)} distinct labels), top {args.top_labels}:")
+    for lab, cnt in label_total.most_common(args.top_labels):
         mark = "  <-- nominated sink" if lab == args.sink else ""
-        print(f"  {lab:4} {cnt:10,}  {cnt / n:6.1%}{mark}")
-    if args.sink not in denovo_total:
-        print(f"  WARNING: nominated sink {args.sink!r} is not a de-novo label here")
-    print(f"  all de-novo combined: {sum(denovo_total.values()):,} "
-          f"({sum(denovo_total.values()) / n:.1%})\n")
+        print(f"  {lab:28} {cnt:10,}  {cnt / n:6.1%}{mark}")
+
+    denovo_total = collections.Counter(t for t in cell_type if DENOVO(t))
+    if denovo_total:
+        print(f"\n  bare-letter de-novo labels: {sum(denovo_total.values()):,} "
+              f"({sum(denovo_total.values()) / n:.1%}) across {len(denovo_total)}: "
+              f"{', '.join(sorted(denovo_total))}")
+    else:
+        print("\n  no bare-letter de-novo labels -- this run's clusters are already renamed")
+
+    if args.sink not in label_total:
+        print(f"\nERROR: --sink {args.sink!r} is not a cell_type in this object.")
+        print("Pick one from the inventory above and re-run with --sink '<label>'.")
+        sys.exit(2)
+    print()
 
     # per donor x region: cells, sink cells, any-de-novo cells
     agg = collections.defaultdict(lambda: [0, 0, 0])
