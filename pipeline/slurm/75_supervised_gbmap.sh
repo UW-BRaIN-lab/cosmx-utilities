@@ -30,6 +30,11 @@
 #   INPUT_DIR    Kopah sub-dir holding anchor/anchor_input.h5 (default stage4_anchor — 72 wrote
 #                the pruned typing to a fresh prefix but reuses the shared 9.6GB input).
 #   TOP_K        top assignments per cell (default 3; top2 shows the runner-up GBmap type).
+#   PROFILES_KEY Kopah key (under KOPAH_PREFIX/) of a ready-made named-profile CSV to score
+#                against, INSTEAD of extracting from the anchor fit. Unset = extract (the
+#                default, and the fair comparison). Set it to reference/gbmap_level4_panel.csv
+#                for the raw, un-rescaled scRNA-seq GBmap variant — see the scale caveat above
+#                before reading anything into that run.
 
 #SBATCH --job-name=cosmx-supervised-gbmap
 # One long insitutypeML pass over ~2.5M cells that does NOT checkpoint — a ckpt requeue would
@@ -92,14 +97,20 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/anchor/anchor_typing.h5
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT}/anchor/anchor_input.h5" \
     "$WORK/anchor_input.h5"
 
-echo "Step 1/2: extracting the named-only GBmap profiles from the anchor fit..."
-apptainer exec \
-    --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
-    --bind "${WORK}:${WORK}" \
-    "$APPTAINER_RSC" \
-    python "${PIPELINE_DIR}/python/prep_supervised_profiles.py" \
-        --profiles-h5 "$WORK/anchor_typing.h5" \
-        --output "$WORK/gbmap_named_profiles.csv"
+if [[ -n "${PROFILES_KEY:-}" ]]; then
+    echo "Step 1/2: staging ready-made profiles from ${PROFILES_KEY} (SKIPPING extraction)..."
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${PROFILES_KEY}" \
+        "$WORK/gbmap_named_profiles.csv"
+else
+    echo "Step 1/2: extracting the named-only GBmap profiles from the anchor fit..."
+    apptainer exec \
+        --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
+        --bind "${WORK}:${WORK}" \
+        "$APPTAINER_RSC" \
+        python "${PIPELINE_DIR}/python/prep_supervised_profiles.py" \
+            --profiles-h5 "$WORK/anchor_typing.h5" \
+            --output "$WORK/gbmap_named_profiles.csv"
+fi
 
 echo "Step 2/2: supervised insitutypeML scoring against the named profiles..."
 apptainer exec \
