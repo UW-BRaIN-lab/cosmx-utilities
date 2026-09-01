@@ -50,13 +50,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-import h5py
-import numpy as np
 import pandas as pd
+
+from anchor_profiles import read_profiles, split_named_denovo
 
 # FALLBACK rename map for LEGACY annotation CSVs that lack keep/new_name columns (the original
 # Core-L4 pilot run). Preferred path is data-driven: a `keep`/`new_name` annotations CSV. The
@@ -70,10 +69,6 @@ DEFAULT_DENOVO_RENAME = {
     "k": "MESlike_denovo",      # MES-like (mixed/weak)
     "j": "Low_signal_denovo",   # Low-signal/generic sink (housekeeping only)
 }
-
-# De-novo clusters = InSituType cluster_name_pool = 1-2 lowercase letters (a..z, aa..; K>26
-# overflows into two letters). Named types always carry an uppercase/digit/separator.
-DENOVO_LABEL_RE = re.compile(r"^[a-z]{1,2}$")
 
 TRUTHY = {"true", "t", "1", "yes", "y"}
 
@@ -130,50 +125,12 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _decode(arr: np.ndarray) -> list[str]:
-    """hdf5r variable-length UTF-8 comes back as bytes-or-str; normalize to str."""
-    return [x.decode("utf-8") if isinstance(x, bytes) else str(x) for x in arr]
-
-
-def read_profiles(h5_path: Path) -> pd.DataFrame:
-    """Read /profiles into a genes x types DataFrame, orienting robustly.
-
-    R/insitutype_typing.R writes profiles as an R matrix (genes x types); crossing the
-    R->HDF5->numpy boundary can transpose it, so we key orientation off the known
-    gene/type vector lengths rather than trusting the stored axis order.
-    """
-    with h5py.File(h5_path, "r") as f:
-        for key in ("profiles", "profile_genes", "profile_types"):
-            if key not in f:
-                print(f"ERROR: /{key} missing in {h5_path}. This run's h5 predates the "
-                      f"profiles writeback — regenerate it, or dump $profiles from the "
-                      f"companion insitutype_result.rds instead.", file=sys.stderr)
-                sys.exit(1)
-        mat = f["profiles"][()]
-        genes = _decode(f["profile_genes"][()])
-        types = _decode(f["profile_types"][()])
-
-    n_genes, n_types = len(genes), len(types)
-    if mat.shape == (n_genes, n_types):
-        pass
-    elif mat.shape == (n_types, n_genes):
-        mat = mat.T
-    else:
-        print(f"ERROR: /profiles shape {mat.shape} matches neither "
-              f"({n_genes} genes, {n_types} types) nor its transpose.", file=sys.stderr)
-        sys.exit(1)
-
-    df = pd.DataFrame(mat, index=pd.Index(genes, name="gene"), columns=types)
-    return df
-
-
 def main() -> None:
     args = parse_args()
 
     profiles = read_profiles(args.profiles_h5)
     all_types = list(profiles.columns)
-    named = [t for t in all_types if not DENOVO_LABEL_RE.match(t)]
-    denovo = [t for t in all_types if DENOVO_LABEL_RE.match(t)]
+    named, denovo = split_named_denovo(all_types)
     print(f"Profiles: {profiles.shape[0]:,} genes x {len(all_types)} types "
           f"({len(named)} named + {len(denovo)} de-novo {denovo})")
 
