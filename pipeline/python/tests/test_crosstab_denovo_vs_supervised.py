@@ -87,6 +87,66 @@ def test_load_display_labels_without_annotations_is_empty():
     assert xt.load_display_labels(None) == {}
 
 
+def _write_map(tmp, rows):
+    path = Path(tmp) / "map.csv"
+    path.write_text("gbmap_type,compartment\n" + "\n".join(f"{a},{b}" for a, b in rows) + "\n")
+    return path
+
+
+def test_collapse_columns_conserves_cells_and_keeps_map_order():
+    """Column order follows the map, not alphabetical — the Sankey axis must be stable."""
+    ct = pd.DataFrame({"AC-like": [10, 0], "Neuron": [5, 20], "MES-like": [5, 0]},
+                      index=["t", "n"])
+    cmap = {"AC-like": "Malignant", "Neuron": "Normal_CNS", "MES-like": "Malignant"}
+    got = xt.collapse_columns(ct, cmap)
+    assert list(got.columns) == ["Malignant", "Normal_CNS"]
+    assert got.values.sum() == ct.values.sum()
+    assert got.loc["t", "Malignant"] == 15
+    assert got.loc["n", "Normal_CNS"] == 20
+
+
+def test_collapse_columns_refuses_to_silently_drop_unmapped_types():
+    """An unmapped column would vanish from the roll-up and quietly change every percentage."""
+    ct = pd.DataFrame({"AC-like": [10], "Mystery": [90]}, index=["t"])
+    try:
+        xt.collapse_columns(ct, {"AC-like": "Malignant"})
+    except SystemExit as exc:
+        assert "Mystery" in str(exc)
+    else:
+        raise AssertionError("expected SystemExit on an unmapped GBmap type")
+
+
+def test_load_collapse_map_rejects_duplicate_types(tmp_path=None):
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _write_map(tmp, [("AC-like", "Malignant"), ("AC-like", "Normal_CNS")])
+        try:
+            xt.load_collapse_map(path)
+        except SystemExit as exc:
+            assert "AC-like" in str(exc)
+        else:
+            raise AssertionError("expected SystemExit on a duplicated gbmap_type")
+
+
+def test_shipped_compartment_map_is_complete_and_unambiguous():
+    """The committed map must cover every GBmap type exactly once."""
+    cmap = xt.load_collapse_map(
+        _PY_DIR.parents[0] / "reference/gbmap_compartments.csv")
+    assert len(cmap) == 54
+    assert set(cmap.values()) == {"Malignant", "Normal_CNS", "Myeloid", "Lymphoid",
+                                  "Vascular_mural", "Stress_sig"}
+
+
+def test_summarize_row_self_key_scores_compartment_agreement():
+    """A named source's 'unchanged' answer is its COMPARTMENT once the table is collapsed."""
+    counts = pd.Series({"Malignant": 90, "Normal_CNS": 10})
+    got = xt.summarize_row(counts, source="AC-like", prefix="compartment",
+                           self_key="Malignant", n_top=2)
+    assert got["compartment_1"] == "Malignant"
+    assert got["self_pct"] == 90.0
+    assert "compartment_3" not in got
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

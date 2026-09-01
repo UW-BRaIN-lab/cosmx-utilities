@@ -7,7 +7,13 @@
 # the all-labels cross-tab are the control: cells the semi-supervised fit already named should
 # mostly keep that name under the forced run.
 #
-# Cheap and fast — re-run it freely to re-cut the figure (e.g. MIN_PROB for a
+# Draws TWO Sankeys. The compartment one is the figure to read: GBmap's fine leaves are
+# mutually collinear on this panel, so the named control re-calls only ~79% of cells onto the
+# same leaf but ~97% onto the same compartment. The leaf Sankey is kept for the detail behind
+# it. COLLAPSE_MAP defines the roll-up and is a judgement call — edit that CSV and re-run this
+# job (the 52-minute re-score in 75 does NOT need to repeat) to redraw under a different one.
+#
+# Cheap and fast — re-run it freely to re-cut the figures (e.g. MIN_PROB for a
 # confidence-gated view). Everything runs in the RSC container (pandas + matplotlib).
 #
 # Submit (after 75):
@@ -19,6 +25,9 @@
 #                 (default reference/denovo_annotations/fullcohort_pruned_k27.csv).
 #   MIN_PROB      drop forced calls below this top1 posterior before cross-tabbing (default 0
 #                 = keep every cell; insitutypeML always assigns one).
+#   COLLAPSE_MAP  repo path to the GBmap-type -> compartment map (default
+#                 reference/gbmap_compartments.csv). Set to the empty string to skip the
+#                 compartment roll-up and draw only the leaf-level Sankey.
 #   MIN_FRAC      Sankey ribbon draw threshold as a fraction of all cells (default 0.0015).
 
 #SBATCH --job-name=cosmx-denovo-vs-gbmap
@@ -56,6 +65,7 @@ STAGE4="${STAGE4_DIR:-stage4_anchor_pruned}"
 ANNOTATIONS="${ANNOTATIONS:-reference/denovo_annotations/fullcohort_pruned_k27.csv}"
 MIN_PROB="${MIN_PROB:-0}"
 MIN_FRAC="${MIN_FRAC:-0.0015}"
+COLLAPSE_MAP="${COLLAPSE_MAP-reference/gbmap_compartments.csv}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_denovo_vs_gbmap_${SLURM_JOB_ID:-local}"
@@ -72,6 +82,11 @@ echo "Staging anchor typing + supervised posteriors from Kopah..."
 s5cmd cp "${BASE}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 s5cmd cp "${BASE}/supervised_gbmap/supervised_gbmap_posteriors.csv" "$WORK/posteriors.csv"
 
+COLLAPSE_ARG=()
+if [[ -n "$COLLAPSE_MAP" ]]; then
+    COLLAPSE_ARG=(--collapse-map "${PIPELINE_DIR}/${COLLAPSE_MAP}")
+fi
+
 echo "Cross-tabbing de-novo letters against their forced GBmap calls..."
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
@@ -82,23 +97,35 @@ apptainer exec \
         --posteriors "$WORK/posteriors.csv" \
         --annotations "${PIPELINE_DIR}/${ANNOTATIONS}" \
         --min-prob "$MIN_PROB" \
+        ${COLLAPSE_ARG[@]+"${COLLAPSE_ARG[@]}"} \
         --output-dir "$WORK/out"
 
-echo "Drawing the Sankey..."
-apptainer exec \
-    --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
-    --bind "${WORK}:${WORK}" \
-    "$APPTAINER_RSC" \
-    python "${PIPELINE_DIR}/python/plot_crosstab_sankey.py" \
-        --crosstab "$WORK/out/denovo_vs_gbmap_crosstab.csv" \
-        --label-left "de novo (k=27, semi-supervised)" \
-        --label-right "forced GBmap call (supervised)" \
-        --min-frac "$MIN_FRAC" \
-        --output "$WORK/out/denovo_vs_gbmap_sankey.png"
+draw_sankey() {
+    apptainer exec \
+        --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
+        --bind "${WORK}:${WORK}" \
+        "$APPTAINER_RSC" \
+        python "${PIPELINE_DIR}/python/plot_crosstab_sankey.py" \
+            --crosstab "$WORK/out/$1" \
+            --label-left "de novo (k=27, semi-supervised)" \
+            --label-right "$2" \
+            --min-frac "$MIN_FRAC" \
+            --output "$WORK/out/$3"
+}
+
+if [[ -n "$COLLAPSE_MAP" ]]; then
+    echo "Drawing the compartment Sankey (the one to read)..."
+    draw_sankey denovo_vs_compartment_crosstab.csv \
+        "forced GBmap compartment" denovo_vs_compartment_sankey.png
+fi
+
+echo "Drawing the leaf-level Sankey (detail)..."
+draw_sankey denovo_vs_gbmap_crosstab.csv \
+    "forced GBmap call (supervised)" denovo_vs_gbmap_sankey.png
 
 echo "Uploading cross-tabs + Sankey to Kopah (${STAGE4}/supervised_gbmap)..."
 s5cmd cp "$WORK/out/*" "${BASE}/supervised_gbmap/"
 
 echo "Done. Fetch the small outputs to the Mac with:"
 echo "  s5cmd cp '${BASE}/supervised_gbmap/*.csv' ."
-echo "  s5cmd cp '${BASE}/supervised_gbmap/denovo_vs_gbmap_sankey.png' ."
+echo "  s5cmd cp '${BASE}/supervised_gbmap/*.png' ."
