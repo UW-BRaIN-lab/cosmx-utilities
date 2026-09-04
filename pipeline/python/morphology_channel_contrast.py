@@ -361,14 +361,6 @@ def main() -> None:
 
     slide_frame = pd.DataFrame(slide_rows)
     channels = list(slide_frame["channel"].unique())
-    nuclear = resolve_role(channels, NUCLEAR_ALIASES, args.nuclear_channel, "nuclear")
-    reference = resolve_role(channels, REFERENCE_ALIASES, args.reference_channel,
-                             "reference")
-    if not nuclear or not reference:
-        raise MissingChannelError(
-            f"could not identify nuclear ({nuclear}) and reference ({reference}) "
-            f"channels among {channels}; pin them with --nuclear-channel / "
-            f"--reference-channel")
 
     if args.manifest and args.manifest.exists():
         manifest = pd.read_csv(args.manifest, dtype={"slide_id": str})
@@ -383,14 +375,26 @@ def main() -> None:
         pd.DataFrame(fov_rows).to_csv(args.fov_output, index=False)
         print(f"Wrote {args.fov_output}")
 
-    ratios = contrast_ratio_table(slide_frame, nuclear, reference)
-
     print(f"\nPer-channel medians across {slide_frame['slide_id'].nunique()} slide(s):")
     summary = slide_frame.groupby("channel")[
         ["contrast_index", "peakedness", "peakedness_tail", "area_rho",
          "rrna_rho_given_area"]].median()
     print(summary.round(3).to_string())
 
+    # The head-to-head ratio and the figure need the two roles named. Panels differ
+    # between studies, so a study whose channels this cannot label still keeps the
+    # per-channel tables above rather than losing the whole run to a naming miss.
+    nuclear = resolve_role(channels, NUCLEAR_ALIASES, args.nuclear_channel, "nuclear")
+    reference = resolve_role(channels, REFERENCE_ALIASES, args.reference_channel,
+                             "reference")
+    if not nuclear or not reference:
+        print(f"\nWARN: could not label nuclear ({nuclear}) and reference "
+              f"({reference}) channels among {channels}; wrote the per-channel "
+              f"tables but skipped the head-to-head ratio and figure. Pin them with "
+              f"--nuclear-channel / --reference-channel and re-run.", file=sys.stderr)
+        return
+
+    ratios = contrast_ratio_table(slide_frame, nuclear, reference)
     print(f"\n{reference} over {nuclear} contrast ratio: "
           f"median {ratios['reference_over_nuclear'].median():.2f}, "
           f"range {ratios['reference_over_nuclear'].min():.2f}-"

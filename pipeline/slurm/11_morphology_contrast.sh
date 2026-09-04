@@ -9,7 +9,13 @@
 #   sbatch pipeline/slurm/11_morphology_contrast.sh
 #
 # Against another cohort:
-#   MANIFEST=pipeline/manifest_retina.csv sbatch pipeline/slurm/11_morphology_contrast.sh
+#   MANIFEST=pipeline/manifest_retina.csv MAX_AREA=50000 \
+#       sbatch pipeline/slurm/11_morphology_contrast.sh
+#
+# Optional env:
+#   MAX_AREA     drop cells above this area; merged-cell blobs otherwise inflate the
+#                intensity-vs-area correlation. Retina uses 50000, GBM QC uses 30000.
+#   OUT_DIR      where results land (default <submit dir>/morphology_contrast)
 #
 # Required env (from pipeline/.env):
 #   KOPAH_ENDPOINT_URL, KOPAH_BUCKET, KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY,
@@ -76,7 +82,7 @@ if [[ "$STAGED" -eq 0 ]]; then
 fi
 echo "Staged $STAGED metadata file(s)"
 
-OUT_DIR="${SLURM_SUBMIT_DIR:-$PWD}/morphology_contrast"
+OUT_DIR="${OUT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}/morphology_contrast}"
 mkdir -p "$OUT_DIR"
 
 apptainer exec \
@@ -87,6 +93,7 @@ apptainer exec \
     python "${PIPELINE_DIR}/python/morphology_channel_contrast.py" \
         --flatfiles-dir "$WORK/flat" \
         --manifest "$MANIFEST" \
+        ${MAX_AREA:+--max-area "$MAX_AREA"} \
         --output "${OUT_DIR}/morphology_contrast_by_slide.csv" \
         --fov-output "${OUT_DIR}/morphology_contrast_by_fov.csv" \
         --figure "${OUT_DIR}/morphology_contrast.png"
