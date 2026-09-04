@@ -214,6 +214,10 @@ pipeline/manifest.csv
 # command in pipeline/RETINA_TYPING.md.
 pipeline/manifest_retina.csv
 pipeline/logs/
+# ...but keep the directory itself. Slurm opens the --output file BEFORE the job
+# script runs, so a checkout without pipeline/logs/ fails instantly and cannot
+# write the log that would explain why. Bites every new worktree.
+!pipeline/logs/.gitkeep
 pipeline/containers/*.sif
 
 # Full GBmap reference exports (large; only the panel-restricted subset is committed —
