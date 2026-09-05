@@ -24,10 +24,12 @@
 #   CELLSTATS_URI  set this instead to point somewhere the manifest does not cover
 #
 # Optional env:
-#   SEGMENTATION_DIR  a Segmentation_<uuid>_<nnn> subdir to take CompartmentLabels
-#                     from. Set this whenever the slide was resegmented, or the
-#                     compartments will come from the ORIGINAL segmentation and
-#                     will not match the flat files.
+#   SEGMENTATION_DIR  which Segmentation_<uuid>_<nnn> subdir to take
+#                     CompartmentLabels from. Normally leave unset: with MANIFEST
+#                     it is resolved from the flatFiles cellSegmentationSetId,
+#                     which is the only reliable rule -- the highest version
+#                     number is often a LATER resegmentation the flat files were
+#                     never derived from.
 #   USE_SOURCE=0      read from Kopah instead of the AWS source bucket. Defaults
 #                     to source: only flatFiles were migrated to Kopah, so the
 #                     morphology TIFFs exist ONLY in source S3.
@@ -109,6 +111,32 @@ trap 'rm -rf "$WORK"' EXIT
 # CompartmentLabels live under CellStatsDir/FOV<nnnnn>/ for the original
 # segmentation, and under CellStatsDir/<Segmentation_dir>/FOV<nnnnn>/ for a
 # resegmentation. Morphology2D is never duplicated per segmentation.
+# Resolve the segmentation the flat files were actually derived from. AtoMx can
+# leave several Segmentation_* dirs on a slide and the highest number is NOT
+# reliably the right one -- the flatFiles cellSegmentationSetId is the source of
+# truth (same rule as detect_segmentation in scripts/process-slide.py).
+if [[ -z "${SEGMENTATION_DIR:-}" && -n "${MANIFEST:-}" ]]; then
+    FLAT=$(awk -F, -v s="$SLIDE_ID" '$2==s {sub(/\r$/, "", $8); print $8; exit}' "$MANIFEST")
+    if [[ -n "$FLAT" ]]; then
+        SEG_ID=$(s5cmd cat \
+            "s3://${SOURCE_S3_BUCKET}/${FLAT%/}/${SLIDE_ID}_metadata_file.csv.gz" \
+            </dev/null 2>/dev/null | zcat 2>/dev/null | head -2 \
+            | awk -F, 'NR==1{for(i=1;i<=NF;i++) if($i=="cellSegmentationSetId") c=i}
+                       NR==2{gsub(/["'"'"' \r]/, "", $c); print $c}')
+        if [[ -n "${SEG_ID:-}" ]]; then
+            SEGMENTATION_DIR=$(s5cmd ls "${CELLSTATS_URI}/" </dev/null 2>/dev/null \
+                | grep -o "Segmentation_${SEG_ID}[^/]*" | head -1)
+            if [[ -n "${SEGMENTATION_DIR:-}" ]]; then
+                echo "cellSegmentationSetId $SEG_ID -> $SEGMENTATION_DIR"
+            else
+                echo "WARN: no CellStatsDir subdir matches UUID $SEG_ID" >&2
+            fi
+        else
+            echo "WARN: could not read cellSegmentationSetId from the flat files" >&2
+        fi
+    fi
+fi
+
 LABEL_BASE="$CELLSTATS_URI"
 if [[ -n "${SEGMENTATION_DIR:-}" ]]; then
     LABEL_BASE="${CELLSTATS_URI}/${SEGMENTATION_DIR}"
