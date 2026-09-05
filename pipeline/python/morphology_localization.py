@@ -127,6 +127,18 @@ def compartment_masks(labels: np.ndarray) -> dict[str, np.ndarray]:
     return masks
 
 
+def compartment_inventory(labels: np.ndarray) -> list[tuple[int, str, int]]:
+    """(value, name, pixel count) for EVERY distinct label, including dropped ones.
+
+    compartment_masks silently drops anything under the pixel floor, which makes
+    "this segmentation produced no cytoplasm" indistinguishable from "cytoplasm was
+    a handful of stray pixels". Reporting the raw inventory separates them.
+    """
+    return [(int(v), COMPARTMENT_NAMES.get(int(v), f"code_{int(v)}"),
+             int((labels == v).sum()))
+            for v in np.unique(labels)]
+
+
 def channel_rows(plane: np.ndarray, marker: str, channel: str,
                  masks: dict[str, np.ndarray]) -> dict:
     """Localization metrics for one channel of one FOV."""
@@ -186,6 +198,13 @@ def analyse_fov(slide_id: str, fov: str, morphology: Path, compartment: Path,
                 overrides: dict[str, str]) -> list[dict]:
     labels = read_page(compartment)
     masks = compartment_masks(labels)
+
+    total = labels.size
+    summary = ", ".join(
+        f"{name}={count / total:.1%}" + ("" if count >= MIN_COMPARTMENT_PIXELS else " DROPPED")
+        for _, name, count in compartment_inventory(labels))
+    print(f"    compartments: {summary}")
+
     if NUCLEAR not in masks or BACKGROUND not in masks:
         print(f"WARN: FOV {fov} has compartments {sorted(masks)}; "
               f"needs both '{NUCLEAR}' and '{BACKGROUND}' for the ratios",

@@ -35,6 +35,11 @@
 #                     morphology TIFFs exist ONLY in source S3.
 #   CHANNEL_NAMES     e.g. "B=AT8 G=6E10", passed through as --channel-name
 #   OUT_DIR           default <submit dir>/morphology_localization
+#   DRY_RUN=1         resolve everything, print the URIs, check each object
+#                     exists, then stop. Runs in seconds and needs no Slurm, so
+#                     the wrapper's own logic can be checked without a job cycle:
+#                       DRY_RUN=1 MANIFEST=... SLIDE_ID=... FOVS=1 \
+#                           bash pipeline/slurm/12_morphology_localization.sh
 
 #SBATCH --job-name=cosmx-morphology-localization
 #SBATCH --account=glioblastoma-ckpt
@@ -159,8 +164,34 @@ else
         | grep -o 'Segmentation_[^/]*' | sort -u | sed 's/^/        /' >&2 || true
 fi
 
-STAGED=0
 IFS=',' read -ra FOV_LIST <<< "$FOVS"
+
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+    echo
+    echo "DRY RUN - resolving only, nothing will be downloaded."
+    MISSING=0
+    for FOV in "${FOV_LIST[@]}"; do
+        PADDED=$(printf "%05d" "$FOV")
+        for URI in "${CELLSTATS_URI}/Morphology2D/*_F${PADDED}.TIF" \
+                   "${LABEL_BASE}/FOV${PADDED}/CompartmentLabels_F${PADDED}.tif"; do
+            if s5cmd ls "$URI" </dev/null >/dev/null 2>&1; then
+                echo "  OK      $URI"
+            else
+                echo "  MISSING $URI"
+                MISSING=$((MISSING + 1))
+            fi
+        done
+    done
+    echo
+    if [[ "$MISSING" -gt 0 ]]; then
+        echo "$MISSING object(s) not found - fix before submitting." >&2
+        exit 1
+    fi
+    echo "All objects resolve. Submit without DRY_RUN to run for real."
+    exit 0
+fi
+
+STAGED=0
 for FOV in "${FOV_LIST[@]}"; do
     PADDED=$(printf "%05d" "$FOV")
     echo "Staging FOV $PADDED ..."

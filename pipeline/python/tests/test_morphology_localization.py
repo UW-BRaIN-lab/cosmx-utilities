@@ -179,6 +179,24 @@ def test_compartment_masks_keep_unknown_codes_rather_than_guessing():
     assert "code_7" in masks, f"unexpected encoding dropped: {sorted(masks)}"
 
 
+def test_inventory_distinguishes_absent_from_merely_tiny():
+    """'This segmentation made no cytoplasm' must not look like 'a few stray pixels'."""
+    labels = synthetic_labels()
+    labels[0, :5] = 3  # 5 pixels of "membrane" - far below the floor
+    inventory = {name: count for _, name, count in ml.compartment_inventory(labels)}
+    assert inventory["membrane"] == 5, inventory
+    assert "membrane" not in ml.compartment_masks(labels), "should still be excluded"
+    assert "cytoplasm" in inventory and inventory["cytoplasm"] > ml.MIN_COMPARTMENT_PIXELS
+    print(f"inventory: {inventory}")
+
+
+def test_inventory_omits_a_compartment_the_segmentation_never_produced():
+    labels = synthetic_labels()
+    labels[labels == 2] = 1  # fold cytoplasm into nuclear, as a nucleus-only run would
+    names = {name for _, name, _ in ml.compartment_inventory(labels)}
+    assert names == {"background", "nuclear"}, names
+
+
 def test_compartment_masks_ignore_specks_below_the_pixel_floor():
     labels = synthetic_labels()
     labels[0, 0] = 9  # one pixel
