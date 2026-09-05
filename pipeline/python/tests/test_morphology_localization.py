@@ -56,10 +56,12 @@ def synthetic_planes(labels: np.ndarray) -> np.ndarray:
 
 
 def write_fov(root: Path, fov: int = 1) -> None:
+    """LZW-compressed, as AtoMx writes CompartmentLabels in the real exports."""
     labels = synthetic_labels()
-    tifffile.imwrite(root / f"CompartmentLabels_F{fov:05d}.tif", labels)
+    tifffile.imwrite(root / f"CompartmentLabels_F{fov:05d}.tif", labels,
+                     compression="lzw")
     tifffile.imwrite(root / f"20250101_000000_S1_C902_P99_N99_F{fov:05d}.TIF",
-                     synthetic_planes(labels))
+                     synthetic_planes(labels), compression="lzw")
 
 
 def rows_by_marker() -> dict:
@@ -73,6 +75,62 @@ def rows_by_marker() -> dict:
                              ["crisp", "wash", "cytoplasmic", "clipped", "dim"]))
         rows = ml.analyse_fov("SlideX", fov, morphology, compartment, overrides)
     return {r["marker"]: r for r in rows}
+
+
+def test_pillow_fallback_decodes_lzw_identically_to_tifffile():
+    """The container ships tifffile without imagecodecs, so LZW must go via Pillow."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_fov(root)
+        labels_path = root / "CompartmentLabels_F00001.tif"
+        morphology = root / "20250101_000000_S1_C902_P99_N99_F00001.TIF"
+
+        assert np.array_equal(ml._pillow_page(labels_path, 0),
+                              tifffile.imread(labels_path)), "label plane differs"
+        for index in range(len(ml.CHANNEL_ORDER)):
+            assert np.array_equal(ml._pillow_page(morphology, index),
+                                  tifffile.imread(morphology, key=index)), \
+                f"morphology plane {index} differs"
+    print(f"Pillow matches tifffile on {len(ml.CHANNEL_ORDER) + 1} LZW planes")
+
+
+def test_read_page_reraises_errors_that_are_not_missing_codecs():
+    """Only a missing-codec ValueError may reroute through Pillow; nothing else."""
+    def raise_unrelated(*args, **kwargs):
+        raise ValueError("truncated file, not a codec problem")
+
+    original = ml.tifffile.imread
+    ml.tifffile.imread = raise_unrelated
+    try:
+        ml.read_page(Path("irrelevant.tif"))
+    except ValueError as exc:
+        assert "truncated" in str(exc), f"wrong error propagated: {exc}"
+        print(f"propagated: {exc}")
+        return
+    finally:
+        ml.tifffile.imread = original
+    raise AssertionError("an unrelated ValueError was swallowed")
+
+
+def test_read_page_routes_a_missing_codec_error_to_pillow():
+    """The container's exact failure: tifffile raises, Pillow must supply the data."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_fov(root)
+        labels_path = root / "CompartmentLabels_F00001.tif"
+        expected = tifffile.imread(labels_path)
+
+        def raise_codec(*args, **kwargs):
+            raise ValueError("<COMPRESSION.LZW: 5> requires the 'imagecodecs' package")
+
+        original = ml.tifffile.imread
+        ml.tifffile.imread = raise_codec
+        try:
+            recovered = ml.read_page(labels_path)
+        finally:
+            ml.tifffile.imread = original
+    assert np.array_equal(recovered, expected)
+    print("missing-codec error recovered via Pillow")
 
 
 def test_crisp_nuclear_stain_scores_high_localization():

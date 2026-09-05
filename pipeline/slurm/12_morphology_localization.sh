@@ -47,9 +47,13 @@
 
 set -euo pipefail
 
+# lmod's init references unset vars (LD_LIBRARY_PATH), which set -u turns into
+# noise in the error log that looks like a real failure. Relax u just for it.
 if ! command -v module >/dev/null 2>&1; then
+    set +u
     source /etc/profile.d/lmod.sh 2>/dev/null \
         || source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
+    set -u
 fi
 module load apptainer
 export PATH="${HOME}/bin:${PATH}"

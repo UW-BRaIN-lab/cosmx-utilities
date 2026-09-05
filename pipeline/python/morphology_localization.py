@@ -62,6 +62,34 @@ COMPARTMENT_PATTERN = re.compile(r"CompartmentLabels_F(?P<fov>\d+)\.tif$", re.IG
 MIN_COMPARTMENT_PIXELS = 1000
 
 
+def _pillow_page(path: Path, index: int) -> np.ndarray:
+    from PIL import Image
+
+    with Image.open(path) as image:
+        image.seek(index)
+        return np.asarray(image)
+
+
+def read_page(path: Path, index: int = 0,
+              tif: tifffile.TiffFile | None = None) -> np.ndarray:
+    """Decode one TIFF page, falling back to Pillow when tifffile lacks a codec.
+
+    tifffile delegates LZW and friends to imagecodecs, which the pipeline
+    container does not ship, and CompartmentLabels images are LZW-compressed.
+    Pillow decodes them natively. Reading tags never needs a codec, so the
+    channel metadata still comes from tifffile either way.
+    """
+    try:
+        if tif is not None:
+            return tif.pages[index].asarray()
+        return tifffile.imread(path, key=index)
+    except ValueError as exc:
+        message = str(exc)
+        if "imagecodecs" not in message and "COMPRESSION" not in message:
+            raise
+        return _pillow_page(path, index)
+
+
 class MissingCompartmentError(Exception):
     """A FOV's morphology image has no matching CompartmentLabels image."""
 
@@ -156,7 +184,7 @@ def fov_pairs(fov_dir: Path) -> list[tuple[str, Path, Path]]:
 
 def analyse_fov(slide_id: str, fov: str, morphology: Path, compartment: Path,
                 overrides: dict[str, str]) -> list[dict]:
-    labels = tifffile.imread(compartment)
+    labels = read_page(compartment)
     masks = compartment_masks(labels)
     if NUCLEAR not in masks or BACKGROUND not in masks:
         print(f"WARN: FOV {fov} has compartments {sorted(masks)}; "
@@ -172,7 +200,7 @@ def analyse_fov(slide_id: str, fov: str, morphology: Path, compartment: Path,
                 f"({'/'.join(CHANNEL_ORDER)})")
         markers = channel_markers(tif, overrides)
         for index, (channel, marker) in enumerate(zip(CHANNEL_ORDER, markers)):
-            plane = tif.pages[index].asarray()
+            plane = read_page(morphology, index, tif)
             if plane.shape != labels.shape:
                 raise ChannelCountError(
                     f"FOV {fov}: morphology plane {plane.shape} does not match "
