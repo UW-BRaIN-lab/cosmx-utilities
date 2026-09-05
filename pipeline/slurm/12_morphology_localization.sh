@@ -74,7 +74,11 @@ set +a
 if [[ -z "${CELLSTATS_URI:-}" ]]; then
     : "${MANIFEST:?set MANIFEST or CELLSTATS_URI}"
     : "${SOURCE_S3_BUCKET:?SOURCE_S3_BUCKET missing from .env}"
-    DECODED=$(awk -F, -v s="$SLIDE_ID" '$2==s {print $9; exit}' "$MANIFEST")
+    # build_manifest.py writes with csv.DictWriter, whose default line terminator
+    # is CRLF, so the LAST column carries a trailing \r. Unstripped it lands
+    # mid-URI and s5cmd silently matches nothing. Stage 11 reads column 8 and
+    # never saw this; column 9 is the last one.
+    DECODED=$(awk -F, -v s="$SLIDE_ID" '$2==s {sub(/\r$/, "", $9); print $9; exit}' "$MANIFEST")
     if [[ -z "$DECODED" ]]; then
         echo "ERROR: $SLIDE_ID has no decoded_prefix in $MANIFEST" >&2
         exit 1
