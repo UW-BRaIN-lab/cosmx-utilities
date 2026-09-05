@@ -82,7 +82,7 @@ if [[ "$STAGED" -eq 0 ]]; then
 fi
 echo "Staged $STAGED metadata file(s)"
 
-OUT_DIR="${OUT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}/morphology_contrast}"
+OUT_DIR="${OUT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}/segmentation_homogeneity}"
 mkdir -p "$OUT_DIR"
 
 apptainer exec \
