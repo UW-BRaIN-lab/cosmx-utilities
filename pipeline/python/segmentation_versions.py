@@ -59,6 +59,9 @@ PARAMETER_KEYS = (
 )
 DATE_KEY_PATTERN = re.compile(r"(date|created|timestamp)", re.I)
 PARAMETERS_FILE_PATTERN = re.compile(r"SegmentationManifest_Parameters_.*\.json$")
+SEG_UUID_COLUMN = "cellSegmentationSetId"
+# Enough of the gzipped metadata to reach its header and first data row.
+METADATA_PEEK_BYTES = 131072
 SEGMENTATION_DIR_PATTERN = re.compile(r"(Segmentation_[^/]+)/")
 
 
@@ -96,6 +99,44 @@ def extract_facts(payload) -> dict:
     match = DATE_VALUE_PATTERN.search(facts["date_field"])
     facts["segmentation_date"] = match.group(1) if match else ""
     return facts
+
+
+def active_segmentation_uuid(client, bucket: str, flat_prefix: str,
+                             slide_id: str) -> str:
+    """The cellSegmentationSetId the flat files were built from.
+
+    A slide carries the ORIGINAL segmentation from acquisition alongside any later
+    resegmentation, so dates alone mix 2024 originals with 2026 resegmentations.
+    Only the segmentation named here produced the data everything downstream uses.
+
+    Range-requests the head of the gzipped metadata rather than the whole file --
+    the header and one data row are all that is needed.
+    """
+    import zlib
+
+    key = f"{flat_prefix.rstrip('/')}/{slide_id}_metadata_file.csv.gz"
+    try:
+        raw = client.get_object(Bucket=bucket, Key=key,
+                                Range=f"bytes=0-{METADATA_PEEK_BYTES - 1}")["Body"].read()
+    except Exception as exc:                          # noqa: BLE001
+        print(f"  WARN: could not read {key}: {exc}", file=sys.stderr)
+        return ""
+    # A truncated gzip stream raises at the end; whatever decompressed is enough.
+    decompressor = zlib.decompressobj(zlib.MAX_WBITS | 16)
+    try:
+        text = decompressor.decompress(raw).decode("utf-8", "ignore")
+    except zlib.error as exc:
+        print(f"  WARN: could not decompress {key}: {exc}", file=sys.stderr)
+        return ""
+    lines = text.splitlines()
+    if len(lines) < 2:
+        return ""
+    header = [h.strip().strip('"') for h in lines[0].split(",")]
+    if SEG_UUID_COLUMN not in header:
+        return ""
+    values = [v.strip().strip('"') for v in lines[1].split(",")]
+    index = header.index(SEG_UUID_COLUMN)
+    return values[index] if index < len(values) else ""
 
 
 def cellstats_prefix(decoded_prefix: str) -> str:
@@ -136,6 +177,11 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--source-bucket", default=None,
                         help="Defaults to SOURCE_S3_BUCKET from pipeline/.env")
+    parser.add_argument("--all-segmentations", action="store_true",
+                        help="Keep every Segmentation_* dir. By default only the one "
+                             "the flat files were built from is kept, so the output "
+                             "joins one-to-one and 2024 originals do not contaminate "
+                             "the 2026 resegmentation dates.")
     parser.add_argument("--build-cutoff", default=DEFAULT_BUILD_CUTOFF,
                         help="Segmentations on or after this date are labelled the "
                              f"later build (default {DEFAULT_BUILD_CUTOFF})")
@@ -159,6 +205,10 @@ def main() -> None:
         slide_id = entry["slide_id"]
         prefix = cellstats_prefix(entry["decoded_prefix"])
         print(f"{slide_id} ...", flush=True)
+        active_uuid = ""
+        if not args.all_segmentations and "flat_files_prefix" in manifest.columns:
+            active_uuid = active_segmentation_uuid(
+                client, bucket, entry["flat_files_prefix"], slide_id)
         try:
             keys = find_parameters_keys(client, bucket, prefix)
         except Exception as exc:                      # noqa: BLE001 - report and continue
@@ -168,7 +218,14 @@ def main() -> None:
             print(f"  WARN: no parameters JSON under {prefix}", file=sys.stderr)
             continue
 
-        # A slide can carry several segmentations; record each, newest suffix last.
+        # A slide carries its acquisition-time segmentation plus any resegmentation.
+        if active_uuid:
+            matching = [k for k in keys if active_uuid in k]
+            if matching:
+                keys = matching
+            else:
+                print(f"  WARN: no segmentation matches {active_uuid}, keeping all",
+                      file=sys.stderr)
         for key in sorted(keys):
             body = client.get_object(Bucket=bucket, Key=key)["Body"].read()
             try:
@@ -180,6 +237,7 @@ def main() -> None:
             row = {
                 "slide_id": slide_id,
                 "segmentation_dir": match.group(1) if match else "",
+                "is_active": bool(active_uuid and active_uuid in key),
             }
             row.update(extract_facts(payload))
             rows.append(row)
@@ -205,9 +263,14 @@ def main() -> None:
         print(f"\nWARN: {undated} segmentation(s) carry no date", file=sys.stderr)
     print(f"\nSegmentation dates: {dated[dated != ''].min()} to "
           f"{dated[dated != ''].max()}")
-    print("\nBuilds across the cohort:")
-    print(frame.groupby("atomx_build")["slide_id"].nunique()
-          .rename("slides").to_string())
+    duplicated = frame["slide_id"].duplicated().sum()
+    if duplicated:
+        print(f"\nWARN: {duplicated} slide(s) contribute more than one row; a join on "
+              f"slide_id will duplicate their geometry. Re-run without "
+              f"--all-segmentations for a one-to-one table.", file=sys.stderr)
+
+    print("\nBuilds across the cohort (segmentations, not slides):")
+    print(frame["atomx_build"].value_counts().rename("n").to_string())
     for key in PARAMETER_KEYS:
         if key in frame and frame[key].astype(str).nunique() > 1:
             print(f"  {key} is NOT uniform: "

@@ -109,6 +109,51 @@ def test_manifest_reader_strips_the_crlf_from_the_last_column():
     print("CRLF stripped from decoded_prefix")
 
 
+def test_active_uuid_is_read_from_a_truncated_gzip_stream():
+    """The metadata is range-requested, so decompression hits a truncated stream."""
+    import gzip, io
+
+    class FakeBody:
+        def __init__(self, data): self._data = data
+        def read(self): return self._data
+
+    class FakeClient:
+        def __init__(self, blob): self._blob = blob
+        def get_object(self, **kwargs):
+            start, end = kwargs["Range"].removeprefix("bytes=").split("-")
+            return {"Body": FakeBody(self._blob[int(start):int(end) + 1])}
+
+    rows = ["fov,cell_ID,cellSegmentationSetId,Area"]
+    rows += [f"{i},{i}, \"uuid-abc-123\",100" for i in range(4000)]
+    blob = gzip.compress("\n".join(rows).encode())
+    assert len(blob) > 200, "fixture should be a real gzip stream"
+
+    uuid = sv.active_segmentation_uuid(FakeClient(blob), "b", "flat/", "S1")
+    print(f"recovered uuid={uuid!r} from {len(blob)} gzip bytes")
+    assert uuid == "uuid-abc-123", uuid
+
+
+def test_active_uuid_is_empty_when_the_column_is_absent():
+    import gzip
+
+    class FakeBody:
+        def __init__(self, d): self._d = d
+        def read(self): return self._d
+
+    class FakeClient:
+        def __init__(self, b): self._b = b
+        def get_object(self, **kwargs): return {"Body": FakeBody(self._b)}
+
+    blob = gzip.compress(b"fov,cell_ID,Area\n1,1,100\n")
+    assert sv.active_segmentation_uuid(FakeClient(blob), "b", "flat/", "S1") == ""
+
+
+def test_active_uuid_survives_a_read_failure():
+    class Boom:
+        def get_object(self, **kwargs): raise RuntimeError("403")
+    assert sv.active_segmentation_uuid(Boom(), "b", "flat/", "S1") == ""
+
+
 if __name__ == "__main__":
     failures = 0
     for name, func in sorted(globals().items()):
