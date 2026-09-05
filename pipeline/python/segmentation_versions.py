@@ -130,9 +130,12 @@ def active_segmentation_uuid(client, bucket: str, flat_prefix: str,
         return ""
     lines = text.splitlines()
     if len(lines) < 2:
+        print(f"  WARN: {key} decompressed to {len(lines)} line(s)", file=sys.stderr)
         return ""
     header = [h.strip().strip('"') for h in lines[0].split(",")]
     if SEG_UUID_COLUMN not in header:
+        print(f"  WARN: {key} has no {SEG_UUID_COLUMN} column "
+              f"(saw {len(header)} columns, e.g. {header[:4]})", file=sys.stderr)
         return ""
     values = [v.strip().strip('"') for v in lines[1].split(",")]
     index = header.index(SEG_UUID_COLUMN)
@@ -263,11 +266,22 @@ def main() -> None:
         print(f"\nWARN: {undated} segmentation(s) carry no date", file=sys.stderr)
     print(f"\nSegmentation dates: {dated[dated != ''].min()} to "
           f"{dated[dated != ''].max()}")
-    duplicated = frame["slide_id"].duplicated().sum()
-    if duplicated:
-        print(f"\nWARN: {duplicated} slide(s) contribute more than one row; a join on "
-              f"slide_id will duplicate their geometry. Re-run without "
-              f"--all-segmentations for a one-to-one table.", file=sys.stderr)
+    resolved = int(frame["is_active"].sum()) if "is_active" in frame else 0
+    slides = frame["slide_id"].nunique()
+    print(f"\nActive segmentation resolved for {resolved} of {slides} slides")
+    if resolved < slides and not args.all_segmentations:
+        print(f"  {slides - resolved} slide(s) fell back to keeping every "
+              f"segmentation -- see the WARN lines above for why. Redirect stderr "
+              f"to a file (2> versions.err) to read them.", file=sys.stderr)
+
+    counts = frame["slide_id"].value_counts()
+    extra = counts[counts > 1]
+    if len(extra):
+        print(f"\nWARN: {len(extra)} slide(s) contribute more than one row "
+              f"({int(counts.sum() - slides)} extra rows); a join on slide_id will "
+              f"duplicate their geometry.", file=sys.stderr)
+        print(f"  most segmentations on one slide: {int(counts.max())} "
+              f"({counts.idxmax()})", file=sys.stderr)
 
     print("\nBuilds across the cohort (segmentations, not slides):")
     print(frame["atomx_build"].value_counts().rename("n").to_string())
