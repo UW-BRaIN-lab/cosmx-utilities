@@ -8,22 +8,29 @@
 # Morphology TIFFs are ~150MB per FOV, so this samples FOVs rather than taking a
 # whole slide. Four to six per slide is ample for a background measurement.
 #
-# Submit from the repo root:
-#   CELLSTATS_URI=s3://brainlabkg/CosMx-GBM/<run>/<slide>/<scan>/CellStatsDir \
-#   SLIDE_ID=7583G27583G7 FOVS=1,50,100,150 \
+# Submit from the repo root. The manifest already records where each slide's raw
+# data lives, so normally you only name the slide:
+#   MANIFEST=$HOME/cosmx-utilities-fullcohort/pipeline/manifest.csv \
+#   SLIDE_ID=7329A67822A7 FOVS=1,50,100,150 \
 #       sbatch pipeline/slurm/12_morphology_localization.sh
 #
 # Required env:
-#   CELLSTATS_URI  s3:// prefix of the slide's CellStatsDir (no trailing slash)
-#   SLIDE_ID       slide identifier, used to name the output
+#   SLIDE_ID       slide identifier, matching manifest column 2
 #   FOVS           comma-separated FOV numbers to sample
+#   MANIFEST       pipeline manifest; CELLSTATS_URI is derived from its
+#                  decoded_prefix column (9), which points at
+#                  <export>/DecodedFiles/<slide>/<scan>/ -- CellStatsDir sits
+#                  inside that, NOT beside DecodedFiles
+#   CELLSTATS_URI  set this instead to point somewhere the manifest does not cover
 #
 # Optional env:
 #   SEGMENTATION_DIR  a Segmentation_<uuid>_<nnn> subdir to take CompartmentLabels
 #                     from. Set this whenever the slide was resegmented, or the
 #                     compartments will come from the ORIGINAL segmentation and
 #                     will not match the flat files.
-#   USE_SOURCE=1      read from the AWS source bucket instead of Kopah
+#   USE_SOURCE=0      read from Kopah instead of the AWS source bucket. Defaults
+#                     to source: only flatFiles were migrated to Kopah, so the
+#                     morphology TIFFs exist ONLY in source S3.
 #   CHANNEL_NAMES     e.g. "B=AT8 G=6E10", passed through as --channel-name
 #   OUT_DIR           default <submit dir>/morphology_localization
 
@@ -58,11 +65,26 @@ set -a
 source "${PIPELINE_DIR}/.env"
 set +a
 
-: "${CELLSTATS_URI:?set CELLSTATS_URI to the CellStatsDir s3:// prefix}"
 : "${SLIDE_ID:?set SLIDE_ID}"
 : "${FOVS:?set FOVS, e.g. FOVS=1,50,100,150}"
 
-if [[ "${USE_SOURCE:-0}" == "1" ]]; then
+# Derive the CellStatsDir from the manifest unless it was named explicitly. The
+# decoded_prefix column is the slide base path process-slides.py discovers, and
+# CellStatsDir is its child.
+if [[ -z "${CELLSTATS_URI:-}" ]]; then
+    : "${MANIFEST:?set MANIFEST or CELLSTATS_URI}"
+    : "${SOURCE_S3_BUCKET:?SOURCE_S3_BUCKET missing from .env}"
+    DECODED=$(awk -F, -v s="$SLIDE_ID" '$2==s {print $9; exit}' "$MANIFEST")
+    if [[ -z "$DECODED" ]]; then
+        echo "ERROR: $SLIDE_ID has no decoded_prefix in $MANIFEST" >&2
+        exit 1
+    fi
+    CELLSTATS_URI="s3://${SOURCE_S3_BUCKET}/${DECODED%/}/CellStatsDir"
+    echo "Resolved CellStatsDir from manifest:"
+    echo "  $CELLSTATS_URI"
+fi
+
+if [[ "${USE_SOURCE:-1}" == "1" ]]; then
     export AWS_ACCESS_KEY_ID="${AWS_SOURCE_ACCESS_KEY_ID:?}"
     export AWS_SECRET_ACCESS_KEY="${AWS_SOURCE_SECRET_ACCESS_KEY:?}"
     unset S3_ENDPOINT_URL
@@ -84,8 +106,11 @@ if [[ -n "${SEGMENTATION_DIR:-}" ]]; then
     LABEL_BASE="${CELLSTATS_URI}/${SEGMENTATION_DIR}"
     echo "Taking CompartmentLabels from $SEGMENTATION_DIR"
 else
-    echo "WARN: SEGMENTATION_DIR unset - using the ORIGINAL segmentation's" >&2
-    echo "      compartments, which will not match a resegmented slide" >&2
+    echo "WARN: SEGMENTATION_DIR unset - using the ORIGINAL segmentation," >&2
+    echo "      whose compartments will not match a resegmented slide." >&2
+    echo "      Segmentation directories present on this slide:" >&2
+    s5cmd ls "${CELLSTATS_URI}/" </dev/null 2>/dev/null \
+        | grep -o 'Segmentation_[^/]*' | sort -u | sed 's/^/        /' >&2 || true
 fi
 
 STAGED=0
