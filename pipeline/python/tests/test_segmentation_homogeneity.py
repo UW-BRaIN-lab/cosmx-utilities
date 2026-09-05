@@ -87,6 +87,30 @@ def test_outliers_are_named_when_one_slide_drifts():
     print(f"flagged: {sorted(set(flagged['slide_id']))}")
 
 
+def test_area_threshold_shows_a_fixed_cut_is_not_neutral():
+    """Large-celled slides lose several percent to a fixed cut; narrow ones lose none."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_slide(root, "narrow", 1.0, seed=1)
+        write_slide(root, "wide", 2.5, seed=2)
+        cut = BASE_AREA * 3
+        rows = {s: sh.slide_summary(s, p, area_threshold=cut)
+                for s, p in sh.metadata_paths(root, [])}
+    narrow = rows["narrow"]["pct_above_threshold"]
+    wide = rows["wide"]["pct_above_threshold"]
+    print(f"cut={cut:.0f}: narrow loses {narrow}%, wide loses {wide}%")
+    assert wide > narrow * 3, "the cut must bite the large-celled slide much harder"
+    assert narrow < 5.0
+
+
+def test_area_threshold_is_absent_unless_requested():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        write_slide(root, "s1", 1.0)
+        row = sh.slide_summary("s1", root / "s1_metadata_file.csv.gz")
+    assert "pct_above_threshold" not in row
+
+
 def test_choose_grouping_ignores_a_column_unique_to_every_slide():
     """cellSegmentationSetId is per-slide, so it groups nothing and must be skipped."""
     frame = pd.DataFrame({

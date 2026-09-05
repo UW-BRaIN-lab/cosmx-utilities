@@ -6,11 +6,14 @@ a single value across the whole cohort -- so a version-driven batch effect canno
 be tested from them. The SegmentationManifest_Parameters JSON in each slide's
 CellStatsDir does record it, two ways:
 
-  * any creation/date field it carries, and
-  * the PRESENCE of `Run3DSegmentation` / `assignRNAtoNearest`, which AtoMx gained
-    between 2026-04-16 and 2026-05-07. Those two keys appear in profiles from the
-    later build and not the earlier one, so presence alone fingerprints the build
-    even when no date is stored.
+  * a `Datecreated` field, in UTC, which is what this uses.
+
+A key-presence fingerprint was tried first -- `Run3DSegmentation` and
+`assignRNAtoNearest` appear in the AtoMx UI for later-build profiles and not
+earlier ones -- and it does NOT work: the JSON stores neither key, so all 57 slides
+came back as the earlier build including two known to be later. The UI renders
+those fields from its own current defaults rather than from the saved record. The
+stored parameters are absent too; the date is the only usable signal.
 
 Emits a slide_groups.csv to feed back into segmentation_homogeneity.py:
 
@@ -32,6 +35,7 @@ import re
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -40,10 +44,13 @@ from _clients import make_source_client  # noqa: E402
 
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
-# Keys AtoMx gained in the newer build. Presence, not value, is the fingerprint.
+# Kept only as a diagnostic: these are absent from every JSON we have seen, so the
+# build is derived from the stored date instead. See the module docstring.
 FINGERPRINT_KEYS = ("Run3DSegmentation", "assignRNAtoNearest")
-BUILD_WITH = "post-2026-05"
-BUILD_WITHOUT = "pre-2026-05"
+# The compartment change lands between 2026-04-16 (cytoplasm present) and
+# 2026-05-07 (absent), so any cutoff in that gap separates the two behaviours.
+DEFAULT_BUILD_CUTOFF = "2026-05-01"
+DATE_VALUE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 # Parameters worth carrying alongside, to prove configs really were identical.
 PARAMETER_KEYS = (
@@ -77,11 +84,8 @@ def extract_facts(payload) -> dict:
     scalars = walk_scalars(payload, {})
     lowered = {k.lower(): k for k in scalars}
 
-    present = [k for k in FINGERPRINT_KEYS if k.lower() in lowered]
-    facts: dict = {
-        "atomx_build": BUILD_WITH if present else BUILD_WITHOUT,
-        "fingerprint_keys": "|".join(present),
-    }
+    facts: dict = {"fingerprint_keys": "|".join(
+        k for k in FINGERPRINT_KEYS if k.lower() in lowered)}
     for key in PARAMETER_KEYS:
         actual = lowered.get(key.lower())
         facts[key] = scalars.get(actual, "") if actual else ""
@@ -89,6 +93,8 @@ def extract_facts(payload) -> dict:
         if DATE_KEY_PATTERN.search(key):
             facts.setdefault("date_field", f"{original}={scalars[original]}")
     facts.setdefault("date_field", "")
+    match = DATE_VALUE_PATTERN.search(facts["date_field"])
+    facts["segmentation_date"] = match.group(1) if match else ""
     return facts
 
 
@@ -130,8 +136,9 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--source-bucket", default=None,
                         help="Defaults to SOURCE_S3_BUCKET from pipeline/.env")
-    parser.add_argument("--seg-uuid-column", default="cellSegmentationSetId",
-                        help="Ignored unless --flatfiles-dir is given")
+    parser.add_argument("--build-cutoff", default=DEFAULT_BUILD_CUTOFF,
+                        help="Segmentations on or after this date are labelled the "
+                             f"later build (default {DEFAULT_BUILD_CUTOFF})")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -176,18 +183,28 @@ def main() -> None:
             }
             row.update(extract_facts(payload))
             rows.append(row)
-            print(f"  {row['segmentation_dir']}: {row['atomx_build']}"
-                  f"{' ' + row['date_field'] if row['date_field'] else ''}")
+            print(f"  {row['segmentation_dir']}: "
+                  f"{row['segmentation_date'] or 'no date'}")
 
     if not rows:
         print("ERROR: no segmentation parameters recovered", file=sys.stderr)
         sys.exit(1)
 
     frame = pd.DataFrame(rows)
+    dated = frame["segmentation_date"].astype(str)
+    frame["atomx_build"] = np.where(
+        dated == "", "unknown",
+        np.where(dated >= args.build_cutoff,
+                 f"on/after {args.build_cutoff}", f"before {args.build_cutoff}"))
     frame.to_csv(args.output, index=False)
     print(f"\nWrote {args.output}  ({len(frame)} segmentation(s), "
           f"{frame['slide_id'].nunique()} slides)")
 
+    undated = int((frame["segmentation_date"] == "").sum())
+    if undated:
+        print(f"\nWARN: {undated} segmentation(s) carry no date", file=sys.stderr)
+    print(f"\nSegmentation dates: {dated[dated != ''].min()} to "
+          f"{dated[dated != ''].max()}")
     print("\nBuilds across the cohort:")
     print(frame.groupby("atomx_build")["slide_id"].nunique()
           .rename("slides").to_string())

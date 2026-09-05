@@ -37,23 +37,30 @@ def may_payload():
              "Parameters": params}]
 
 
-def test_the_newer_build_is_identified_by_key_presence():
-    facts = sv.extract_facts(may_payload())
-    print(f"may -> {facts['atomx_build']} via {facts['fingerprint_keys']}")
-    assert facts["atomx_build"] == sv.BUILD_WITH
-    assert "Run3DSegmentation" in facts["fingerprint_keys"]
+def test_the_key_fingerprint_is_recorded_but_does_not_classify():
+    """It was tried and failed: the JSON stores neither key, so it cannot group."""
+    april, may = sv.extract_facts(april_payload()), sv.extract_facts(may_payload())
+    assert april["fingerprint_keys"] == ""
+    assert "Run3DSegmentation" in may["fingerprint_keys"]
+    assert "atomx_build" not in april, "build must come from the date, not the keys"
+    print("fingerprint kept as a diagnostic only")
 
 
-def test_the_older_build_is_identified_by_their_absence():
+def test_the_stored_date_is_parsed_into_a_groupable_column():
+    facts = sv.extract_facts({"Datecreated": "2026-05-08T17:59:05.381",
+                              "Parameters": dict(BASE_PARAMS)})
+    print(f"segmentation_date={facts['segmentation_date']}")
+    assert facts["segmentation_date"] == "2026-05-08"
+
+
+def test_a_missing_date_yields_an_empty_string_not_a_wrong_group():
     facts = sv.extract_facts(april_payload())
-    print(f"april -> {facts['atomx_build']}")
-    assert facts["atomx_build"] == sv.BUILD_WITHOUT
-    assert facts["fingerprint_keys"] == ""
+    assert facts["segmentation_date"] == ""
 
 
-def test_a_false_value_still_counts_as_present():
-    """Both real profiles carry these as false; the VALUE says nothing, presence does."""
-    assert sv.extract_facts(may_payload())["atomx_build"] == sv.BUILD_WITH
+def test_date_strings_sort_correctly_against_the_cutoff():
+    """Grouping compares ISO strings, so it must order as dates do."""
+    assert "2026-04-17" < sv.DEFAULT_BUILD_CUTOFF <= "2026-05-08"
 
 
 def test_identical_parameters_are_reported_for_both_builds():

@@ -19,6 +19,8 @@
 #                 flat files. Pair with GROUP_BY.
 #   GROUP_BY      column to compare across (default: whichever of version /
 #                 cellSegmentationSetId actually separates the slides)
+#   AREA_THRESHOLD  report the percentage of cells above this area per slide, i.e.
+#                   what a fixed QC cut discards. The pipeline uses 30000.
 #   OUT_DIR       default <submit dir>/segmentation_homogeneity
 
 #SBATCH --job-name=cosmx-segmentation-homogeneity
@@ -95,6 +97,7 @@ apptainer exec \
         --manifest "$MANIFEST" \
         ${SLIDE_GROUPS:+--slide-groups "$SLIDE_GROUPS"} \
         ${GROUP_BY:+--group-by "$GROUP_BY"} \
+        ${AREA_THRESHOLD:+--area-threshold "$AREA_THRESHOLD"} \
         --output "${OUT_DIR}/segmentation_by_slide.csv" \
         --figure "${OUT_DIR}/segmentation_area.png"
 

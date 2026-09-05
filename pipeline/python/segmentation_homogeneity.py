@@ -81,7 +81,8 @@ def single_value(frame: pd.DataFrame, column: str) -> str:
     return "|".join(values)
 
 
-def slide_summary(slide_id: str, path: Path) -> dict:
+def slide_summary(slide_id: str, path: Path,
+                  area_threshold: float | None = None) -> dict:
     """Geometry distributions and provenance for one slide."""
     header = pd.read_csv(path, nrows=0).columns
     wanted = [c for c in (FOV_COLUMN, *GEOMETRY_COLUMNS, *PROVENANCE_COLUMNS)
@@ -113,6 +114,12 @@ def slide_summary(slide_id: str, path: Path) -> dict:
         row[f"{column}_p95"] = round(high, 2)
         # Spread relative to the median, so slides of different cell sizes compare.
         row[f"{column}_spread"] = round((high - low) / median, 3) if median else float("nan")
+    if area_threshold:
+        # A fixed area cut is not a neutral filter: slides whose cells run large
+        # lose several percent while narrow slides lose almost none, which biases
+        # what survives QC per slide.
+        area = frame[AREA_COLUMN].astype(float)
+        row["pct_above_threshold"] = round(100 * float((area > area_threshold).mean()), 2)
     for column in PROVENANCE_COLUMNS:
         row[column] = single_value(frame, column)
     return row
@@ -206,6 +213,10 @@ def main() -> None:
                         help="CSV with slide_id plus any grouping columns — use it to "
                              "supply segmentation dates read off the AtoMx UI, which are "
                              "not present in the flat files")
+    parser.add_argument("--area-threshold", type=float,
+                        help="Report the percentage of cells above this area per "
+                             "slide, i.e. what a fixed QC cut discards. The pipeline "
+                             "uses 30000.")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--figure", type=Path)
     args = parser.parse_args()
@@ -222,7 +233,7 @@ def main() -> None:
     rows = []
     for slide_id, path in targets:
         print(f"Reading {path.name}")
-        summary = slide_summary(slide_id, path)
+        summary = slide_summary(slide_id, path, args.area_threshold)
         if summary:
             rows.append(summary)
     if not rows:
@@ -264,6 +275,15 @@ def main() -> None:
         print("\nNo column separates the slides into groups. Supply segmentation "
               "dates with --slide-groups + --group-by to test the AtoMx-version "
               "split directly.")
+
+    if "pct_above_threshold" in frame:
+        share = frame["pct_above_threshold"]
+        print(f"\nCells above the {args.area_threshold:,.0f} px QC cut:")
+        print(f"  median {share.median():.2f}%   range {share.min():.2f}%–"
+              f"{share.max():.2f}%   spread {share.max() - share.min():.2f} points")
+        worst = frame.nlargest(8, "pct_above_threshold")[
+            ["slide_id", "Area_p50", "pct_above_threshold"]]
+        print(worst.to_string(index=False))
 
     outliers = report_outliers(frame)
     if len(outliers):
