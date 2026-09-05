@@ -118,11 +118,21 @@ trap 'rm -rf "$WORK"' EXIT
 if [[ -z "${SEGMENTATION_DIR:-}" && -n "${MANIFEST:-}" ]]; then
     FLAT=$(awk -F, -v s="$SLIDE_ID" '$2==s {sub(/\r$/, "", $8); print $8; exit}' "$MANIFEST")
     if [[ -n "$FLAT" ]]; then
-        SEG_ID=$(s5cmd cat \
-            "s3://${SOURCE_S3_BUCKET}/${FLAT%/}/${SLIDE_ID}_metadata_file.csv.gz" \
-            </dev/null 2>/dev/null | zcat 2>/dev/null | head -2 \
-            | awk -F, 'NR==1{for(i=1;i<=NF;i++) if($i=="cellSegmentationSetId") c=i}
-                       NR==2{gsub(/["'"'"' \r]/, "", $c); print $c}')
+        # Staged to a file, and read in a subshell with pipefail off: `head -2`
+        # closes the pipe, the upstream reader takes SIGPIPE, and under
+        # `set -eo pipefail` that non-zero pipeline would abort the whole job
+        # at this assignment rather than falling through to the warning below.
+        SEG_META="$WORK/seg_lookup.csv.gz"
+        SEG_ID=""
+        if s5cmd cp \
+                "s3://${SOURCE_S3_BUCKET}/${FLAT%/}/${SLIDE_ID}_metadata_file.csv.gz" \
+                "$SEG_META" </dev/null >/dev/null 2>&1; then
+            SEG_ID=$( set +o pipefail
+                      zcat "$SEG_META" 2>/dev/null | head -2 \
+                      | awk -F, 'NR==1{for(i=1;i<=NF;i++) if($i=="cellSegmentationSetId") c=i}
+                                 NR==2{gsub(/["'"'"' \r]/, "", $c); print $c}' ) || SEG_ID=""
+            rm -f "$SEG_META"
+        fi
         if [[ -n "${SEG_ID:-}" ]]; then
             SEGMENTATION_DIR=$(s5cmd ls "${CELLSTATS_URI}/" </dev/null 2>/dev/null \
                 | grep -o "Segmentation_${SEG_ID}[^/]*" | head -1)
