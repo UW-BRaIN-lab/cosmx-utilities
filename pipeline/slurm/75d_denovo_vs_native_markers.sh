@@ -16,13 +16,18 @@
 #
 # Submit (defaults to the two comparisons the PI asked for):
 #   sbatch pipeline/slurm/75d_denovo_vs_native_markers.sh
-# One ad-hoc comparison instead:
+# Sweep several letters, taking each one's own largest destinations automatically — the right
+# mode for the letters that scatter across many named types (b 11 leaves, u 9, d 8, e 7, t 6):
+#   LETTERS=b,d,e,j,z sbatch pipeline/slurm/75d_denovo_vs_native_markers.sh
+# One ad-hoc comparison with destinations named by hand instead:
 #   LETTER=z DESTINATIONS=MES-like_hypoxia_MHC,Astrocyte,AC-like \
 #     sbatch pipeline/slurm/75d_denovo_vs_native_markers.sh
 #
 # Env knobs (KOPAH_*, APPTAINER_RSC from pipeline/.env):
 #   STAGE4_DIR   Kopah sub-dir with anchor/ + supervised_gbmap/ (default stage4_anchor_pruned).
 #   INPUT_DIR    Kopah sub-dir holding anchor/anchor_input.h5 (default stage4_anchor).
+#   LETTERS      comma-separated letters to sweep; destinations come from the cross-tab.
+#   TOP_DEST     with LETTERS, destinations per letter (default 3).
 #   TOP_N        markers selected per group (default 8).
 #   MIN_GROUP_N  drop groups smaller than this (default 50).
 
@@ -74,7 +79,13 @@ COMPARISONS=(
 if [[ -n "${LETTER:-}" ]]; then
     : "${DESTINATIONS:?set DESTINATIONS alongside LETTER}"
     COMPARISONS=("${LETTER}:${DESTINATIONS}")
+elif [[ -n "${LETTERS:-}" ]]; then
+    # Empty destination list => the script derives them from the cross-tab.
+    COMPARISONS=()
+    IFS=',' read -ra _letters <<< "$LETTERS"
+    for _l in "${_letters[@]}"; do COMPARISONS+=("${_l// /}:"); done
 fi
+TOP_DEST="${TOP_DEST:-3}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_denovo_vs_native_${SLURM_JOB_ID:-local}"
 mkdir -p "$WORK"
@@ -90,13 +101,20 @@ echo "Staging anchor counts + labels from Kopah..."
 s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/forced_named_posteriors.csv" "$WORK/forced.csv"
+s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_gbmap_crosstab.csv" "$WORK/crosstab.csv"
 
 for spec in "${COMPARISONS[@]}"; do
     letter="${spec%%:*}"
     dests="${spec#*:}"
     outdir="$WORK/out/${letter}_vs_native"
     echo
-    echo "=== ${letter} vs native [${dests}] ==="
+    if [[ -n "$dests" ]]; then
+        DEST_ARG=(--destinations "$dests")
+        echo "=== ${letter} vs native [${dests}] ==="
+    else
+        DEST_ARG=(--crosstab "$WORK/crosstab.csv" --top-destinations "$TOP_DEST")
+        echo "=== ${letter} vs native [top ${TOP_DEST} destinations from the cross-tab] ==="
+    fi
     apptainer exec \
         --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
         --bind "${WORK}:${WORK}" \
@@ -106,7 +124,7 @@ for spec in "${COMPARISONS[@]}"; do
             --typing-h5 "$WORK/anchor_typing.h5" \
             --forced-csv "$WORK/forced.csv" \
             --letter "$letter" \
-            --destinations "$dests" \
+            "${DEST_ARG[@]}" \
             --top-n "$TOP_N" \
             --min-group-n "$MIN_GROUP_N" \
             --output-dir "$outdir"

@@ -37,7 +37,9 @@ Inputs:
                   cells (see 75c).
   --letter        the de-novo letter to dissect, e.g. t
   --destinations  comma-separated GBmap classes to compare against, e.g.
-                  OPC-like,AC-like,MES-like_hypoxia_MHC
+                  OPC-like,AC-like,MES-like_hypoxia_MHC. Or omit it and pass --crosstab to
+                  take the letter's own largest destinations automatically, which is what you
+                  want when sweeping several letters.
 
 Writes exactly what R/marker_heatmap.R reads in its no-region mode:
   <out>/marker_heatmap_zmatrix.csv    genes x groups, z-scored
@@ -82,8 +84,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--forced-csv", type=Path, required=True,
                    help="forced_named_posteriors.csv from 75c (cell_id, top1_type).")
     p.add_argument("--letter", required=True, help="De-novo letter to dissect, e.g. t")
-    p.add_argument("--destinations", required=True,
-                   help="Comma-separated GBmap classes to compare against.")
+    p.add_argument("--destinations",
+                   help="Comma-separated GBmap classes to compare against. Omit to derive "
+                        "them from --crosstab.")
+    p.add_argument("--crosstab", type=Path,
+                   help="denovo_vs_gbmap_crosstab.csv — derive the destinations from this "
+                        "letter's own largest ones instead of listing them by hand.")
+    p.add_argument("--top-destinations", type=int, default=3,
+                   help="With --crosstab, how many destinations to take (default 3).")
+    p.add_argument("--min-destination-pct", type=float, default=5.0,
+                   help="With --crosstab, ignore destinations below this %% of the letter "
+                        "(default 5); keeps thin columns out of a swept figure.")
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--top-n", type=int, default=8,
                    help="Top markers selected per group (default 8).")
@@ -113,6 +124,26 @@ def read_counts(path: Path) -> tuple[sp.csc_matrix, np.ndarray, np.ndarray]:
     return mat, genes, cell_id
 
 
+def destinations_from_crosstab(path: Path, letter: str, top_n: int, min_pct: float) -> list[str]:
+    """The letter's largest forced destinations, as a fallback for --destinations.
+
+    Rows of the cross-tab carry the readable display label ("t - AC-like"), so the letter is
+    matched on the token before the first " - ".
+    """
+    ct = pd.read_csv(path, index_col=0)
+    match = [i for i in ct.index if str(i).split(" - ")[0].strip() == letter]
+    if not match:
+        sys.exit(f"ERROR: letter {letter!r} not among the cross-tab rows: {list(ct.index)[:5]}...")
+    row = ct.loc[match[0]]
+    pct = row / row.sum() * 100
+    keep = pct[pct >= min_pct].sort_values(ascending=False).head(top_n)
+    if keep.empty:
+        sys.exit(f"ERROR: no destination of {letter!r} reaches {min_pct}%.")
+    print(f"Destinations for {letter} from {path.name}: "
+          + ", ".join(f"{d} ({v:.1f}%)" for d, v in keep.items()))
+    return list(keep.index)
+
+
 def build_groups(semisup: pd.Series, forced: pd.Series, letter: str,
                  destinations: list[str], include_all: bool) -> pd.Series:
     """Per-cell group label, or NaN for cells in none of the compared groups.
@@ -135,9 +166,15 @@ def build_groups(semisup: pd.Series, forced: pd.Series, letter: str,
 
 def main() -> None:
     args = parse_args()
-    destinations = [d.strip() for d in args.destinations.split(",") if d.strip()]
+    if args.destinations:
+        destinations = [d.strip() for d in args.destinations.split(",") if d.strip()]
+    elif args.crosstab:
+        destinations = destinations_from_crosstab(
+            args.crosstab, args.letter, args.top_destinations, args.min_destination_pct)
+    else:
+        sys.exit("ERROR: pass --destinations, or --crosstab to derive them.")
     if not destinations:
-        sys.exit("ERROR: --destinations is empty.")
+        sys.exit("ERROR: no destinations selected.")
 
     calls = read_cell_calls(args.typing_h5)[["cell_id", "cell_type"]]
     forced = pd.read_csv(args.forced_csv, usecols=["cell_id", "top1_type"])
