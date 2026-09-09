@@ -25,6 +25,12 @@
 #                 (default reference/denovo_annotations/fullcohort_pruned_k27.csv).
 #   MIN_PROB      drop forced calls below this top1 posterior before cross-tabbing (default 0
 #                 = keep every cell; insitutypeML always assigns one).
+#   POSTERIORS_BASENAME  which per-cell forced call to read from supervised_gbmap/ (default
+#                 forced_named_posteriors.csv, written by 75c from the anchor fit's OWN stored
+#                 logliks). 75's supervised_gbmap_posteriors.csv is the re-scored alternative,
+#                 but 75c measured it agreeing with the fit only 54.8% of the time — the
+#                 disagreements sit at small top1-vs-top2 margins — so do not use it for
+#                 anything reportable.
 #   COLLAPSE_MAP  repo path to the GBmap-type -> compartment map (default
 #                 reference/gbmap_compartments.csv). Set to the empty string to skip the
 #                 compartment roll-up and draw only the leaf-level Sankey.
@@ -66,6 +72,7 @@ ANNOTATIONS="${ANNOTATIONS:-reference/denovo_annotations/fullcohort_pruned_k27.c
 MIN_PROB="${MIN_PROB:-0}"
 MIN_FRAC="${MIN_FRAC:-0.0015}"
 COLLAPSE_MAP="${COLLAPSE_MAP-reference/gbmap_compartments.csv}"
+POSTERIORS_BASENAME="${POSTERIORS_BASENAME:-forced_named_posteriors.csv}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_denovo_vs_gbmap_${SLURM_JOB_ID:-local}"
@@ -80,7 +87,8 @@ BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}"
 
 echo "Staging anchor typing + supervised posteriors from Kopah..."
 s5cmd cp "${BASE}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
-s5cmd cp "${BASE}/supervised_gbmap/supervised_gbmap_posteriors.csv" "$WORK/posteriors.csv"
+echo "  per-cell forced call: ${POSTERIORS_BASENAME}"
+s5cmd cp "${BASE}/supervised_gbmap/${POSTERIORS_BASENAME}" "$WORK/posteriors.csv"
 
 COLLAPSE_ARG=()
 if [[ -n "$COLLAPSE_MAP" ]]; then

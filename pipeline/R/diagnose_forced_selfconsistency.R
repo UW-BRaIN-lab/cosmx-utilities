@@ -37,6 +37,12 @@
 # Outputs:
 #   --output-csv   per-semi-supervised-label agreement table for A, B and C.
 #   --output-margins-csv  margin distribution for agreeing vs disagreeing cells.
+#   --output-forced-csv   THE CORRECTED PER-CELL ANSWER. Same schema flat_posteriors.R emits
+#                  (cell_id, top1_type, top1_prob, top2_type, top2_prob) plus `margin`, but
+#                  read straight off the anchor fit's own stored logliks instead of re-scored.
+#                  Because B holds, this IS "what the fit would call each cell with the de-novo
+#                  option removed" — self-consistent by construction. Feed it to 75b in place of
+#                  75's posteriors and every cross-tab and Sankey recomputes correctly.
 #
 # Memory: the stored loglik matrix is ~2.5M x 81 doubles (~1.6GB) plus copies for the two
 # max.col passes; ask for well over that.
@@ -111,9 +117,17 @@ idx_named <- max.col(ll_named, ties.method = "first")
 argmax_named <- named_cols[idx_named]
 
 # top1-vs-top2 margin among the named columns: how close was the call?
-top1 <- ll_named[cbind(seq_len(nrow(ll_named)), idx_named)]
-ll_named[cbind(seq_len(nrow(ll_named)), idx_named)] <- -Inf
-top2 <- ll_named[cbind(seq_len(nrow(ll_named)), max.col(ll_named, ties.method = "first"))]
+n_cells <- nrow(ll_named)
+top1 <- ll_named[cbind(seq_len(n_cells), idx_named)]
+# Softmax over the named columns, row max for numerical stability — the same posterior
+# flat_posteriors.R reports, so the emitted CSV is schema-compatible.
+lse <- top1 + log(rowSums(exp(ll_named - top1)))
+prob1 <- exp(top1 - lse)
+ll_named[cbind(seq_len(n_cells), idx_named)] <- -Inf
+idx2 <- max.col(ll_named, ties.method = "first")
+top2 <- ll_named[cbind(seq_len(n_cells), idx2)]
+argmax_named_2 <- named_cols[idx2]
+prob2 <- exp(top2 - lse)
 margin <- top1 - top2
 rm(ll_named); invisible(gc())
 
@@ -126,6 +140,9 @@ dt <- data.table(cell_id = rownames(ll) %||% names(clust),
                  semisup = as.character(clust),
                  argmax_all = argmax_all,
                  forced_named = argmax_named,
+                 top1_prob = prob1,
+                 top2_type = argmax_named_2,
+                 top2_prob = prob2,
                  margin = margin)
 dt <- merge(dt, post, by = "cell_id", all.x = TRUE)
 dt[, is_denovo := grepl(DENOVO_RE, semisup)]
@@ -187,6 +204,15 @@ print(head(per_label, 25))
 
 data.table::fwrite(per_label, opt[["output-csv"]])
 message(sprintf("\nWrote %s (%d labels)", opt[["output-csv"]], nrow(per_label)))
+
+if (!is.null(opt[["output-forced-csv"]])) {
+  forced <- data.table(cell_id = dt$cell_id, top1_type = dt$forced_named,
+                       top1_prob = dt$top1_prob, top2_type = dt$top2_type,
+                       top2_prob = dt$top2_prob, margin = dt$margin)
+  data.table::fwrite(forced, opt[["output-forced-csv"]])
+  message(sprintf("Wrote %s (%d cells) — the CORRECTED forced-named call, from the fit's own logliks",
+                  opt[["output-forced-csv"]], nrow(forced)))
+}
 
 if (!is.null(opt[["output-margins-csv"]])) {
   data.table::fwrite(margins, opt[["output-margins-csv"]])

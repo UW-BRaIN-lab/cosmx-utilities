@@ -16,6 +16,11 @@
 #
 # Env knobs (KOPAH_*, APPTAINER_INSITUTYPE from pipeline/.env):
 #   STAGE4_DIR  Kopah sub-dir with anchor/ + supervised_gbmap/ (default stage4_anchor_pruned).
+#
+# It also emits forced_named_posteriors.csv: the corrected per-cell forced-named call, taken
+# straight off the fit's own stored logliks. Because B holds, that IS the answer 75 was trying
+# to re-derive — feed it to 75b via POSTERIORS_BASENAME and the figures recompute correctly
+# without re-scoring anything.
 
 #SBATCH --job-name=cosmx-forced-selfconsist
 #SBATCH --account=glioblastoma-ckpt
@@ -76,12 +81,19 @@ apptainer exec \
         --typing-rds "$WORK/anchor_typing.rds" \
         --posteriors "$WORK/posteriors.csv" \
         --output-csv "$WORK/forced_selfconsistency_by_label.csv" \
-        --output-margins-csv "$WORK/forced_selfconsistency_margins.csv"
+        --output-margins-csv "$WORK/forced_selfconsistency_margins.csv" \
+        --output-forced-csv "$WORK/forced_named_posteriors.csv"
 
 echo "Uploading diagnostic tables to Kopah (${STAGE4}/supervised_gbmap)..."
 s5cmd cp "$WORK/forced_selfconsistency_by_label.csv" \
     "${BASE}/supervised_gbmap/forced_selfconsistency_by_label.csv"
 s5cmd cp "$WORK/forced_selfconsistency_margins.csv" \
     "${BASE}/supervised_gbmap/forced_selfconsistency_margins.csv"
+s5cmd cp "$WORK/forced_named_posteriors.csv" \
+    "${BASE}/supervised_gbmap/forced_named_posteriors.csv"
 
 echo "Done. The A/B/C decomposition is printed above in this log."
+echo
+echo "Regenerate the cross-tabs and Sankeys from the CORRECTED per-cell call with:"
+echo "  POSTERIORS_BASENAME=forced_named_posteriors.csv \\"
+echo "    sbatch pipeline/slurm/75b_denovo_vs_supervised.sh"
