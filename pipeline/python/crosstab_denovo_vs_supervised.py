@@ -28,11 +28,16 @@ Emits three tables:
 
 With --collapse-map, two more tables are emitted at COMPARTMENT resolution
 (denovo_vs_compartment_crosstab.csv, all_vs_compartment_crosstab.csv) and the summary gains
-compartment_1 / compartment_1_pct / n_comp_90pct. This is usually the resolution to read:
-GBmap's fine leaves are mutually collinear on a panel this size, so the named control
-re-calls only ~79% of cells onto the same LEAF but ~97% onto the same COMPARTMENT. A letter
-needing many leaves but few compartments is scattering WITHIN one lineage — a reference
-artefact, not a finding. Both control numbers are printed so the gap stays visible.
+compartment_1 / compartment_1_pct / n_comp_90pct. On the corrected per-cell call the named
+control is 99.0% at leaf level and 99.3% at compartment level, so BOTH resolutions are
+readable; the roll-up earns its place on legibility (27x54 is a hairball) and because
+"malignant or not" is usually the question. A letter needing many leaves but few compartments
+is spread across sibling states inside one lineage, which is worth knowing either way.
+
+Both control numbers are printed side by side on purpose. A large gap between them is a
+SYMPTOM, not a property of the reference: an earlier 79%/97% split looked like GBmap's fine
+leaves being mutually collinear, but turned out to be a bug in how the forced call was
+re-scored (see 75c). If they diverge again, suspect the per-cell input before the biology.
 
 CAVEAT worth carrying into the figure: insitutypeML has no "unassigned" option, so EVERY cell
 gets a GBmap name whether or not it fits. The confidence columns (and --min-prob) are what

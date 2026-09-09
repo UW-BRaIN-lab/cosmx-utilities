@@ -7,11 +7,13 @@
 # the all-labels cross-tab are the control: cells the semi-supervised fit already named should
 # mostly keep that name under the forced run.
 #
-# Draws TWO Sankeys. The compartment one is the figure to read: GBmap's fine leaves are
-# mutually collinear on this panel, so the named control re-calls only ~79% of cells onto the
-# same leaf but ~97% onto the same compartment. The leaf Sankey is kept for the detail behind
-# it. COLLAPSE_MAP defines the roll-up and is a judgement call — edit that CSV and re-run this
-# job (the 52-minute re-score in 75 does NOT need to repeat) to redraw under a different one.
+# Draws TWO Sankeys. On the corrected per-cell call (75c's forced_named_posteriors.csv) the
+# named control is 99.0% at LEAF level and 99.3% at COMPARTMENT level, so leaf destinations are
+# trustworthy and the compartment view is a LEGIBILITY aid, not a correctness requirement:
+# 27x54 is a hairball, 27x6 is readable, and "malignant or not" is usually the question being
+# asked. An earlier 79%/97% split looked like reference collinearity but was a bug in 75's
+# re-scoring — see 75c. COLLAPSE_MAP defines the roll-up and is a judgement call: edit that CSV
+# and re-run this job (the 52-minute 75 does NOT repeat) to redraw under a different one.
 #
 # Cheap and fast — re-run it freely to re-cut the figures (e.g. MIN_PROB for a
 # confidence-gated view). Everything runs in the RSC container (pandas + matplotlib).
