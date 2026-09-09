@@ -117,6 +117,10 @@ for spec in "${COMPARISONS[@]}"; do
 done
 
 echo
-echo "Done. Fetch to the Mac and render there (no ComplexHeatmap in the container):"
-echo "  s5cmd cp --flatten '${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_native/*' ./denovo_vs_native/"
+echo "Done. Fetch to the Mac and render there (no ComplexHeatmap in the container)."
+echo "NOTE: every letter writes the SAME three filenames, so they must stay in per-letter"
+echo "subdirectories — do NOT pass --flatten here or one letter overwrites the other."
+echo "  s5cmd cp '${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_native/*' ~/denovo_vs_native/"
+echo "  # then, from a Mac terminal:"
+echo "  scp -r emilyek@klone.hyak.uw.edu:denovo_vs_native ~/keene-lab/cosmx-utilities/"
 echo "  Rscript pipeline/R/marker_heatmap.R denovo_vs_native/t t_heatmap \"\" \"t forced vs native\""
