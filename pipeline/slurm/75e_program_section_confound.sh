@@ -13,8 +13,12 @@
 # letter was 80% concentrated there, slide-level grouping called it a CELL STATE (100% positive
 # gaps, median +1.37) while section-level correctly called it handling. Sections are derived from
 # the stage-1 cell ids ("<slide>_F<fov>_C<cell>") as contiguous FOV runs, the same notion
-# tissue_section_gap.py uses; the job prints the sections-per-slide distribution as a check that
-# it mostly finds 2. See python/diagnose_program_by_section.py.
+# tissue_section_gap.py uses. That check EARNED ITS KEEP on run 39972319: it found 56 of 57
+# slides with a single run, because this cohort's FOV numbering is continuous 1-200 across both
+# pieces — so the run heuristic collapses to the slide here and must not be used.
+#
+# The unit is therefore the FOV, which lies entirely within one piece by construction and so
+# controls for the section and for position inside it. See python/diagnose_program_by_section.py.
 #
 # Submit (defaults to t + the heat-shock set):
 #   sbatch pipeline/slurm/75e_program_slide_confound.sh
@@ -24,7 +28,9 @@
 # Env knobs (KOPAH_*, APPTAINER_RSC from pipeline/.env):
 #   STAGE4_DIR  Kopah sub-dir with anchor/anchor_typing.h5 (default stage4_anchor_pruned).
 #   INPUT_DIR   Kopah sub-dir with anchor/anchor_input.h5 (default stage4_anchor).
-#   FOV_GAP     FOV numbering gap that starts a new tissue piece (default 10).
+#   UNIT        fov (default) or fov-run. fov-run is kept for cohorts whose FOV numbering does
+#               break between the two pieces; check its runs-per-slide line says 2 first.
+#   MIN_CELLS   minimum cells of BOTH groups per unit (default 25).
 #   LETTER      de-novo letter under test (default t).
 #   GENES       comma-separated programme genes (default: the heat-shock set from 75d).
 
@@ -91,7 +97,8 @@ apptainer exec \
         --counts-h5 "$WORK/anchor_input.h5" \
         --typing-h5 "$WORK/anchor_typing.h5" \
         --letter "$LETTER" \
-        --fov-gap "${FOV_GAP:-10}" \
+        --unit "${UNIT:-fov}" \
+        --min-section-cells "${MIN_CELLS:-25}" \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
         --output-csv "$WORK/${LETTER}_program_by_section.csv"
 

@@ -12,11 +12,20 @@ pieces with different blocks, and possibly different collection and fixation his
 the letter's cells sit mostly in one of the two pieces, a "within-slide" letter-vs-rest gap is
 partly a between-piece comparison and would read as a cell state when it is not.
 
-The two pieces appear as two contiguous FOV runs on the slide (this is what tissue_section_gap.py
-reasons about — e.g. FOVs 1-135 and 181-205). The stage-1 cell id encodes both parts we need,
-"<slide_id>_F<fov>_C<cell_ID>", so the section is derived from the ids themselves with no extra
-join: split each slide's FOVs wherever the numbering gaps by more than --fov-gap. The
-sections-per-slide distribution is printed as a sanity check — it should mostly be 2.
+Getting that unit is the hard part. Splitting a slide's FOVs into contiguous runs (what
+tissue_section_gap.py reasons about, e.g. 1-135 then 181-205) does NOT work on this cohort: run
+39972319 found 56 of 57 slides with a single run, because the FOV numbering is continuous 1-200
+across both pieces. So --unit fov-run is kept but is not the default, and its
+sections-per-slide line is the check that it applies at all.
+
+The default unit is instead the FOV itself. An FOV lies entirely within one piece by
+construction, so it controls for the section AND for position inside it — strictly more
+conservative than a section, and available straight from the stage-1 cell id
+("<slide_id>_F<fov>_C<cell_ID>") with no extra join. The cost is smaller groups, so
+--min-section-cells is lower by default and FOVs without enough of both groups are skipped.
+
+When an authoritative per-Region or per-section annotation exists, pass it with --sections-csv
+and it overrides everything above.
 
 The discriminating comparison is then WITHIN a section:
 
@@ -68,7 +77,7 @@ from pseudobulk_core import DEFAULT_SCALE_FACTOR
 
 # The programme 75d surfaced as separating `t` from every natively-called class.
 DEFAULT_PROGRAM = "HSPA1A,HSPA1B,HSPB1,DNAJB1,HSP90AA1,HSPH1"
-MIN_SECTION_CELLS = 50
+MIN_SECTION_CELLS = 25
 # A gap larger than this in a slide's FOV numbering starts a new tissue piece. The observed
 # runs are far apart (1-135 then 181-205), so this is not a delicate threshold.
 DEFAULT_FOV_GAP = 10
@@ -81,11 +90,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--counts-h5", type=Path, required=True)
     p.add_argument("--typing-h5", type=Path, required=True)
     p.add_argument("--letter", required=True)
+    p.add_argument("--unit", choices=("fov", "fov-run"), default="fov",
+                   help="Grouping unit derived from the cell ids. 'fov' (default) is one FOV, "
+                        "which lies entirely within one tissue piece. 'fov-run' splits a slide "
+                        "into contiguous FOV runs — verify its sections-per-slide line says 2 "
+                        "before trusting it; on this cohort the numbering is continuous and it "
+                        "collapses to the slide.")
     p.add_argument("--sections-csv", type=Path,
-                   help="Optional cell_id -> section override (columns cell_id, section). "
-                        "Without it, sections are derived from the cell ids.")
+                   help="Optional cell_id -> section override (columns cell_id, section), for "
+                        "when an authoritative per-Region annotation exists. Overrides --unit.")
     p.add_argument("--fov-gap", type=int, default=DEFAULT_FOV_GAP,
-                   help=f"FOV numbering gap that starts a new tissue piece "
+                   help=f"With --unit fov-run, the FOV numbering gap that starts a new piece "
                         f"(default {DEFAULT_FOV_GAP}).")
     p.add_argument("--genes", default=DEFAULT_PROGRAM,
                    help=f"Comma-separated programme genes (default: {DEFAULT_PROGRAM}).")
@@ -126,13 +141,8 @@ def program_score(counts_h5: Path, program: list[str], scale_factor: float
     return pd.Series(norm.mean(axis=0), index=cell_id, name="score")
 
 
-def sections_from_cell_ids(cell_ids: pd.Index, fov_gap: int) -> pd.Series:
-    """Derive a tissue-section label per cell from "<slide_id>_F<fov>_C<cell_ID>".
-
-    Two pieces are mounted per slide and show up as two contiguous FOV runs, so within each
-    slide the sorted FOVs are split wherever the numbering jumps by more than `fov_gap`. The
-    label is "<slide>:F<first>-<last>" so it stays readable in the output table.
-    """
+def parse_cell_ids(cell_ids: pd.Index) -> pd.DataFrame:
+    """Split "<slide_id>_F<fov>_C<cell_ID>" into slide + fov, dropping ids that do not match."""
     parsed = pd.Series(cell_ids, index=cell_ids).str.extract(CELL_ID_RE)
     bad = parsed["slide"].isna()
     if bad.all():
@@ -142,7 +152,23 @@ def sections_from_cell_ids(cell_ids: pd.Index, fov_gap: int) -> pd.Series:
         print(f"WARNING: {int(bad.sum()):,} cell ids did not parse; they are dropped.")
     parsed = parsed[~bad].copy()
     parsed["fov"] = parsed["fov"].astype(int)
+    return parsed
 
+
+def fovs_from_cell_ids(cell_ids: pd.Index) -> pd.Series:
+    """One group per FOV — the conservative unit, always inside a single tissue piece."""
+    parsed = parse_cell_ids(cell_ids)
+    return parsed["slide"] + ":F" + parsed["fov"].astype(str)
+
+
+def sections_from_cell_ids(cell_ids: pd.Index, fov_gap: int) -> pd.Series:
+    """Derive a tissue-section label per cell from "<slide_id>_F<fov>_C<cell_ID>".
+
+    Two pieces are mounted per slide and show up as two contiguous FOV runs, so within each
+    slide the sorted FOVs are split wherever the numbering jumps by more than `fov_gap`. The
+    label is "<slide>:F<first>-<last>" so it stays readable in the output table.
+    """
+    parsed = parse_cell_ids(cell_ids)
     section = pd.Series(index=parsed.index, dtype="object")
     for slide, grp in parsed.groupby("slide", sort=False):
         fovs = np.sort(grp["fov"].unique())
@@ -174,19 +200,24 @@ def main() -> None:
         if not {"cell_id", "section"}.issubset(override.columns):
             sys.exit(f"ERROR: {args.sections_csv} needs cell_id + section columns.")
         section = override.set_index("cell_id")["section"].astype(str)
-        print(f"Sections from {args.sections_csv.name}: {section.nunique()} distinct")
+        print(f"Grouping by section from {args.sections_csv.name}: "
+              f"{section.nunique()} distinct")
+    elif args.unit == "fov":
+        section = fovs_from_cell_ids(pd.Index(score.index))
+        slides = section.str.rsplit(":", n=1).str[0]
+        print(f"Grouping by FOV: {section.nunique():,} FOVs across {slides.nunique()} slides "
+              f"(an FOV lies within one tissue piece, so this controls for the section)")
     else:
         section = sections_from_cell_ids(pd.Index(score.index), args.fov_gap)
-        per_slide = (section.str.split(":").str[0]
-                     .groupby(section.str.split(":").str[0]).first()
-                     .index.size)
-        counts_per_slide = section.drop_duplicates().str.split(":").str[0].value_counts()
-        print(f"Sections derived from cell ids: {section.nunique()} across "
-              f"{counts_per_slide.size} slides")
-        print("  sections per slide: "
-              + ", ".join(f"{k} slide(s) with {v}" for v, k
-                          in counts_per_slide.value_counts().items())
+        per_slide = section.drop_duplicates().str.split(":").str[0].value_counts()
+        print(f"Grouping by FOV run: {section.nunique()} across {per_slide.size} slides")
+        print("  runs per slide: "
+              + ", ".join(f"{k} slide(s) with {v}" for v, k in per_slide.value_counts().items())
               + "   (2 is the expected mounting)")
+        if (per_slide == 1).mean() > 0.5:
+            print("  WARNING: most slides yielded ONE run, so this has collapsed to the slide "
+                  "and does NOT separate the two mounted pieces. The FOV numbering is likely "
+                  "continuous across them. Use --unit fov, or supply --sections-csv.")
 
     df = pd.DataFrame({"score": score})
     df["cell_type"] = calls["cell_type"].reindex(df.index)
@@ -216,7 +247,13 @@ def main() -> None:
     usable = tbl[(tbl["n_letter"] >= args.min_section_cells)
                  & (tbl["n_other"] >= args.min_section_cells)].copy()
     if usable.empty:
-        sys.exit(f"ERROR: no section has >= {args.min_section_cells} cells in both groups.")
+        sys.exit(f"ERROR: no group has >= {args.min_section_cells} cells of BOTH the letter and "
+                 f"the rest. Lower --min-section-cells, or use a coarser --unit.")
+
+    # How much of the letter survives the size filter. A verdict drawn from a small, biased
+    # slice of the letter would not generalise, so this is reported rather than assumed.
+    kept_letter = usable["n_letter"].sum() / max(tbl["n_letter"].sum(), 1)
+    kept_other = usable["n_other"].sum() / max(tbl["n_other"].sum(), 1)
 
     pos = float((usable["gap"] > 0).mean())
     r = float(usable["score_letter"].corr(usable["score_other"]))
@@ -229,6 +266,9 @@ def main() -> None:
           f"(>= {args.min_section_cells} cells in both groups) ===")
     print(f"  overall  {args.letter}: {df.loc[df.is_letter,'score'].mean():.3f}   "
           f"other: {df.loc[~df.is_letter,'score'].mean():.3f}")
+    print(f"  coverage: usable groups hold {100*kept_letter:.1f}% of the {args.letter} cells "
+          f"and {100*kept_other:.1f}% of the rest"
+          + ("   <-- THIN, treat the verdict as provisional" if kept_letter < 0.5 else ""))
     print(f"  sections where {args.letter} scores ABOVE the rest of its own section: "
           f"{100*pos:.1f}%  ({int((usable['gap']>0).sum())}/{len(usable)})")
     print(f"  median within-section gap: {usable['gap'].median():+.3f}  "
