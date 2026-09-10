@@ -6,10 +6,15 @@
 # against negative in every native). Heat-shock is exactly what warm ischaemia and slow fixation
 # produce, so it has to be ruled out before `t` is named a tumour state.
 #
-# The test is WITHIN a slide: if the programme is a cell state it travels with the letter's cells
-# and the letter-vs-rest gap is positive slide after slide; if it is handling, whole sections are
-# elevated, the two groups move together (high correlation) and the within-slide gap collapses.
-# See python/diagnose_program_by_slide.py for how the summaries read.
+# The unit is the TISSUE SECTION, not the slide. Two sections are mounted per CosMx slide and
+# need not be from the same donor, so slide_id pools two pieces with different blocks and
+# fixation histories — and if the letter's cells sit mostly in one piece, a "within-slide" gap is
+# partly a between-piece comparison. On a fixture where one section per slide was hot and the
+# letter was 80% concentrated there, slide-level grouping called it a CELL STATE (100% positive
+# gaps, median +1.37) while section-level correctly called it handling. Sections are derived from
+# the stage-1 cell ids ("<slide>_F<fov>_C<cell>") as contiguous FOV runs, the same notion
+# tissue_section_gap.py uses; the job prints the sections-per-slide distribution as a check that
+# it mostly finds 2. See python/diagnose_program_by_section.py.
 #
 # Submit (defaults to t + the heat-shock set):
 #   sbatch pipeline/slurm/75e_program_slide_confound.sh
@@ -18,8 +23,8 @@
 #
 # Env knobs (KOPAH_*, APPTAINER_RSC from pipeline/.env):
 #   STAGE4_DIR  Kopah sub-dir with anchor/anchor_typing.h5 (default stage4_anchor_pruned).
-#   INPUT_DIR   Kopah sub-dir with anchor/anchor_input.h5 + anchor/anchor_cells.csv
-#               (default stage4_anchor — 71 wrote the cell/slide sidecar there).
+#   INPUT_DIR   Kopah sub-dir with anchor/anchor_input.h5 (default stage4_anchor).
+#   FOV_GAP     FOV numbering gap that starts a new tissue piece (default 10).
 #   LETTER      de-novo letter under test (default t).
 #   GENES       comma-separated programme genes (default: the heat-shock set from 75d).
 
@@ -71,9 +76,8 @@ export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}"
 
-echo "Staging anchor counts + labels + the cell/slide sidecar from Kopah..."
+echo "Staging anchor counts + labels from Kopah (sections come from the cell ids)..."
 s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
-s5cmd cp "${BASE}/${INPUT}/anchor/anchor_cells.csv" "$WORK/anchor_cells.csv"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 
 GENES_ARG=()
@@ -83,16 +87,16 @@ apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
     "$APPTAINER_RSC" \
-    python "${PIPELINE_DIR}/python/diagnose_program_by_slide.py" \
+    python "${PIPELINE_DIR}/python/diagnose_program_by_section.py" \
         --counts-h5 "$WORK/anchor_input.h5" \
         --typing-h5 "$WORK/anchor_typing.h5" \
-        --cells-csv "$WORK/anchor_cells.csv" \
         --letter "$LETTER" \
+        --fov-gap "${FOV_GAP:-10}" \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
-        --output-csv "$WORK/${LETTER}_program_by_slide.csv"
+        --output-csv "$WORK/${LETTER}_program_by_section.csv"
 
-echo "Uploading the per-slide table to Kopah..."
-s5cmd cp "$WORK/${LETTER}_program_by_slide.csv" \
-    "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_slide.csv"
+echo "Uploading the per-section table to Kopah..."
+s5cmd cp "$WORK/${LETTER}_program_by_section.csv" \
+    "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_section.csv"
 
 echo "Done. The verdict is in the summary block printed above."
