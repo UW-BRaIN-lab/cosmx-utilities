@@ -87,6 +87,17 @@ elif [[ -n "${LETTERS:-}" ]]; then
 fi
 TOP_DEST="${TOP_DEST:-3}"
 
+# State the resolved plan up front. An older checkout silently ignores LETTERS and runs the
+# defaults instead, which is invisible until you go looking for outputs that were never made.
+echo "Comparisons to run (${#COMPARISONS[@]}): ${COMPARISONS[*]}"
+if [[ -n "${LETTERS:-}" ]]; then
+    echo "  mode: LETTERS sweep, destinations from the cross-tab (TOP_DEST=${TOP_DEST})"
+elif [[ -n "${LETTER:-}" ]]; then
+    echo "  mode: single ad-hoc comparison"
+else
+    echo "  mode: built-in defaults (set LETTERS=... to sweep other letters)"
+fi
+
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_denovo_vs_native_${SLURM_JOB_ID:-local}"
 mkdir -p "$WORK"
 trap 'rm -rf "$WORK"' EXIT
