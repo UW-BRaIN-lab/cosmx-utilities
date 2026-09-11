@@ -33,6 +33,11 @@
 #                 but 75c measured it agreeing with the fit only 54.8% of the time — the
 #                 disagreements sit at small top1-vs-top2 margins — so do not use it for
 #                 anything reportable.
+#   FORCED_H5     Kopah key (under KOPAH_PREFIX/) of an InSituType result h5 to use as the
+#                 forced call INSTEAD of POSTERIORS_BASENAME — e.g.
+#                 stage4_anchor_supervised/anchor/anchor_typing.h5 from a fresh N_CLUSTS=0
+#                 supervised run. That answers "what would an independent supervised run call
+#                 these cells", as opposed to the de-novo-removed counterfactual.
 #   COLLAPSE_MAP  repo path to the GBmap-type -> compartment map (default
 #                 reference/gbmap_compartments.csv). Set to the empty string to skip the
 #                 compartment roll-up and draw only the leaf-level Sankey.
@@ -89,8 +94,15 @@ BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}"
 
 echo "Staging anchor typing + supervised posteriors from Kopah..."
 s5cmd cp "${BASE}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
-echo "  per-cell forced call: ${POSTERIORS_BASENAME}"
-s5cmd cp "${BASE}/supervised_gbmap/${POSTERIORS_BASENAME}" "$WORK/posteriors.csv"
+if [[ -n "${FORCED_H5:-}" ]]; then
+    echo "  per-cell forced call: ${FORCED_H5} (independent supervised typing)"
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${FORCED_H5}" "$WORK/forced.h5"
+    FORCED_ARG=(--forced-h5 "$WORK/forced.h5")
+else
+    echo "  per-cell forced call: ${POSTERIORS_BASENAME}"
+    s5cmd cp "${BASE}/supervised_gbmap/${POSTERIORS_BASENAME}" "$WORK/posteriors.csv"
+    FORCED_ARG=(--posteriors "$WORK/posteriors.csv")
+fi
 
 COLLAPSE_ARG=()
 if [[ -n "$COLLAPSE_MAP" ]]; then
@@ -104,7 +116,7 @@ apptainer exec \
     "$APPTAINER_RSC" \
     python "${PIPELINE_DIR}/python/crosstab_denovo_vs_supervised.py" \
         --typing-h5 "$WORK/anchor_typing.h5" \
-        --posteriors "$WORK/posteriors.csv" \
+        "${FORCED_ARG[@]}" \
         --annotations "${PIPELINE_DIR}/${ANNOTATIONS}" \
         --min-prob "$MIN_PROB" \
         ${COLLAPSE_ARG[@]+"${COLLAPSE_ARG[@]}"} \

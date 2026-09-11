@@ -72,8 +72,15 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--typing-h5", type=Path, required=True,
                    help="Semi-supervised anchor typing h5 (/cell_id, /cell_type).")
-    p.add_argument("--posteriors", type=Path, required=True,
-                   help="Supervised flat_posteriors.R CSV (cell_id, top1_type, top1_prob, ...).")
+    p.add_argument("--posteriors", type=Path,
+                   help="Per-cell forced call as a CSV (cell_id, top1_type, top1_prob, ...) — "
+                        "75c's forced_named_posteriors.csv. Mutually exclusive with "
+                        "--forced-h5.")
+    p.add_argument("--forced-h5", type=Path,
+                   help="Per-cell forced call as an InSituType result h5 (/cell_id, /cell_type, "
+                        "/prob) — e.g. a fresh N_CLUSTS=0 supervised run's anchor_typing.h5. "
+                        "Use this to cross-tab the letters against an independent supervised "
+                        "typing rather than against the de-novo-removed counterfactual.")
     p.add_argument("--annotations", type=Path,
                    help="De-novo annotation CSV (denovo_label, annotation, ...) used to give "
                         "the letters readable Sankey labels. Optional.")
@@ -167,7 +174,17 @@ def main() -> None:
     print(f"Semi-supervised anchor calls: {len(calls):,} cells, "
           f"{calls['semisup'].nunique()} labels")
 
-    forced = pd.read_csv(args.posteriors, usecols=["cell_id", "top1_type", "top1_prob"])
+    if bool(args.posteriors) == bool(args.forced_h5):
+        sys.exit("ERROR: pass exactly one of --posteriors or --forced-h5.")
+    if args.forced_h5:
+        forced = read_cell_calls(args.forced_h5).rename(
+            columns={"cell_type": "top1_type", "prob": "top1_prob"})
+        if "top1_prob" not in forced:
+            forced["top1_prob"] = np.nan
+        forced = forced[["cell_id", "top1_type", "top1_prob"]]
+        print(f"Forced call from {args.forced_h5.name} (an independent supervised typing)")
+    else:
+        forced = pd.read_csv(args.posteriors, usecols=["cell_id", "top1_type", "top1_prob"])
     print(f"Supervised GBmap posteriors: {len(forced):,} cells, "
           f"{forced['top1_type'].nunique()} GBmap types")
 
