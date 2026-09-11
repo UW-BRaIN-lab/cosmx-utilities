@@ -78,6 +78,12 @@ from pseudobulk_core import DEFAULT_SCALE_FACTOR
 # The programme 75d surfaced as separating `t` from every natively-called class.
 DEFAULT_PROGRAM = "HSPA1A,HSPA1B,HSPB1,DNAJB1,HSP90AA1,HSPH1"
 MIN_SECTION_CELLS = 25
+# The nine malignant Core-L4 columns of gbmap_level4_panel.csv, for --compare-to malignant.
+# RG and Stress_sig are deliberately excluded: both are borderline and neither is a Neftel state.
+MALIGNANT_CORE_L4 = ("AC-like", "AC-like_Prolif", "MES-like_hypoxia_independent",
+                     "MES-like_hypoxia_MHC", "NPC-like_OPC", "NPC-like_Prolif",
+                     "NPC-like_neural", "OPC-like", "OPC-like_Prolif")
+COMPARE_ALL = "__all_other_cells__"
 # A gap larger than this in a slide's FOV numbering starts a new tissue piece. The observed
 # runs are far apart (1-135 then 181-205), so this is not a delicate threshold.
 DEFAULT_FOV_GAP = 10
@@ -104,6 +110,13 @@ def parse_args() -> argparse.Namespace:
                         f"(default {DEFAULT_FOV_GAP}).")
     p.add_argument("--genes", default=DEFAULT_PROGRAM,
                    help=f"Comma-separated programme genes (default: {DEFAULT_PROGRAM}).")
+    p.add_argument("--compare-to", default="",
+                   help="Restrict the comparison group to these cell types (comma-separated), "
+                        "instead of every other cell in the unit. Pass 'malignant' for the nine "
+                        "malignant Core-L4 columns. Use this whenever the programme is one the "
+                        "reference itself stratifies on: an all-other-cells pool is mostly "
+                        "non-malignant and will dilute a malignant-vs-malignant difference to "
+                        "nothing. With more than one type, a per-type breakdown is also printed.")
     p.add_argument("--output-csv", type=Path, required=True)
     p.add_argument("--min-section-cells", type=int, default=MIN_SECTION_CELLS,
                    help="Skip sections with fewer than this many cells in either group.")
@@ -184,6 +197,78 @@ def sections_from_cell_ids(cell_ids: pd.Index, fov_gap: int) -> pd.Series:
     return section
 
 
+def section_table(df: pd.DataFrame, min_cells: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Per unit: the programme score in the letter's cells, in the comparison group, and the gap.
+
+    `df` must already be restricted to the letter plus whatever comparison group is under test,
+    and carry boolean `is_letter`. Returns the full table and the subset with enough of both
+    groups to support a within-unit comparison.
+    """
+    grouped = df.groupby(["slide", "is_letter"], observed=True)["score"].agg(["mean", "size"])
+    tbl = grouped.unstack("is_letter")
+    tbl.columns = [f"{a}_{'letter' if b else 'other'}" for a, b in tbl.columns]
+    tbl = tbl.rename(columns={"mean_letter": "score_letter", "mean_other": "score_other",
+                              "size_letter": "n_letter", "size_other": "n_other"})
+    for col in ("score_letter", "score_other", "n_letter", "n_other"):
+        if col not in tbl:
+            tbl[col] = np.nan
+    tbl["n_letter"] = tbl["n_letter"].fillna(0).astype(int)
+    tbl["n_other"] = tbl["n_other"].fillna(0).astype(int)
+    tbl["gap"] = tbl["score_letter"] - tbl["score_other"]
+    # Share of the letter+comparator pair that is the letter — so with --compare-to this is a
+    # share of that pair, NOT of the whole unit.
+    tbl["letter_pct"] = (100 * tbl["n_letter"] / (tbl["n_letter"] + tbl["n_other"])).round(1)
+
+    usable = tbl[(tbl["n_letter"] >= min_cells) & (tbl["n_other"] >= min_cells)].copy()
+    return tbl, usable
+
+
+def _corr(a: pd.Series, b: pd.Series) -> float:
+    """Pearson r that returns nan instead of warning when either side is constant.
+
+    A comparator that occurs at a near-fixed ratio to the letter leaves letter_pct with no
+    variance, and numpy divides by a zero standard deviation.
+    """
+    if len(a) < 2 or a.nunique() < 2 or b.nunique() < 2:
+        return float("nan")
+    return float(a.corr(b))
+
+
+def summarize(usable: pd.DataFrame) -> dict:
+    """The five numbers the verdict is read from, for one letter-vs-comparator pairing."""
+    return {
+        "n_units": len(usable),
+        "pct_above": 100 * float((usable["gap"] > 0).mean()),
+        "median_gap": float(usable["gap"].median()),
+        "q10": float(usable["gap"].quantile(.1)),
+        "q90": float(usable["gap"].quantile(.9)),
+        "r_scores": _corr(usable["score_letter"], usable["score_other"]),
+        # Are the letter-RICH units the ones low in this programme? A strong negative says units
+        # full of the letter are units where everyone is low = population structure, not a
+        # per-cell difference. This one is robust to what the comparator is made of.
+        "r_abundance": _corr(usable["letter_pct"], usable["score_other"]),
+        "between": float(usable[["score_letter", "score_other"]].mean(axis=1).var(ddof=1)),
+        "within": float((usable["gap"] / 2).pow(2).mean()),
+    }
+
+
+def resolve_comparators(spec: str, present: set[str], letter: str) -> list[str]:
+    """Turn --compare-to into a concrete list of cell types that actually occur in the data."""
+    if not spec.strip():
+        return [COMPARE_ALL]
+    if spec.strip().lower() == "malignant":
+        wanted = list(MALIGNANT_CORE_L4)
+    else:
+        wanted = [c.strip() for c in spec.split(",") if c.strip()]
+    missing = [c for c in wanted if c not in present]
+    found = [c for c in wanted if c in present and c != letter]
+    if missing:
+        print(f"WARNING: --compare-to named {len(missing)} type(s) absent from the calls, "
+              f"skipped: {', '.join(missing)}")
+    if not found:
+        sys.exit(f"ERROR: none of --compare-to {spec!r} is present in the cell calls.")
+    return found
+
 def main() -> None:
     args = parse_args()
     program = [g.strip() for g in args.genes.split(",") if g.strip()]
@@ -231,75 +316,105 @@ def main() -> None:
     print(f"{len(df):,} cells, {df['slide'].nunique()} sections, "
           f"{int(df['is_letter'].sum()):,} labelled {args.letter}")
 
-    grouped = df.groupby(["slide", "is_letter"], observed=True)["score"].agg(["mean", "size"])
-    tbl = grouped.unstack("is_letter")
-    tbl.columns = [f"{a}_{'letter' if b else 'other'}" for a, b in tbl.columns]
-    tbl = tbl.rename(columns={"mean_letter": "score_letter", "mean_other": "score_other",
-                              "size_letter": "n_letter", "size_other": "n_other"})
-    for col in ("score_letter", "score_other", "n_letter", "n_other"):
-        if col not in tbl:
-            tbl[col] = np.nan
-    tbl["n_letter"] = tbl["n_letter"].fillna(0).astype(int)
-    tbl["n_other"] = tbl["n_other"].fillna(0).astype(int)
-    tbl["gap"] = tbl["score_letter"] - tbl["score_other"]
-    tbl["letter_pct"] = (100 * tbl["n_letter"] / (tbl["n_letter"] + tbl["n_other"])).round(1)
+    comparators = resolve_comparators(args.compare_to, set(df["cell_type"].unique()),
+                                      args.letter)
+    pooled_only = comparators == [COMPARE_ALL]
+    if pooled_only:
+        pool, pool_label = df, "every other cell"
+    else:
+        pool = df[df["is_letter"] | df["cell_type"].isin(comparators)]
+        pool_label = (comparators[0] if len(comparators) == 1
+                      else f"{len(comparators)} type(s): {', '.join(comparators)}")
+        print(f"Comparison group restricted to {pool_label} "
+              f"({int((~pool['is_letter']).sum()):,} cells)")
 
-    usable = tbl[(tbl["n_letter"] >= args.min_section_cells)
-                 & (tbl["n_other"] >= args.min_section_cells)].copy()
+    tbl, usable = section_table(pool, args.min_section_cells)
     if usable.empty:
-        sys.exit(f"ERROR: no group has >= {args.min_section_cells} cells of BOTH the letter and "
-                 f"the rest. Lower --min-section-cells, or use a coarser --unit.")
+        sys.exit(f"ERROR: no unit has >= {args.min_section_cells} cells of BOTH {args.letter} and "
+                 f"the comparison group. Lower --min-section-cells, use a coarser --unit, or "
+                 f"widen --compare-to.")
+    s = summarize(usable)
 
-    # How much of the letter survives the size filter. A verdict drawn from a small, biased
-    # slice of the letter would not generalise, so this is reported rather than assumed.
+    # How much of each group survives the size filter. A verdict drawn from a small, biased slice
+    # would not generalise, so this is reported rather than assumed.
     kept_letter = usable["n_letter"].sum() / max(tbl["n_letter"].sum(), 1)
     kept_other = usable["n_other"].sum() / max(tbl["n_other"].sum(), 1)
 
-    pos = float((usable["gap"] > 0).mean())
-    r = float(usable["score_letter"].corr(usable["score_other"]))
-    # Variance sitting BETWEEN sections (both groups moving together = handling) versus the
-    # within-section letter-vs-other gap (a cell state that travels with the cells).
-    between = float(usable[["score_letter", "score_other"]].mean(axis=1).var(ddof=1))
-    within = float((usable["gap"] / 2).pow(2).mean())
-
-    print(f"\n=== {args.letter}: programme score, {len(usable)} usable sections "
+    print(f"\n=== {args.letter}: programme score, {s['n_units']} usable sections "
           f"(>= {args.min_section_cells} cells in both groups) ===")
-    print(f"  overall  {args.letter}: {df.loc[df.is_letter,'score'].mean():.3f}   "
-          f"other: {df.loc[~df.is_letter,'score'].mean():.3f}")
+    print(f"  comparison group: {pool_label}")
+    print(f"  overall  {args.letter}: {pool.loc[pool.is_letter,'score'].mean():.3f}   "
+          f"other: {pool.loc[~pool.is_letter,'score'].mean():.3f}")
     print(f"  coverage: usable groups hold {100*kept_letter:.1f}% of the {args.letter} cells "
           f"and {100*kept_other:.1f}% of the rest"
           + ("   <-- THIN, treat the verdict as provisional" if kept_letter < 0.5 else ""))
     print(f"  sections where {args.letter} scores ABOVE the rest of its own section: "
-          f"{100*pos:.1f}%  ({int((usable['gap']>0).sum())}/{len(usable)})")
-    print(f"  median within-section gap: {usable['gap'].median():+.3f}  "
-          f"(10th-90th {usable['gap'].quantile(.1):+.3f} to {usable['gap'].quantile(.9):+.3f})")
-    print(f"  corr(section score in {args.letter}, section score in others): r = {r:+.2f}")
-    print(f"  variance between sections: {between:.4f}   within-section gap: {within:.4f}")
-    # Are the letter-RICH regions the ones low in this programme? This is the question when the
-    # programme is suspected to track a patient- or region-level property (e.g. an amplicon)
-    # rather than a cell state: a strong negative r says regions full of the letter are regions
-    # where everyone is low, which is population structure, not a per-cell difference.
-    r_abundance = float(usable["letter_pct"].corr(usable["score_other"]))
+          f"{s['pct_above']:.1f}%  ({int((usable['gap']>0).sum())}/{s['n_units']})")
+    print(f"  median within-section gap: {s['median_gap']:+.3f}  "
+          f"(10th-90th {s['q10']:+.3f} to {s['q90']:+.3f})")
+    print(f"  corr(section score in {args.letter}, section score in others): "
+          f"r = {s['r_scores']:+.2f}")
+    print(f"  variance between sections: {s['between']:.4f}   "
+          f"within-section gap: {s['within']:.4f}")
     print(f"  corr(% {args.letter} in a section, the section's score in OTHER cells): "
-          f"r = {r_abundance:+.2f}")
+          f"r = {s['r_abundance']:+.2f}")
     print(f"    strongly negative => {args.letter}-rich regions are low in this programme for "
           f"everyone,\n    i.e. regional or patient structure rather than a cell-intrinsic "
           f"difference.")
     print("\n  READ: a gap positive on nearly every section, with a modest r, says the\n"
           "  programme travels with the cells = a CELL STATE. A high r with the gap collapsing\n"
           "  toward zero, and a few pieces carrying the signal, = HANDLING.")
+    if pooled_only:
+        print("  CAVEAT: the comparison pool is EVERY other cell, so it is dominated by whatever\n"
+              "  is abundant. If the reference itself stratifies on this programme, that pool\n"
+              "  dilutes the contrast — re-run with --compare-to before concluding anything.")
 
     print(f"\n  Top 8 sections by {args.letter} score:")
     top = usable.sort_values("score_letter", ascending=False).head(8)
     print(f"    {'section':34s} {'score_' + args.letter:>10s} {'other':>8s} {'gap':>8s} "
           f"{'%' + args.letter:>7s} {'n':>8s}")
-    for s, row in top.iterrows():
-        print(f"    {str(s)[:32]:34s} {row['score_letter']:>10.3f} {row['score_other']:>8.3f} "
+    for sec, row in top.iterrows():
+        print(f"    {str(sec)[:32]:34s} {row['score_letter']:>10.3f} {row['score_other']:>8.3f} "
               f"{row['gap']:>+8.3f} {row['letter_pct']:>7.1f} {row['n_letter']:>8,}")
+
+    # Per-type breakdown. Each pairing keeps only the units holding enough of BOTH that one type
+    # and the letter, so score_letter shifts between rows: each row is its own matched comparison.
+    breakdown = pd.DataFrame()
+    if len(comparators) > 1:
+        rows = []
+        for cell_type in comparators:
+            pair = df[df["is_letter"] | (df["cell_type"] == cell_type)]
+            _, pair_usable = section_table(pair, args.min_section_cells)
+            if pair_usable.empty:
+                print(f"  (skipped {cell_type}: no unit has >= {args.min_section_cells} of both)")
+                continue
+            st = summarize(pair_usable)
+            rows.append({"comparator": cell_type, "n_units": st["n_units"],
+                         "n_cells": int((df["cell_type"] == cell_type).sum()),
+                         "score_letter": pair_usable["score_letter"].mean(),
+                         "score_other": pair_usable["score_other"].mean(),
+                         "median_gap": st["median_gap"], "pct_above": st["pct_above"],
+                         "r_scores": st["r_scores"], "r_abundance": st["r_abundance"]})
+        breakdown = pd.DataFrame(rows).sort_values("median_gap")
+        print(f"\n  === {args.letter} vs each comparator, matched within the same unit ===")
+        print(f"    {'comparator':30s} {'units':>6s} {'cells':>9s} {'letter':>8s} {'other':>8s} "
+              f"{'medgap':>8s} {'%above':>7s} {'r':>6s} {'r_abund':>8s}")
+        for _, row in breakdown.iterrows():
+            print(f"    {row['comparator'][:28]:30s} {row['n_units']:>6,} {row['n_cells']:>9,} "
+                  f"{row['score_letter']:>8.3f} {row['score_other']:>8.3f} "
+                  f"{row['median_gap']:>+8.3f} {row['pct_above']:>7.1f} "
+                  f"{row['r_scores']:>+6.2f} {row['r_abundance']:>+8.2f}")
+        print(f"    A consistently negative medgap across the malignant comparators is the "
+              f"cell-level\n    amplicon reading; near zero says {args.letter} is "
+              f"programme-typical for a malignant cell.")
 
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     tbl.sort_values("score_letter", ascending=False).to_csv(args.output_csv)
     print(f"\nWrote {args.output_csv} ({len(tbl)} sections)")
+    if not breakdown.empty:
+        by_type = args.output_csv.with_name(args.output_csv.stem + "_by_type.csv")
+        breakdown.to_csv(by_type, index=False)
+        print(f"Wrote {by_type} ({len(breakdown)} comparators)")
 
 
 if __name__ == "__main__":

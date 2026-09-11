@@ -24,6 +24,9 @@
 #   sbatch pipeline/slurm/75e_program_slide_confound.sh
 # Another letter or another programme:
 #   LETTER=b GENES=CES3,A1BG,SNRPA1,GPX1 sbatch pipeline/slurm/75e_program_slide_confound.sh
+# The amplicon question, against the malignant reference types rather than everyone:
+#   LETTER=b GENES=EGFR,CDK4,MDM2,NUP107,OS9,SLC35E3 COMPARE_TO=malignant \
+#       sbatch pipeline/slurm/75e_program_section_confound.sh
 #
 # Env knobs (KOPAH_*, APPTAINER_RSC from pipeline/.env):
 #   STAGE4_DIR  Kopah sub-dir with anchor/anchor_typing.h5 (default stage4_anchor_pruned).
@@ -33,6 +36,12 @@
 #   MIN_CELLS   minimum cells of BOTH groups per unit (default 25).
 #   LETTER      de-novo letter under test (default t).
 #   GENES       comma-separated programme genes (default: the heat-shock set from 75d).
+#   COMPARE_TO  restrict the comparison group to these cell types instead of every other cell.
+#               'malignant' expands to the nine malignant Core-L4 columns. REQUIRED whenever the
+#               reference itself stratifies on the programme: gbmap_level4_panel.csv puts all
+#               nine malignant columns at ranks 1-9 of 54 on the amplicon genes (mean 1.93 vs
+#               0.72), so an all-other-cells pool is mostly non-malignant and dilutes a
+#               malignant-vs-malignant deficit away. Run 40050341/40050443 hit exactly that.
 
 #SBATCH --job-name=cosmx-program-confound
 #SBATCH --account=glioblastoma-ckpt
@@ -88,6 +97,8 @@ s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 
 GENES_ARG=()
 if [[ -n "${GENES:-}" ]]; then GENES_ARG=(--genes "$GENES"); fi
+COMPARE_ARG=()
+if [[ -n "${COMPARE_TO:-}" ]]; then COMPARE_ARG=(--compare-to "$COMPARE_TO"); fi
 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
@@ -100,10 +111,18 @@ apptainer exec \
         --unit "${UNIT:-fov}" \
         --min-section-cells "${MIN_CELLS:-25}" \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
+        ${COMPARE_ARG[@]+"${COMPARE_ARG[@]}"} \
         --output-csv "$WORK/${LETTER}_program_by_section.csv"
 
 echo "Uploading the per-section table to Kopah..."
 s5cmd cp "$WORK/${LETTER}_program_by_section.csv" \
     "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_section.csv"
+
+# Written only when COMPARE_TO named more than one type.
+BY_TYPE="$WORK/${LETTER}_program_by_section_by_type.csv"
+if [[ -f "$BY_TYPE" ]]; then
+    s5cmd cp "$BY_TYPE" \
+        "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_section_by_type.csv"
+fi
 
 echo "Done. The verdict is in the summary block printed above."
