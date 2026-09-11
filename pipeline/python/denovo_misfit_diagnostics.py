@@ -16,10 +16,13 @@ explanations:
                Note InSituType fits a per-cell scaling term, so depth alone should NOT make a
                cell fit badly — if depth is the only difference, the misfit is not explained.
 
-  FLATNESS     per cell, the share of its counts sitting in its own top 20 genes, median over the
-               group. This is what "no distinctive profile" looks like numerically: a cell whose
-               expression is spread thin across the panel has nothing for a reference profile to
-               latch onto, independent of how deep it is.
+  FLATNESS     the share of a cell's counts in its own top 20 genes, AGAINST A DEPTH-MATCHED
+               NULL. The raw share cannot be compared between groups: at one fixed composition it
+               runs 0.22 at 150 counts and 0.10 at 1500, so a shallower group scores "more
+               concentrated" for free. The null fixes that — for each of the letter's cells, draw
+               the same number of counts from the NATIVE group's composition and score that. The
+               ratio observed/expected is then depth-free: below 1 means genuinely flatter than
+               the named type, near 1 means the concentration difference was only depth.
 
   COMPOSITION  Pearson r between the two groups' mean log-normalised profiles over ALL shared
                genes. Log-normalisation already divides out depth, so this isolates shape. High r
@@ -59,15 +62,17 @@ from pseudobulk_core import DEFAULT_SCALE_FACTOR, log_normalize
 
 TOP_CONCENTRATION_GENES = 20
 TOP_RESIDUAL_GENES = 12
+# Cells sampled per group when building the depth-matched flatness null. A median needs far
+# fewer than the 800k cells b carries.
+NULL_SAMPLE_CELLS = 20_000
 # A pair is called "a dimmer copy" only when composition is essentially preserved AND the depth
 # gap is real; "different composition" when shape itself has moved.
 SAME_SHAPE_R = 0.90
 DIFFERENT_SHAPE_R = 0.80
 REAL_DEPTH_GAP = 0.75
-# Flatness is checked first and named explicitly: a cell whose counts are spread thin across the
-# panel has no peaks for any reference profile to match, which is a different failure from either
-# being dim or being a different cell type — and it is the one the Low_signal sink is made of.
-FLAT_SHARE_RATIO = 0.75
+# Flatness is judged on the depth-matched ratio, not the raw share. Below this, the letter's
+# cells really are flatter than their named type at the same sequencing depth.
+FLAT_VS_NULL = 0.85
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,8 +110,33 @@ def per_cell_stats(counts_cxg: sp.csr_matrix) -> pd.DataFrame:
                          "top20_share": top_share})
 
 
+def flatness_vs_null(letter_counts: sp.csr_matrix, native_profile: np.ndarray,
+                     observed_share: pd.Series, rng: np.random.Generator) -> float:
+    """Observed top-20 share over what the NATIVE composition would give at the same depths.
+
+    Removes the depth confound: each sampled letter cell is re-drawn, at its own library size,
+    from the native group's composition, and scored the same way. A ratio near 1 means the
+    groups differ in depth but not in how concentrated their expression is.
+    """
+    depths = np.asarray(letter_counts.sum(axis=1)).ravel().astype(int)
+    depths = depths[depths > 0]
+    if depths.size == 0:
+        return float("nan")
+    if depths.size > NULL_SAMPLE_CELLS:
+        depths = rng.choice(depths, NULL_SAMPLE_CELLS, replace=False)
+    p = native_profile / native_profile.sum()
+    expected = np.empty(depths.size)
+    for i, n in enumerate(depths):
+        draw = rng.multinomial(n, p)
+        nz = draw[draw > 0]
+        k = min(TOP_CONCENTRATION_GENES, nz.size)
+        expected[i] = np.partition(nz, -k)[-k:].sum() / n if nz.size else 0.0
+    exp_median = float(np.median(expected))
+    return float(observed_share.median() / exp_median) if exp_median > 0 else float("nan")
+
+
 def verdict(depth_ratio: float, comp_r: float, share_ratio: float) -> str:
-    if share_ratio < FLAT_SHARE_RATIO:
+    if not np.isnan(share_ratio) and share_ratio < FLAT_VS_NULL:
         return ("FLAT - no distinctive profile, and dimmer" if depth_ratio < REAL_DEPTH_GAP
                 else "FLAT - no distinctive profile")
     if comp_r >= SAME_SHAPE_R and depth_ratio < REAL_DEPTH_GAP:
@@ -138,6 +168,7 @@ def main() -> None:
     semisup = labels["cell_type"].reindex(cell_id)
     forced_call = labels["top1_type"].reindex(cell_id)
 
+    rng = np.random.default_rng(0)
     summary, residuals = [], []
     for dest in destinations:
         masks = {
@@ -149,9 +180,10 @@ def main() -> None:
             print(f"  skipping {dest}: group sizes {sizes} below --min-group-n")
             continue
 
-        stats, profiles = {}, {}
+        stats, profiles, raw_sub = {}, {}, {}
         for name, mask in masks.items():
             sub = counts[:, mask].T.tocsr()                    # cells x genes, subset first
+            raw_sub[name] = sub
             stats[name] = per_cell_stats(sub)
             profiles[name] = np.asarray(
                 log_normalize(sub, args.scale_factor).mean(axis=0)).ravel()
@@ -162,6 +194,10 @@ def main() -> None:
         genes_ratio = (stats[a]["genes_detected"].median()
                        / max(stats[b]["genes_detected"].median(), 1))
         comp_r = float(np.corrcoef(profiles[a], profiles[b])[0, 1])
+        # Native composition on the RAW scale, for drawing the depth-matched null.
+        native_raw = np.asarray(raw_sub[b].sum(axis=0)).ravel()
+        flat_ratio = flatness_vs_null(raw_sub[a], native_raw,
+                                      stats[a]["top20_share"], rng)
 
         summary.append({
             "pair": a, "destination": dest,
@@ -175,11 +211,10 @@ def main() -> None:
             "top20_share_letter": round(stats[a]["top20_share"].median(), 3),
             "top20_share_native": round(stats[b]["top20_share"].median(), 3),
             "composition_r": round(comp_r, 3),
-            "share_ratio": round(stats[a]["top20_share"].median()
-                                 / max(stats[b]["top20_share"].median(), 1e-9), 3),
-            "verdict": verdict(depth_ratio, comp_r,
-                               stats[a]["top20_share"].median()
-                               / max(stats[b]["top20_share"].median(), 1e-9)),
+            "flatness_vs_null": round(flat_ratio, 3),
+            "residual_strength": round(float(
+                np.sort(profiles[a] - profiles[b])[-10:].mean()), 3),
+            "verdict": verdict(depth_ratio, comp_r, flat_ratio),
         })
 
         diff = pd.Series(profiles[a] - profiles[b], index=genes).sort_values()
@@ -195,14 +230,19 @@ def main() -> None:
     summ = pd.DataFrame(summary)
 
     print(f"\n=== {args.letter}: why these cells fit their forced type badly ===")
-    print(f"{'pair':34s} {'depth':>7s} {'genes':>7s} {'top20 share':>22s} {'shape r':>8s}  verdict")
+    print(f"{'pair':34s} {'depth':>7s} {'genes':>7s} {'flat/null':>10s} {'resid':>7s} "
+          f"{'shape r':>8s}  verdict")
     for r in summary:
         print(f"  {r['pair']:32s} {r['depth_ratio']:>7.2f} {r['genes_ratio']:>7.2f} "
-              f"{r['top20_share_letter']:>10.3f} vs {r['top20_share_native']:<8.3f} "
+              f"{r['flatness_vs_null']:>10.2f} {r['residual_strength']:>7.2f} "
               f"{r['composition_r']:>8.2f}  {r['verdict']}")
     print("\n  depth / genes are letter->D medians over D [native] medians; 1.00 = same.")
-    print("  top20 share = fraction of a cell's counts in its own 20 biggest genes (flatness).")
-    print("  shape r = correlation of depth-corrected mean profiles; high = same shape.")
+    print("  flat/null = top-20 concentration over what the NATIVE composition gives at the")
+    print("    letter's OWN depths. Depth-free: <1 genuinely flatter, ~1 only a depth difference.")
+    print("  resid = mean log-fold of the 10 genes most over-expressed vs the named type — how")
+    print("    strong a programme the cells carry INSTEAD of the identity they are missing.")
+    print("  shape r = correlation over all genes; insensitive to a focal programme, so a high")
+    print("    r with a large resid means identity preserved PLUS something extra.")
     print("  NOTE InSituType fits a per-cell scale term, so depth alone should not cause misfit —")
     print("  a pair that is ONLY dimmer has not really been explained by these numbers.")
 
