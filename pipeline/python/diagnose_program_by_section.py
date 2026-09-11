@@ -275,6 +275,16 @@ def main() -> None:
           f"(10th-90th {usable['gap'].quantile(.1):+.3f} to {usable['gap'].quantile(.9):+.3f})")
     print(f"  corr(section score in {args.letter}, section score in others): r = {r:+.2f}")
     print(f"  variance between sections: {between:.4f}   within-section gap: {within:.4f}")
+    # Are the letter-RICH regions the ones low in this programme? This is the question when the
+    # programme is suspected to track a patient- or region-level property (e.g. an amplicon)
+    # rather than a cell state: a strong negative r says regions full of the letter are regions
+    # where everyone is low, which is population structure, not a per-cell difference.
+    r_abundance = float(usable["letter_pct"].corr(usable["score_other"]))
+    print(f"  corr(% {args.letter} in a section, the section's score in OTHER cells): "
+          f"r = {r_abundance:+.2f}")
+    print(f"    strongly negative => {args.letter}-rich regions are low in this programme for "
+          f"everyone,\n    i.e. regional or patient structure rather than a cell-intrinsic "
+          f"difference.")
     print("\n  READ: a gap positive on nearly every section, with a modest r, says the\n"
           "  programme travels with the cells = a CELL STATE. A high r with the gap collapsing\n"
           "  toward zero, and a few pieces carrying the signal, = HANDLING.")
