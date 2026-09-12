@@ -36,6 +36,10 @@
 #   MIN_CELLS   minimum cells of BOTH groups per unit (default 25).
 #   LETTER      de-novo letter under test (default t).
 #   GENES       comma-separated programme genes (default: the heat-shock set from 75d).
+#   TAG         label folded into every output filename. Defaults to the Slurm job id, because
+#               without it two runs that differ only in GENES write to the SAME Kopah key and the
+#               second silently destroys the first — which is exactly what the control run did to
+#               the amplicon run's CSVs. Pass something readable, e.g. TAG=amplicon.
 #   COMPARE_TO  restrict the comparison group to these cell types instead of every other cell.
 #               'malignant' expands to the nine malignant Core-L4 columns. REQUIRED whenever the
 #               reference itself stratifies on the programme: gbmap_level4_panel.csv puts all
@@ -79,6 +83,9 @@ set +a
 STAGE4="${STAGE4_DIR:-stage4_anchor_pruned}"
 INPUT="${INPUT_DIR:-stage4_anchor}"
 LETTER="${LETTER:-t}"
+# Never let two gene sets collide on one key; the job id is unique even when TAG is forgotten.
+TAG="${TAG:-${SLURM_JOB_ID:-local}}"
+STEM="${LETTER}_${TAG}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_program_confound_${SLURM_JOB_ID:-local}"
@@ -112,17 +119,18 @@ apptainer exec \
         --min-section-cells "${MIN_CELLS:-25}" \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
         ${COMPARE_ARG[@]+"${COMPARE_ARG[@]}"} \
-        --output-csv "$WORK/${LETTER}_program_by_section.csv"
+        --output-csv "$WORK/${STEM}_program_by_section.csv" \
+        --per-unit-csv "$WORK/${STEM}_program_by_unit.csv"
 
-echo "Uploading the per-section table to Kopah..."
-s5cmd cp "$WORK/${LETTER}_program_by_section.csv" \
-    "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_section.csv"
+echo "Uploading the tables to Kopah (tag: ${TAG})..."
+DEST="${BASE}/${STAGE4}/supervised_gbmap/program_confound"
+s5cmd cp "$WORK/${STEM}_program_by_section.csv" "${DEST}/${STEM}_program_by_section.csv"
 
-# Written only when COMPARE_TO named more than one type.
-BY_TYPE="$WORK/${LETTER}_program_by_section_by_type.csv"
-if [[ -f "$BY_TYPE" ]]; then
-    s5cmd cp "$BY_TYPE" \
-        "${BASE}/${STAGE4}/supervised_gbmap/program_confound/${LETTER}_program_by_section_by_type.csv"
-fi
+# Both are written only when COMPARE_TO named more than one type.
+for extra in "${STEM}_program_by_section_by_type.csv" "${STEM}_program_by_unit.csv"; do
+    if [[ -f "$WORK/$extra" ]]; then
+        s5cmd cp "$WORK/$extra" "${DEST}/${extra}"
+    fi
+done
 
 echo "Done. The verdict is in the summary block printed above."

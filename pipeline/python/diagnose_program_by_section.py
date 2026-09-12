@@ -118,6 +118,12 @@ def parse_args() -> argparse.Namespace:
                         "non-malignant and will dilute a malignant-vs-malignant difference to "
                         "nothing. With more than one type, a per-type breakdown is also printed.")
     p.add_argument("--output-csv", type=Path, required=True)
+    p.add_argument("--per-unit-csv", type=Path,
+                   help="With more than one --compare-to type, also write the LONG per-unit x "
+                        "comparator table (one row per unit per comparator). The summary tables "
+                        "pool over units, so this is what any per-slide, per-donor or "
+                        "leave-one-out follow-up needs — and it is cheap to emit here and "
+                        "expensive to recover later.")
     p.add_argument("--min-section-cells", type=int, default=MIN_SECTION_CELLS,
                    help="Skip sections with fewer than this many cells in either group.")
     p.add_argument("--scale-factor", type=float, default=DEFAULT_SCALE_FACTOR)
@@ -380,6 +386,7 @@ def main() -> None:
     # Per-type breakdown. Each pairing keeps only the units holding enough of BOTH that one type
     # and the letter, so score_letter shifts between rows: each row is its own matched comparison.
     breakdown = pd.DataFrame()
+    per_unit: list[pd.DataFrame] = []
     if len(comparators) > 1:
         rows = []
         for cell_type in comparators:
@@ -389,6 +396,7 @@ def main() -> None:
                 print(f"  (skipped {cell_type}: no unit has >= {args.min_section_cells} of both)")
                 continue
             st = summarize(pair_usable)
+            per_unit.append(pair_usable.assign(comparator=cell_type))
             rows.append({"comparator": cell_type, "n_units": st["n_units"],
                          "n_cells": int((df["cell_type"] == cell_type).sum()),
                          "score_letter": pair_usable["score_letter"].mean(),
@@ -415,6 +423,15 @@ def main() -> None:
         by_type = args.output_csv.with_name(args.output_csv.stem + "_by_type.csv")
         breakdown.to_csv(by_type, index=False)
         print(f"Wrote {by_type} ({len(breakdown)} comparators)")
+    if args.per_unit_csv and per_unit:
+        long = pd.concat(per_unit).rename_axis("unit").reset_index()
+        # The unit label is "<slide>:F<fov>", so the slide is recoverable downstream without
+        # re-deriving it from the cell ids.
+        long["slide"] = long["unit"].str.rsplit(":", n=1).str[0]
+        args.per_unit_csv.parent.mkdir(parents=True, exist_ok=True)
+        long.to_csv(args.per_unit_csv, index=False)
+        print(f"Wrote {args.per_unit_csv} ({len(long)} unit x comparator rows, "
+              f"{long['slide'].nunique()} slides)")
 
 
 if __name__ == "__main__":
