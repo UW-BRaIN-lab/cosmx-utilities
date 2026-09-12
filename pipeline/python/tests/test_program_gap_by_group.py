@@ -52,6 +52,19 @@ def _leave_one_out_changes(tmp: Path, excess_of) -> dict[str, float]:
     return changes
 
 
+def test_slide_grouping_works_without_any_annotation_match():
+    """--group-by slide must not require the annotation reference to cover the cohort."""
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        _write_table(tmp / "amp.csv", lambda s: -0.8)
+        _write_table(tmp / "ctl.csv", lambda s: 0.0)
+        out = subprocess.run([sys.executable, str(SCRIPT), "--amplicon", str(tmp / "amp.csv"),
+                              "--control", str(tmp / "ctl.csv"), "--group-by", "slide"],
+                             capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert "continuing without it" in out.stdout
+
+
 def test_a_one_slide_artefact_is_caught():
     """Only HOT carries the deficit, so dropping HOT must move the median excess sharply."""
     with tempfile.TemporaryDirectory() as d:
@@ -168,15 +181,43 @@ def test_unknown_region_fails_loudly():
     assert "unknown region" in (out.stdout + out.stderr)
 
 
-def test_grouping_by_case_requires_the_annotation_files():
+def test_grouping_by_case_fails_when_the_reference_is_missing():
+    """The flags default to the committed copies, so the failure is a missing FILE, not a flag."""
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         _write_two_donor_table(tmp / "amp.csv", lambda fov: -0.8)
         _write_two_donor_table(tmp / "ctl.csv", lambda fov: 0.0)
         out = subprocess.run([sys.executable, str(SCRIPT), "--amplicon", str(tmp / "amp.csv"),
-                              "--control", str(tmp / "ctl.csv")], capture_output=True, text=True)
+                              "--control", str(tmp / "ctl.csv"),
+                              "--annotations", str(tmp / "nope.csv")],
+                             capture_output=True, text=True)
     assert out.returncode != 0
-    assert "needs --annotations" in (out.stdout + out.stderr)
+    assert "not found" in (out.stdout + out.stderr)
+
+
+def test_committed_reference_resolves_a_real_two_donor_slide():
+    """Integration check on the committed copies, using a slide that really carries two cases.
+
+    7495G37302G3 is the slide that dominated the amplicon runs. The committed reference must
+    split it into case 7495 (infiltrating edge) and case 7302 (tumour bulk) — if a future
+    re-export flattens or renames it, this is what catches it.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gap_group", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if not (mod.DEFAULT_ANNOTATIONS.is_file() and mod.DEFAULT_CROSSWALK.is_file()):
+        print("  (skipped: committed reference not present)")
+        return
+    ann = mod.load_annotations(mod.DEFAULT_ANNOTATIONS, mod.DEFAULT_CROSSWALK)
+    sub = ann[ann.index.str.startswith(f"{TWO_DONOR_SLIDE}:F")]
+    by_case = sub.groupby("Case")["Region"].agg(["size", "first"])
+    assert set(by_case.index) == {7495, 7302}, by_case
+    assert by_case.loc[7495, "first"] == "Infiltrating edge", by_case
+    assert by_case.loc[7302, "first"] == "Tumor bulk", by_case
+    assert (by_case["size"] == 100).all(), by_case
+    # And the whole reference must stay one row per FOV, since load_annotations relies on it.
+    assert not ann.index.duplicated().any()
 
 
 if __name__ == "__main__":

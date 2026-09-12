@@ -54,6 +54,34 @@ S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL" \
 The other GBmap annotation granularities (`..._by_cell_type_...`, `..._level_3_...`)
 exist in the same source directory; swap the `--reference-csv` to retype at a coarser level.
 
+## GBM — per-FOV donor / block / region annotations
+
+`gbm_fov_annotations.csv` — one row per (Slide, FOV) with `Case`, `Block` and `Region`
+across 57 slides and 38 cases (11,425 rows). `gbm_slide_name_crosswalk.csv` maps the
+annotation file's `Canonical_slide_name` to `AtoMx_flatfile_folder`, which is the slide
+token in our stage-1 cell ids (`<slide>_F<fov>_C<cell>`), so the join key is
+`f"{folder}:F{fov}"`.
+
+**A slide is not a donor.** Two tissue pieces from two different cases are mounted per
+CosMx slide, and this cohort's FOV numbering runs continuously 1–200 across both, so the
+pieces cannot be separated from the cell ids alone — only from this reference. Any
+per-donor analysis must join it; `python/program_gap_by_group.py --group-by case` does,
+and defaults to these two files.
+
+Regions are exactly three: `Tumor bulk`, `Infiltrating edge`, `Contralateral uninvolved`.
+
+Source of truth is `~/keene-lab/GBM/AtoMx annotations/` (`CosMx-GBM-annotations.csv`,
+`CosMx-GBM-slide-name-crosswalk.csv`), whose `ANNOTATIONS-CHANGELOG.md` carries the full
+version history and the curation traps — orientation half-swaps corrected on three slides,
+irregular FOV ranges that are **not** a blanket 1–100 / 101–200 split, and known upstream
+export gaps. Re-copy from there if that reference is revised, and keep `add-annotations.R`'s
+`SLIDE_NAME_ALIASES` in sync with the crosswalk.
+
+Two differences from the source files: the upstream annotation CSV is UTF-8-BOM and the
+committed copy is plain UTF-8 (readers use `utf-8-sig`, which handles both), and the
+crosswalk's `S3_flatfiles_path` column is **dropped** — it hardcodes a bucket name, and
+every path in this repo is built from `$KOPAH_BUCKET` / `$KOPAH_PREFIX` instead.
+
 ## Retina / brain / optic nerve — combined ocular atlas
 
 The retina study is 12 slides, **one donor per slide**, each carrying a cross-section of

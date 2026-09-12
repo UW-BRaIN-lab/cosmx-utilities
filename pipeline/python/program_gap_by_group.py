@@ -26,9 +26,7 @@ Usage:
     uv run python pipeline/python/program_gap_by_group.py \\
         --amplicon b_amplicon_program_by_unit.csv \\
         --control  b_control_program_by_unit.csv \\
-        --comparator OPC-like --group-by case \\
-        --annotations "~/keene-lab/GBM/AtoMx annotations/CosMx-GBM-annotations.csv" \\
-        --crosswalk   "~/keene-lab/GBM/AtoMx annotations/CosMx-GBM-slide-name-crosswalk.csv"
+        --comparator OPC-like --group-by case
 """
 
 from __future__ import annotations
@@ -46,6 +44,10 @@ ANNOTATION_COLUMNS = {"Slide", "Case", "Block", "Region", "FOVs"}
 CROSSWALK_FOLDER = "AtoMx_flatfile_folder"
 CROSSWALK_CANONICAL = "Canonical_slide_name"
 GROUP_COLUMNS = {"case": "Case", "region": "Region", "block": "Block", "slide": "slide"}
+# Committed copies of the AtoMx annotation reference, so grouping by donor needs no CLI paths.
+_REFERENCE = Path(__file__).resolve().parents[1] / "reference"
+DEFAULT_ANNOTATIONS = _REFERENCE / "gbm_fov_annotations.csv"
+DEFAULT_CROSSWALK = _REFERENCE / "gbm_slide_name_crosswalk.csv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,12 +63,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--group-by", choices=sorted(GROUP_COLUMNS), default="case",
                    help="Grouping for the breakdown and the leave-one-out (default case). "
                         "Anything but 'slide' needs --annotations and --crosswalk.")
-    p.add_argument("--annotations", type=Path,
-                   help="AtoMx annotation reference: one row per (Slide, FOV) with Case, Block, "
-                        "Region.")
-    p.add_argument("--crosswalk", type=Path,
-                   help="Slide-name crosswalk mapping the flat-file folder name in our cell ids "
-                        "to the annotation file's canonical slide name.")
+    p.add_argument("--annotations", type=Path, default=DEFAULT_ANNOTATIONS,
+                   help=f"AtoMx annotation reference: one row per (Slide, FOV) with Case, Block, "
+                        f"Region (default the committed {DEFAULT_ANNOTATIONS.name}).")
+    p.add_argument("--crosswalk", type=Path, default=DEFAULT_CROSSWALK,
+                   help=f"Slide-name crosswalk mapping the flat-file folder name in our cell ids "
+                        f"to the annotation file's canonical slide name (default the committed "
+                        f"{DEFAULT_CROSSWALK.name}).")
     p.add_argument("--regions", default="",
                    help="Comma-separated Region values to keep (e.g. 'Tumor bulk,Infiltrating "
                         "edge'). Default keeps all. Needs --annotations.")
@@ -92,7 +95,8 @@ def load_per_unit(path: Path, comparator: str, label: str) -> pd.DataFrame:
 
 def load_annotations(annotations: Path, crosswalk: Path) -> pd.DataFrame:
     """Per-FOV Case/Block/Region, keyed the way our unit labels are: "<folder>:F<fov>"."""
-    # The annotation CSV is written UTF-8 with a BOM, which otherwise corrupts the first header.
+    # The committed copy is plain UTF-8 but the upstream AtoMx file carries a BOM, which would
+    # otherwise corrupt the first header; utf-8-sig reads both.
     ann = pd.read_csv(annotations, encoding="utf-8-sig")
     if not ANNOTATION_COLUMNS.issubset(ann.columns):
         sys.exit(f"ERROR: {annotations} is missing "
@@ -120,8 +124,11 @@ def load_annotations(annotations: Path, crosswalk: Path) -> pd.DataFrame:
 def main() -> None:
     args = parse_args()
     group_col = GROUP_COLUMNS[args.group_by]
-    if args.group_by != "slide" and not (args.annotations and args.crosswalk):
-        sys.exit(f"ERROR: --group-by {args.group_by} needs --annotations and --crosswalk.")
+    if args.group_by != "slide":
+        missing = [str(f) for f in (args.annotations, args.crosswalk) if not f.is_file()]
+        if missing:
+            sys.exit(f"ERROR: --group-by {args.group_by} needs --annotations and --crosswalk; "
+                     f"not found: {', '.join(missing)}")
 
     amp = load_per_unit(args.amplicon, args.comparator, "gap_amplicon")
     ctl = load_per_unit(args.control, args.comparator, "gap_control")
@@ -136,15 +143,22 @@ def main() -> None:
         print(f"NOTE: {dropped} unit(s) present in the amplicon run only, dropped from the "
               f"matched comparison.")
 
-    if args.annotations and args.crosswalk:
+    if args.annotations.is_file() and args.crosswalk.is_file():
         ann = load_annotations(args.annotations, args.crosswalk)
         before = len(both)
-        both = both.join(ann, how="left")
-        unannotated = both["Case"].isna().sum()
-        if unannotated:
-            print(f"WARNING: {unannotated}/{before} matched FOVs have no annotation and are "
-                  f"dropped from the grouped view.")
-            both = both[both["Case"].notna()]
+        joined = both.join(ann, how="left")
+        unannotated = int(joined["Case"].isna().sum())
+        if unannotated == before and args.group_by == "slide":
+            # A cohort with no matching annotation is fine when grouping by slide — that is the
+            # one grouping the cell ids already support on their own.
+            print(f"NOTE: none of the {before} FOVs is in the annotation reference; continuing "
+                  f"without it, which --group-by slide does not need.")
+        else:
+            both = joined
+            if unannotated:
+                print(f"WARNING: {unannotated}/{before} matched FOVs have no annotation and are "
+                      f"dropped from the grouped view.")
+                both = both[both["Case"].notna()]
         if args.regions.strip():
             keep = [r.strip() for r in args.regions.split(",") if r.strip()]
             unknown = set(keep) - set(ann["Region"].unique())
