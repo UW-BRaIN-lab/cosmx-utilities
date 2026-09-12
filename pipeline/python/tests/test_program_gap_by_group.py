@@ -149,6 +149,22 @@ def test_annotations_split_one_slide_into_its_two_donors():
     assert abs(rows["7302"]) < 0.15, rows
 
 
+def test_a_near_zero_group_is_reported_as_null_not_negative():
+    """A bare sign test would call a group at -0.03 'negative'; it must read as null."""
+    with tempfile.TemporaryDirectory() as d:
+        # HOT carries a real deficit; the others sit just below the material threshold.
+        tmp = Path(d)
+        _write_table(tmp / "amp.csv", lambda s: -0.8 if s == "HOT" else -0.03)
+        _write_table(tmp / "ctl.csv", lambda s: 0.0)
+        out = subprocess.run([sys.executable, str(SCRIPT), "--amplicon", str(tmp / "amp.csv"),
+                              "--control", str(tmp / "ctl.csv"), "--group-by", "slide"],
+                             capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert "materially NEGATIVE 1/4" in out.stdout, out.stdout
+    assert "null 3/4" in out.stdout, out.stdout
+    assert "do NOT support the effect" in out.stdout
+
+
 def test_region_breakdown_is_reported():
     """A deficit confined to contralateral tissue would mean something else entirely."""
     with tempfile.TemporaryDirectory() as d:

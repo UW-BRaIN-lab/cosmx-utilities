@@ -38,6 +38,9 @@ from pathlib import Path
 import pandas as pd
 
 MIN_UNITS_PER_GROUP = 3
+# A sign test alone over-claims: a group at -0.03 counts as "negative" while being substantively
+# null. Groups are also counted against this magnitude, so a near-zero group reads as null.
+MATERIAL_EXCESS = 0.1
 # Columns of the AtoMx annotation reference, which keys on canonical slide names.
 ANNOTATION_COLUMNS = {"Slide", "Case", "Block", "Region", "FOVs"}
 # The crosswalk column holding the flat-file folder name, which is the slide token in our ids.
@@ -73,6 +76,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--regions", default="",
                    help="Comma-separated Region values to keep (e.g. 'Tumor bulk,Infiltrating "
                         "edge'). Default keeps all. Needs --annotations.")
+    p.add_argument("--material", type=float, default=MATERIAL_EXCESS,
+                   help=f"Magnitude below which a group's median excess is reported as null "
+                        f"rather than as supporting (default {MATERIAL_EXCESS}). A bare sign test "
+                        f"counts a group at -0.03 as negative, which over-claims.")
     p.add_argument("--min-units", type=int, default=MIN_UNITS_PER_GROUP,
                    help=f"Groups with fewer matched FOVs are listed but not ranked "
                         f"(default {MIN_UNITS_PER_GROUP}).")
@@ -199,9 +206,17 @@ def main() -> None:
               f"{row['median_amplicon']:>+9.3f} {row['median_control']:>+8.3f}{flag}")
 
     if len(ranked) >= 2:
-        n_neg = int((ranked["median_excess"] < 0).sum())
-        print(f"\n  {args.group_by}s with >= {args.min_units} FOVs and a negative median excess: "
-              f"{100 * n_neg / len(ranked):.0f}% ({n_neg}/{len(ranked)})")
+        n_neg = int((ranked["median_excess"] <= -args.material).sum())
+        n_pos = int((ranked["median_excess"] >= args.material).sum())
+        n_null = len(ranked) - n_neg - n_pos
+        print(f"\n  {args.group_by}s with >= {args.min_units} FOVs "
+              f"(|excess| >= {args.material} to count either way):")
+        print(f"    materially NEGATIVE {n_neg}/{len(ranked)}   "
+              f"null {n_null}/{len(ranked)}   materially POSITIVE {n_pos}/{len(ranked)}")
+        if n_null:
+            nulls = ranked.index[ranked["median_excess"].abs() < args.material].tolist()
+            print(f"    null {args.group_by}(s): "
+                  f"{', '.join(str(x) for x in nulls)} — these do NOT support the effect")
 
     # With a single group there is nothing to leave out, and dropping it empties the frame.
     if len(per_group) < 2:
