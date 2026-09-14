@@ -131,6 +131,20 @@ if (!is.null(opt[["counts-h5"]])) {
                   nrow(cnt), ncol(cnt), median(depth, na.rm = TRUE)))
 }
 
+# Is clust actually the argmax of the stored logliks for these cells? 75c measured 98.9%
+# COHORT-WIDE, but that is dominated by large clusters; a small named type competing against a
+# large de-novo one is exactly where the exceptions would hide. If clust is not the argmax then
+# the margin does not explain the assignment for that group, and the boundary is not at zero.
+top_all <- types[max.col(ll[keep, , drop = FALSE], ties.method = "first")]
+is_argmax <- top_all == clust[keep]
+argmax_tbl <- data.table(group = group, is_argmax = is_argmax)[
+  , .(n = .N, pct_clust_is_argmax = round(100 * mean(is_argmax), 1)), by = group]
+fwrite(argmax_tbl, file.path(outdir, "argmax_consistency.csv"))
+message("\nIs the stored argmax the assigned label?")
+print(argmax_tbl)
+message("Anything well below 100% means insitutype did not assign that group by the stored\n",
+        "logliks, so for those cells the margin is not the reason they went where they did.\n")
+
 dt <- data.table(cell_id = rownames(ll)[keep], group = group, margin = margin,
                  depth = as.numeric(depth))
 dt[, margin_per_count := margin / pmax(depth, 1)]
@@ -183,13 +197,15 @@ message(sprintf("%s, PART 2: per-gene decomposition", Sys.time()))
 # Record the exact model InSituType uses, so a validation failure is diagnosable rather than a
 # guessing game. lldist is not exported; reaching it with ::: is the same shim 72 uses for
 # estimateBackground.
-ld <- tryCatch(InSituType:::lldist, error = function(e) NULL)
-if (!is.null(ld)) {
-  message("InSituType:::lldist formals: ", paste(names(formals(ld)), collapse = ", "))
-  message("---- lldist source ----"); print(body(ld)); message("---- end ----")
-} else {
-  message("WARNING: could not reach InSituType:::lldist; proceeding with the documented model.")
+for (fn in c("lldist", "lls_rna")) {
+  f <- tryCatch(get(fn, envir = asNamespace("InSituType")), error = function(e) NULL)
+  if (is.null(f)) { message("WARNING: could not reach InSituType:::", fn); next }
+  message("---- InSituType:::", fn, " (", paste(names(formals(f)), collapse = ", "), ") ----")
+  print(body(f))
+  message("---- end ", fn, " ----")
 }
+# lls_rna is the branch lldist actually takes when bg is a per-cell vector, which is our case, so
+# it -- not the else branch printed from lldist -- holds the scaling that has to be reproduced.
 
 prof <- as.matrix(res$profiles)
 stopifnot("letter missing from $profiles" = LETTER %in% colnames(prof),
