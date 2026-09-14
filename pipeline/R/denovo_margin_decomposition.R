@@ -204,20 +204,51 @@ message(sprintf("decomposing %d cells over %d shared genes", length(cells), leng
 
 x <- Matrix::t(cnt[shared, cells, drop = FALSE])          # cells x genes
 bg <- InSituType:::estimateBackground(counts = x, neg = neg_all[cells])
-s  <- Matrix::rowSums(x)                                  # per-cell scaling
+message(sprintf("bg per cell: median %.4f, range %.4f-%.4f",
+                median(bg), min(bg), max(bg)))
 pl <- prof[shared, LETTER]; pd <- prof[shared, DEST]
 
-# Per-gene log-likelihood contribution under each profile. Negative binomial with the package's
-# size parameter; expected counts are the cell's scaling times the profile, plus background.
+# The model, read off the lldist source printed above rather than assumed:
+#
+#     bgsub_i = sum_g max(count_ig - bg_i, 0)     per-cell, background-subtracted total
+#     s_i^k   = bgsub_i / sum(profile_k)          scaling is PER CLUSTER, not per cell alone
+#     yhat_ig = s_i^k * profile_gk + bg_i
+#     ll_ig   = dnbinom(count_ig, mu = yhat_ig, size, log = TRUE)
+#
+# The first version of this script used s_i = rowSums(counts) — raw depth, with no background
+# subtraction and no division by the profile total — and the gate caught it at a median relative
+# error of 296. The per-cluster divisor is the part that is easy to miss: sum(profile_k) differs
+# between clusters, so s is not a property of the cell alone.
 xm <- as.matrix(x)
-mu_l <- outer(s, pl) + bg
-mu_d <- outer(s, pd) + bg
-contrib <- dnbinom(xm, mu = mu_l, size = NB_SIZE, log = TRUE) -
-           dnbinom(xm, mu = mu_d, size = NB_SIZE, log = TRUE)
+bgsub <- rowSums(pmax(xm - bg, 0))
+s_l <- bgsub / sum(pl)
+s_d <- bgsub / sum(pd)
+
+contrib_for <- function(s, prof_vec, size) {
+  dnbinom(xm, mu = outer(s, prof_vec) + bg, size = size, log = TRUE)
+}
+
+# `size` is not discoverable from the formals, so sweep the plausible values on a small slice and
+# keep whichever reproduces the stored margin. Inf is the Poisson limit.
+stored <- ll[cells, LETTER] - ll[cells, DEST]
+probe <- seq_len(min(2000L, length(cells)))
+candidates <- unique(c(NB_SIZE, 10, 1, 0.5, 100, Inf))
+message("sweeping nb size against the stored margin:")
+best <- list(size = NA_real_, err = Inf)
+for (sz in candidates) {
+  got <- rowSums(contrib_for(s_l, pl, sz)[probe, , drop = FALSE]) -
+         rowSums(contrib_for(s_d, pd, sz)[probe, , drop = FALSE])
+  e <- median(abs(got - stored[probe]) / pmax(abs(stored[probe]), 1))
+  message(sprintf("  size %-6s median relative error %.4g", format(sz), e))
+  if (is.finite(e) && e < best$err) best <- list(size = sz, err = e)
+}
+message(sprintf("best size: %s (median relative error %.4g)", format(best$size), best$err))
+SIZE <- best$size
+
+contrib <- contrib_for(s_l, pl, SIZE) - contrib_for(s_d, pd, SIZE)
 
 # THE GATE. The per-gene terms must re-sum to the margin the fit actually stored.
 recomputed <- rowSums(contrib)
-stored <- ll[cells, LETTER] - ll[cells, DEST]
 err <- abs(recomputed - stored) / pmax(abs(stored), 1)
 message(sprintf("validation: median relative error %.3g, 90th pct %.3g, max %.3g",
                 median(err), quantile(err, .9), max(err)))
