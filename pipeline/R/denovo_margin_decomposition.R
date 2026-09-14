@@ -235,35 +235,69 @@ pl <- prof[shared, LETTER]; pd <- prof[shared, DEST]
 # subtraction and no division by the profile total — and the gate caught it at a median relative
 # error of 296. The per-cluster divisor is the part that is easy to miss: sum(profile_k) differs
 # between clusters, so s is not a property of the cell alone.
-xm <- as.matrix(x)
-bgsub <- rowSums(pmax(xm - bg, 0))
-s_l <- bgsub / sum(pl)
-s_d <- bgsub / sum(pd)
-
-contrib_for <- function(s, prof_vec, size) {
-  dnbinom(xm, mu = outer(s, prof_vec) + bg, size = size, log = TRUE)
+# lls_rna is compiled, so its scaling cannot be read -- but it takes `bgsub` as an ARGUMENT
+# rather than deriving it, which is what makes an exact decomposition possible. Reimplementing
+# the likelihood was the wrong approach twice (median relative error 296, then 0.81); instead
+# call the package's own code, holding bgsub fixed at its all-genes value while subsetting the
+# genes. Then the per-gene terms are the package's, not an approximation of them.
+#
+# bgsub itself IS visible, in the lldist source: background is subtracted from each nonzero
+# entry, floored at zero, and summed per cell.
+bgsub_of <- function(counts_mat, bgv) {
+  b <- counts_mat
+  b@x <- pmax(b@x - bgv[b@i + 1], 0)
+  Matrix::rowSums(b)
 }
-
-# `size` is not discoverable from the formals, so sweep the plausible values on a small slice and
-# keep whichever reproduces the stored margin. Inf is the Poisson limit.
+bgsub <- bgsub_of(x, bg)
+pair <- prof[shared, c(LETTER, DEST), drop = FALSE]
 stored <- ll[cells, LETTER] - ll[cells, DEST]
-probe <- seq_len(min(2000L, length(cells)))
-candidates <- unique(c(NB_SIZE, 10, 1, 0.5, 100, Inf))
-message("sweeping nb size against the stored margin:")
-best <- list(size = NA_real_, err = Inf)
-for (sz in candidates) {
-  got <- rowSums(contrib_for(s_l, pl, sz)[probe, , drop = FALSE]) -
-         rowSums(contrib_for(s_d, pd, sz)[probe, , drop = FALSE])
-  e <- median(abs(got - stored[probe]) / pmax(abs(stored[probe]), 1))
-  message(sprintf("  size %-6s median relative error %.4g", format(sz), e))
-  if (is.finite(e) && e < best$err) best <- list(size = sz, err = e)
+
+# Step 1: can the package's own lldist reproduce the stored logliks at all? If not, the stored
+# table came from different inputs (gene set, background, profiles) and no decomposition of ours
+# will match it -- that is a different problem and must not be papered over.
+sweep <- data.table(size = numeric(), err = numeric())
+best <- list(size = NA_real_, err = Inf, ll = NULL)
+for (sz in unique(c(NB_SIZE, 10, 1, 0.5, 100))) {
+  got <- tryCatch(
+    InSituType:::lldist(x = pair, mat = x, bg = bg, size = sz, digits = 12,
+                        assay_type = "rna"),
+    error = function(e) { message("  lldist(size=", sz, ") failed: ",
+                                  conditionMessage(e)); NULL })
+  if (is.null(got)) next
+  m <- got[, LETTER] - got[, DEST]
+  e <- median(abs(m - stored) / pmax(abs(stored), 1))
+  sweep <- rbind(sweep, data.table(size = sz, err = e))
+  message(sprintf("  lldist size %-6s median relative error %.4g", format(sz), e))
+  if (e < best$err) best <- list(size = sz, err = e, ll = got)
 }
-message(sprintf("best size: %s (median relative error %.4g)", format(best$size), best$err))
+fwrite(sweep, file.path(outdir, "lldist_size_sweep.csv"))
+if (!is.finite(best$err) || best$err > TOL) {
+  stop(sprintf(paste0("InSituType's OWN lldist does not reproduce the stored margin ",
+                      "(best median relative error %.4g at size %s). The stored logliks were ",
+                      "produced from different inputs -- most likely a different gene set, a ",
+                      "different background, or profiles updated after the logliks were saved. ",
+                      "Compare the fit's gene panel and bg against what this job staged before ",
+                      "decomposing anything. Part 1's outputs are valid and already written."),
+               best$err, format(best$size)))
+}
 SIZE <- best$size
+message(sprintf("lldist reproduces the stored margin at size %s (median relative error %.3g)",
+                format(SIZE), best$err))
 
-contrib <- contrib_for(s_l, pl, SIZE) - contrib_for(s_d, pd, SIZE)
+# Step 2: the same call gene by gene, with bgsub pinned to its all-genes value.
+message(sprintf("%s, decomposing %d genes", Sys.time(), length(shared)))
+contrib <- matrix(NA_real_, nrow = length(cells), ncol = length(shared),
+                  dimnames = list(cells, shared))
+for (gi in seq_along(shared)) {
+  g <- shared[gi]
+  r <- InSituType:::lls_rna(mat = x[, g, drop = FALSE], bgsub = bgsub,
+                            x = pair[g, , drop = FALSE], bg = bg, size_dnb = SIZE)
+  contrib[, gi] <- r[, LETTER] - r[, DEST]
+  if (gi %% 500 == 0) message(sprintf("  %d/%d genes", gi, length(shared)))
+}
 
-# THE GATE. The per-gene terms must re-sum to the margin the fit actually stored.
+# THE GATE, now asking only whether the per-gene calls sum to the whole-gene call -- a question
+# about separability, not about whether we guessed the model right.
 recomputed <- rowSums(contrib)
 err <- abs(recomputed - stored) / pmax(abs(stored), 1)
 message(sprintf("validation: median relative error %.3g, 90th pct %.3g, max %.3g",
@@ -271,11 +305,10 @@ message(sprintf("validation: median relative error %.3g, 90th pct %.3g, max %.3g
 if (median(err) > TOL) {
   fwrite(data.table(cell_id = cells, stored = stored, recomputed = recomputed, rel_err = err),
          file.path(outdir, "validation_failure.csv"))
-  stop(sprintf(paste0("per-gene decomposition does NOT reproduce the stored margin ",
-                      "(median relative error %.3g > %.3g). The likelihood model above is wrong ",
-                      "-- read the lldist source printed earlier and correct mu/size/scaling. ",
-                      "Part 1 outputs are valid and already written; validation_failure.csv has ",
-                      "the per-cell discrepancy."), median(err), TOL))
+  stop(sprintf(paste0("the per-gene terms do not sum to the whole (median relative error %.3g). ",
+                      "lls_rna is then not separable per gene at fixed bgsub -- decompose by ",
+                      "leave-one-gene-out against the full call instead. Part 1 is unaffected."),
+               median(err)))
 }
 
 per_gene <- data.table(gene = shared,
