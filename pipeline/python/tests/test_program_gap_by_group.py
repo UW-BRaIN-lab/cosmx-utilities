@@ -19,7 +19,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-SCRIPT = Path(__file__).resolve().parents[1] / "program_gap_by_group.py"
+_PY_DIR = Path(__file__).resolve().parents[1]
+# exec_module does not put the module's own directory on sys.path, so the sibling
+# import of fov_annotations would fail in the one test that loads the module in-process.
+sys.path.insert(0, str(_PY_DIR))
+SCRIPT = _PY_DIR / "program_gap_by_group.py"
 # One big slide and three small ones, the shape of the real usable-FOV distribution.
 SLIDES = {"HOT": 40, "S2": 10, "S3": 10, "S4": 10}
 CONTROL_GAP = -0.3

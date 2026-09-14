@@ -37,20 +37,14 @@ from pathlib import Path
 
 import pandas as pd
 
+from fov_annotations import (DEFAULT_ANNOTATIONS, DEFAULT_CROSSWALK,
+                             load_fov_annotations)
+
 MIN_UNITS_PER_GROUP = 3
 # A sign test alone over-claims: a group at -0.03 counts as "negative" while being substantively
 # null. Groups are also counted against this magnitude, so a near-zero group reads as null.
 MATERIAL_EXCESS = 0.1
-# Columns of the AtoMx annotation reference, which keys on canonical slide names.
-ANNOTATION_COLUMNS = {"Slide", "Case", "Block", "Region", "FOVs"}
-# The crosswalk column holding the flat-file folder name, which is the slide token in our ids.
-CROSSWALK_FOLDER = "AtoMx_flatfile_folder"
-CROSSWALK_CANONICAL = "Canonical_slide_name"
 GROUP_COLUMNS = {"case": "Case", "region": "Region", "block": "Block", "slide": "slide"}
-# Committed copies of the AtoMx annotation reference, so grouping by donor needs no CLI paths.
-_REFERENCE = Path(__file__).resolve().parents[1] / "reference"
-DEFAULT_ANNOTATIONS = _REFERENCE / "gbm_fov_annotations.csv"
-DEFAULT_CROSSWALK = _REFERENCE / "gbm_slide_name_crosswalk.csv"
 
 
 def parse_args() -> argparse.Namespace:
@@ -101,31 +95,8 @@ def load_per_unit(path: Path, comparator: str, label: str) -> pd.DataFrame:
 
 
 def load_annotations(annotations: Path, crosswalk: Path) -> pd.DataFrame:
-    """Per-FOV Case/Block/Region, keyed the way our unit labels are: "<folder>:F<fov>"."""
-    # The committed copy is plain UTF-8 but the upstream AtoMx file carries a BOM, which would
-    # otherwise corrupt the first header; utf-8-sig reads both.
-    ann = pd.read_csv(annotations, encoding="utf-8-sig")
-    if not ANNOTATION_COLUMNS.issubset(ann.columns):
-        sys.exit(f"ERROR: {annotations} is missing "
-                 f"{sorted(ANNOTATION_COLUMNS - set(ann.columns))}.")
-    xw = pd.read_csv(crosswalk)
-    for col in (CROSSWALK_FOLDER, CROSSWALK_CANONICAL):
-        if col not in xw.columns:
-            sys.exit(f"ERROR: {crosswalk} is missing {col}.")
-
-    folder_of = xw.set_index(CROSSWALK_CANONICAL)[CROSSWALK_FOLDER]
-    ann["folder"] = ann["Slide"].map(folder_of)
-    unmapped = ann["folder"].isna()
-    if unmapped.any():
-        missing = sorted(ann.loc[unmapped, "Slide"].unique())
-        print(f"WARNING: {len(missing)} annotated slide(s) absent from the crosswalk, dropped: "
-              f"{', '.join(missing[:5])}{' ...' if len(missing) > 5 else ''}")
-        ann = ann[~unmapped]
-    ann["unit"] = ann["folder"] + ":F" + ann["FOVs"].astype(int).astype(str)
-    if ann["unit"].duplicated().any():
-        sys.exit("ERROR: the annotation reference has more than one row for some (slide, FOV). "
-                 "A FOV must map to exactly one case.")
-    return ann.set_index("unit")[["Case", "Block", "Region"]]
+    """Per-FOV Case/Block/Region. `slide` is dropped: the per-unit tables already carry it."""
+    return load_fov_annotations(annotations, crosswalk).drop(columns="slide")
 
 
 def main() -> None:
