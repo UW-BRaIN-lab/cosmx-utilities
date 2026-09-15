@@ -14,6 +14,17 @@
 #   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
 #       sbatch pipeline/slurm/50_marker_heatmap.sh
 #
+# Cross any two obs columns by using REGION_KEY as the sub-split and REGIONS to
+# restrict it. E.g. per-donor expression WITHIN one Leiden cluster (columns become
+# "<Case> | 1"), which is how you test whether a cluster-level signal is carried by
+# many donors or by one:
+#   STAGE3_DIR=stage4_insitutree CLUSTERED_BASENAME=cosmx_typed.h5ad \
+#   GROUP_KEY=Case REGION_KEY=leiden REGIONS=1 MIN_GROUP_N=200 \
+#   OUTPUT_SUBDIR=synaptic_by_donor_cl1 \
+#   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
+#       sbatch pipeline/slurm/50_marker_heatmap.sh
+# REGIONS is space-separated and deliberately unquoted below so multiple values work.
+#
 # Required env (from pipeline/.env): KOPAH_*, APPTAINER_RSC.
 
 #SBATCH --job-name=cosmx-marker-heatmap
@@ -98,6 +109,8 @@ apptainer exec \
         --top-n "${TOP_N:-5}" \
         --min-group-n "${MIN_GROUP_N:-10}" \
         ${CLUSTERS:+--clusters "$CLUSTERS"} \
+        ${REGION_KEY:+--region-key "$REGION_KEY"} \
+        ${REGIONS:+--regions $REGIONS} \
         ${GENES_CSV:+--genes-csv "$GENES_CSV"} \
         ${GENE_GROUP_COLUMN:+--gene-group-column "$GENE_GROUP_COLUMN"} \
         ${NO_REGION_SPLIT:+--no-region-split}
