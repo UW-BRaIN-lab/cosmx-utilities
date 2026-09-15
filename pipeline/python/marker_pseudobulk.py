@@ -130,10 +130,16 @@ def load_curated_genes(csv_path: Path, gene_col: str,
     return genes, gene_to_group
 
 
-def log_normalize(counts: sp.csr_matrix, scale_factor: float) -> sp.csr_matrix:
-    """log1p(counts / per-cell total * scale_factor), sparse (Seurat LogNormalize)."""
+def log_normalize(counts: sp.csr_matrix, scale_factor: float,
+                  totals: np.ndarray | None = None) -> sp.csr_matrix:
+    """log1p(counts / per-cell total * scale_factor), sparse (Seurat LogNormalize).
+
+    `totals` supplies the per-cell denominator when `counts` is only a column subset,
+    so the divisor stays the full gene total rather than the subset's.
+    """
     counts = counts.tocsr().astype(np.float64)
-    totals = np.asarray(counts.sum(axis=1)).ravel()
+    if totals is None:
+        totals = np.asarray(counts.sum(axis=1)).ravel()
     inv = np.where(totals > 0, scale_factor / totals, 0.0)
     norm = sp.diags(inv) @ counts          # row-scale to scale_factor
     norm = norm.tocsr()
@@ -189,20 +195,58 @@ def main() -> None:
 
     gene_mask = (adata.var["probe_type"] == "gene").to_numpy()
     genes = adata.var_names[gene_mask].to_numpy()
-    print(f"Log-normalizing {int(gene_mask.sum())} gene probes")
-    norm = log_normalize(adata.X.tocsr()[:, gene_mask], args.scale_factor)
 
-    # Per-cluster mean log-norm profile (genes x clusters).
+    # A curated list is resolved BEFORE normalizing: with no marker selection to do,
+    # only its columns need normalizing. That is what keeps this tractable at cohort
+    # scale — tens of gene columns in float64 instead of the whole ~6k-gene matrix.
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    off_panel: list[str] = []
+    ordered_markers: list[str] = []
+    gene_to_cluster: dict[str, str] = {}
+    if args.genes_csv:
+        requested_genes, gene_to_group = load_curated_genes(
+            args.genes_csv, args.gene_column, args.gene_group_column)
+        on_panel = set(genes)
+        ordered_markers = [g for g in requested_genes if g in on_panel]
+        off_panel = [g for g in requested_genes if g not in on_panel]
+        gene_to_cluster = {g: gene_to_group[g] for g in ordered_markers}
+        print(f"Curated list: {len(ordered_markers)}/{len(requested_genes)} genes on panel")
+        if off_panel:
+            print(f"  {len(off_panel)} NOT on the panel (skipped): {', '.join(off_panel)}")
+        if not ordered_markers:
+            print("ERROR: no curated gene is on the panel.", file=sys.stderr)
+            sys.exit(1)
+        pd.DataFrame({"gene": off_panel,
+                      "group": [gene_to_group[g] for g in off_panel]}).to_csv(
+            args.output_dir / "genes_missing.csv", index=False)
+
+    counts = adata.X.tocsr()
+    if args.genes_csv:
+        print(f"Log-normalizing {len(ordered_markers)} curated genes "
+              f"(totals over all {int(gene_mask.sum())} gene probes)")
+        # Per-cell gene totals as a matvec, so the full gene submatrix is never built.
+        totals = np.asarray(counts @ gene_mask.astype(np.float64)).ravel()
+        keep_idx = np.flatnonzero(gene_mask)[
+            pd.Index(genes).get_indexer(ordered_markers)]
+        norm = log_normalize(counts[:, keep_idx], args.scale_factor, totals=totals)
+        norm_genes = np.asarray(ordered_markers)
+        profile = None
+    else:
+        print(f"Log-normalizing {int(gene_mask.sum())} gene probes")
+        norm = log_normalize(counts[:, gene_mask], args.scale_factor)
+        norm_genes = genes
+    del counts
+
     cl_oh, cl_labels = onehot(cluster)
-    profile = group_means(norm, cl_oh).T          # genes x clusters
-    profile = pd.DataFrame(profile, index=genes, columns=cl_labels)
-
     # Order clusters numerically when they look like integers (leiden), else lexically.
     try:
         cl_order = [str(c) for c in sorted(cl_labels, key=lambda x: int(x))]
     except ValueError:
         cl_order = sorted(cl_labels)
-    profile = profile[cl_order]
+    if not args.genes_csv:
+        # Per-cluster mean log-norm profile (genes x clusters), the selection substrate.
+        profile = pd.DataFrame(group_means(norm, cl_oh).T, index=genes, columns=cl_labels)
+        profile = profile[cl_order]
 
     # Which clusters to select markers for / show. The differential is always computed
     # against ALL clusters (profile keeps every column); --clusters only narrows which
@@ -222,28 +266,8 @@ def main() -> None:
     else:
         select_order = cl_order
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    missing: list[str] = []
-    if args.genes_csv:
-        requested_genes, gene_to_group = load_curated_genes(
-            args.genes_csv, args.gene_column, args.gene_group_column)
-        on_panel = set(genes)
-        ordered_markers = [g for g in requested_genes if g in on_panel]
-        missing = [g for g in requested_genes if g not in on_panel]
-        gene_to_cluster = {g: gene_to_group[g] for g in ordered_markers}
-        print(f"Curated list: {len(ordered_markers)}/{len(requested_genes)} genes on panel")
-        if missing:
-            print(f"  {len(missing)} NOT on the panel (skipped): {', '.join(missing)}")
-        if not ordered_markers:
-            print("ERROR: no curated gene is on the panel.", file=sys.stderr)
-            sys.exit(1)
-        pd.DataFrame({"gene": missing,
-                      "group": [gene_to_group[g] for g in missing]}).to_csv(
-            args.output_dir / "genes_missing.csv", index=False)
-    else:
+    if not args.genes_csv:
         print(f"Selecting top {args.top_n} markers per cluster")
-        ordered_markers = []
-        gene_to_cluster = {}
         for c in select_order:
             others_mean = profile.drop(columns=c).mean(axis=1)
             diff = (profile[c] - others_mean).sort_values(ascending=False)
@@ -254,7 +278,7 @@ def main() -> None:
 
     # Pseudobulk the marker genes by cluster x Region, over the selected clusters' cells.
     sel_mask = np.isin(cluster, select_order)
-    marker_idx = pd.Index(genes).get_indexer(ordered_markers)
+    marker_idx = pd.Index(norm_genes).get_indexer(ordered_markers)
     if split_region:
         group = np.char.add(np.char.add(cluster[sel_mask].astype(str), " | "),
                             region[sel_mask].astype(str))
