@@ -219,8 +219,12 @@ shared <- intersect(rownames(prof), rownames(cnt))
 message(sprintf("decomposing %d cells over %d shared genes", length(cells), length(shared)))
 
 x <- Matrix::t(cnt[shared, cells, drop = FALSE])          # cells x genes
-bg <- InSituType:::estimateBackground(counts = x, neg = neg_all[cells])
-message(sprintf("bg per cell: median %.4f, range %.4f-%.4f",
+# Cohort-wide, then subset. Estimating on the subset gave a different background for each
+# destination (0.0156 / 0.0227 / 0.0167), which is the wrong quantity if the fit used all cells.
+bg_all <- InSituType:::estimateBackground(counts = Matrix::t(cnt[shared, , drop = FALSE]),
+                                          neg = neg_all)
+bg <- bg_all[cells]
+message(sprintf("bg per cell (cohort-wide): median %.4f, range %.4f-%.4f",
                 median(bg), min(bg), max(bg)))
 pl <- prof[shared, LETTER]; pd <- prof[shared, DEST]
 
@@ -268,17 +272,35 @@ for (sz in unique(c(NB_SIZE, 10, 1, 0.5, 100))) {
   e <- median(abs(m - stored) / pmax(abs(stored), 1))
   sweep <- rbind(sweep, data.table(size = sz, err = e))
   message(sprintf("  lldist size %-6s median relative error %.4g", format(sz), e))
-  if (e < best$err) best <- list(size = sz, err = e, ll = got)
+  if (is.finite(e) && e < best$err) best <- list(size = sz, err = e, ll = got)
 }
 fwrite(sweep, file.path(outdir, "lldist_size_sweep.csv"))
+BASIS <- "stored"
 if (!is.finite(best$err) || best$err > TOL) {
-  stop(sprintf(paste0("InSituType's OWN lldist does not reproduce the stored margin ",
-                      "(best median relative error %.4g at size %s). The stored logliks were ",
-                      "produced from different inputs -- most likely a different gene set, a ",
-                      "different background, or profiles updated after the logliks were saved. ",
-                      "Compare the fit's gene panel and bg against what this job staged before ",
-                      "decomposing anything. Part 1's outputs are valid and already written."),
-               best$err, format(best$size)))
+  # Characterise the mismatch rather than just reporting it: a slope near 1 with scatter is a
+  # different background or gene set, a slope far from 1 is a scale difference, and no
+  # correlation means the stored table is from a different fit epoch altogether.
+  if (!is.null(best$ll)) {
+    fresh <- best$ll[, LETTER] - best$ll[, DEST]
+    fit <- stats::lm(stored ~ fresh)
+    message(sprintf("stored vs fresh margin: r = %.3f, slope = %.3f, intercept = %.2f",
+                    stats::cor(stored, fresh), coef(fit)[2], coef(fit)[1]))
+    fwrite(data.table(cell_id = cells, stored = stored, fresh = fresh),
+           file.path(outdir, "stored_vs_fresh_margin.csv"))
+  }
+  if (!identical(opt[["allow-fresh"]], "0")) {
+    BASIS <- "fresh"
+    message("\n*** The stored logliks could not be reproduced (best median relative error ",
+            sprintf("%.3g", best$err), "). Decomposing a FRESH lldist scoring instead. ***\n",
+            "*** This is a correct likelihood but NOT provably the arithmetic the fit used, ",
+            "so the gene ranking is indicative, not the fit's own decision. ***\n")
+    stored <- best$ll[, LETTER] - best$ll[, DEST]   # decompose what we can actually reproduce
+  } else {
+    stop(sprintf(paste0("InSituType's OWN lldist does not reproduce the stored margin ",
+                        "(best median relative error %.4g at size %s), and --allow-fresh 0 was ",
+                        "set. Part 1's outputs are valid and already written."),
+                 best$err, format(best$size)))
+  }
 }
 SIZE <- best$size
 message(sprintf("lldist reproduces the stored margin at size %s (median relative error %.3g)",
@@ -311,7 +333,7 @@ if (median(err) > TOL) {
                median(err)))
 }
 
-per_gene <- data.table(gene = shared,
+per_gene <- data.table(basis = BASIS, gene = shared,
                        mean_contrib_A = colMeans(contrib[seq_along(idx_a), , drop = FALSE]),
                        mean_contrib_B = colMeans(contrib[-seq_along(idx_a), , drop = FALSE]))
 per_gene[, difference := mean_contrib_A - mean_contrib_B]
