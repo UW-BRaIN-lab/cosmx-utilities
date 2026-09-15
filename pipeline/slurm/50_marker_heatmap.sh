@@ -7,6 +7,24 @@
 # Submit:
 #   sbatch pipeline/slurm/50_marker_heatmap.sh
 #
+# Curated gene panel instead of data-driven markers (rows split by GENE_GROUP_COLUMN,
+# columns = the bare GROUP_KEY values):
+#   STAGE3_DIR=stage4_insitutree CLUSTERED_BASENAME=cosmx_typed.h5ad \
+#   OUTPUT_SUBDIR=synaptic_heatmap NO_REGION_SPLIT=1 \
+#   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
+#       sbatch pipeline/slurm/50_marker_heatmap.sh
+#
+# Cross any two obs columns by using REGION_KEY as the sub-split and REGIONS to
+# restrict it. E.g. per-donor expression WITHIN one Leiden cluster (columns become
+# "<Case> | 1"), which is how you test whether a cluster-level signal is carried by
+# many donors or by one:
+#   STAGE3_DIR=stage4_insitutree CLUSTERED_BASENAME=cosmx_typed.h5ad \
+#   GROUP_KEY=Case REGION_KEY=leiden REGIONS=1 MIN_GROUP_N=200 \
+#   OUTPUT_SUBDIR=synaptic_by_donor_cl1 \
+#   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
+#       sbatch pipeline/slurm/50_marker_heatmap.sh
+# REGIONS is space-separated and deliberately unquoted below so multiple values work.
+#
 # Required env (from pipeline/.env): KOPAH_*, APPTAINER_RSC.
 
 #SBATCH --job-name=cosmx-marker-heatmap
@@ -53,6 +71,17 @@ CLUSTERED_BASENAME="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 # OUTPUT_SUBDIR=marker_heatmap_named) to keep parallel subset runs (--clusters) from
 # clobbering each other's marker_heatmap/ outputs.
 OUTPUT_SUBDIR="${OUTPUT_SUBDIR:-marker_heatmap}"
+# Curated gene list (repo-relative or absolute) to plot instead of data-driven top-N
+# markers; GENE_GROUP_COLUMN names the column that splits the heatmap rows into modules.
+# NO_REGION_SPLIT=1 drops the cluster x Region sub-split, leaving bare cluster columns.
+GENES_CSV="${GENES_CSV:-}"
+if [[ -n "$GENES_CSV" && "$GENES_CSV" != /* ]]; then
+    GENES_CSV="${SLURM_SUBMIT_DIR:-$(dirname "$PIPELINE_DIR")}/${GENES_CSV}"
+fi
+if [[ -n "$GENES_CSV" && ! -f "$GENES_CSV" ]]; then
+    echo "ERROR: GENES_CSV not found: $GENES_CSV" >&2
+    exit 1
+fi
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -71,6 +100,7 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${CLUSTERED_BASENAME}" 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
+    ${GENES_CSV:+--bind "$(dirname "$GENES_CSV"):$(dirname "$GENES_CSV")"} \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/marker_pseudobulk.py" \
         --clustered-h5ad "$WORK/clustered.h5ad" \
@@ -78,7 +108,12 @@ apptainer exec \
         --group-key "${GROUP_KEY:-leiden}" \
         --top-n "${TOP_N:-5}" \
         --min-group-n "${MIN_GROUP_N:-10}" \
-        ${CLUSTERS:+--clusters "$CLUSTERS"}
+        ${CLUSTERS:+--clusters "$CLUSTERS"} \
+        ${REGION_KEY:+--region-key "$REGION_KEY"} \
+        ${REGIONS:+--regions $REGIONS} \
+        ${GENES_CSV:+--genes-csv "$GENES_CSV"} \
+        ${GENE_GROUP_COLUMN:+--gene-group-column "$GENE_GROUP_COLUMN"} \
+        ${NO_REGION_SPLIT:+--no-region-split}
 
 echo "Uploading marker-heatmap CSVs to Kopah..."
 s5cmd cp "$WORK/out/*" \
