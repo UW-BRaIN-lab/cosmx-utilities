@@ -31,6 +31,9 @@
 #   DESTINATION  named GBmap type to compare against (default Endo_capilar).
 #   SUBSAMPLE    cells per group for Part 2 (default 20000).
 #   NB_SIZE      negative-binomial size for the recomputed likelihood (default 10).
+#   KEEP_GENES   Kopah-relative path to the fit's gene list, e.g.
+#                stage4_anchor/gene_selection/kept_genes.txt. Scoring a different gene set
+#                than the fit used rescales every loglik difference.
 #   SKIP_GENES   set to 1 to run Part 1 only.
 
 #SBATCH --job-name=cosmx-margin-decomp
@@ -86,6 +89,14 @@ BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}"
 echo "Staging the full insitutype result from Kopah..."
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.rds" "$WORK/anchor_typing.rds"
 
+# The fit's own gene panel. Scoring more genes than the fit used scales every log-likelihood
+# difference, which is the leading explanation for the stored-vs-fresh slope of 0.760.
+KEEP_ARG=()
+if [[ -n "${KEEP_GENES:-}" ]]; then
+    s5cmd cp "${BASE}/${KEEP_GENES}" "$WORK/kept_genes.txt"
+    KEEP_ARG=(--keep-genes "$WORK/kept_genes.txt")
+fi
+
 COUNTS_ARG=()
 if [[ "${SKIP_GENES:-0}" != "1" ]]; then
     echo "Staging the anchor counts (Part 2)..."
@@ -105,6 +116,7 @@ apptainer exec \
         --subsample "${SUBSAMPLE:-20000}" \
         --nb-size "${NB_SIZE:-10}" \
         ${COUNTS_ARG[@]+"${COUNTS_ARG[@]}"} \
+        ${KEEP_ARG[@]+"${KEEP_ARG[@]}"} \
         --output-dir "$OUT"
 
 echo "Uploading tables to Kopah..."

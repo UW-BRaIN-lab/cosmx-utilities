@@ -216,6 +216,15 @@ idx_a <- sample(which(in_a), min(SUBSAMPLE, sum(in_a)))
 idx_b <- sample(which(in_b), min(SUBSAMPLE, sum(in_b)))
 cells <- rownames(ll)[c(idx_a, idx_b)]
 shared <- intersect(rownames(prof), rownames(cnt))
+if (!is.null(opt[["keep-genes"]])) {
+  kept <- readLines(opt[["keep-genes"]])
+  kept <- trimws(kept[nzchar(trimws(kept))])
+  before <- length(shared)
+  shared <- intersect(shared, kept)
+  message(sprintf("restricted to the fit's own panel: %d -> %d genes (%d in the file)",
+                  before, length(shared), length(kept)))
+  stopifnot("no genes left after restricting to --keep-genes" = length(shared) > 0)
+}
 message(sprintf("decomposing %d cells over %d shared genes", length(cells), length(shared)))
 
 x <- Matrix::t(cnt[shared, cells, drop = FALSE])          # cells x genes
@@ -261,7 +270,7 @@ stored <- ll[cells, LETTER] - ll[cells, DEST]
 # will match it -- that is a different problem and must not be papered over.
 sweep <- data.table(size = numeric(), err = numeric())
 best <- list(size = NA_real_, err = Inf, ll = NULL)
-for (sz in unique(c(NB_SIZE, 10, 1, 0.5, 100))) {
+for (sz in unique(c(NB_SIZE, 10, 1, 0.5, 100, Inf))) {
   got <- tryCatch(
     InSituType:::lldist(x = pair, mat = x, bg = bg, size = sz, digits = 12,
                         assay_type = "rna"),
@@ -314,7 +323,13 @@ for (gi in seq_along(shared)) {
   g <- shared[gi]
   r <- InSituType:::lls_rna(mat = x[, g, drop = FALSE], bgsub = bgsub,
                             x = pair[g, , drop = FALSE], bg = bg, size_dnb = SIZE)
-  contrib[, gi] <- r[, LETTER] - r[, DEST]
+  r <- as.matrix(r)
+  if (gi == 1L) {
+    stopifnot("lls_rna did not return two columns for the profile pair" = ncol(r) == 2L)
+    message("  (lls_rna returns an unnamed matrix per gene; columns are taken positionally, ",
+            "in the order of `pair`: ", LETTER, " then ", DEST, ")")
+  }
+  contrib[, gi] <- r[, 1L] - r[, 2L]
   if (gi %% 500 == 0) message(sprintf("  %d/%d genes", gi, length(shared)))
 }
 
