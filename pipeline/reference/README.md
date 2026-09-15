@@ -78,6 +78,16 @@ type names per source (`HRCA_`, `Mona_`, `Allen_`).
   `Negative*` (20) / `SystemControl*` (324) control probes dropped. Lets
   `prep_insitutype_reference.py` panel-restrict a reference *before* stage 1 exists.
   The GBM and retina studies run the same panel, so this file serves both.
+- `synaptic_channel_genes.csv` — a curated **neuronal-excitability / synaptic** gene
+  panel (ion channels, glutamatergic + GABAergic machinery, synaptic adhesion, gap
+  junctions, Neftel states, proliferation, neuron spillover tracers), grouped by
+  `module` / `submodule`. Feeds `marker_pseudobulk.py --genes-csv` to draw a fixed-gene
+  heatmap over Leiden clusters or cell types instead of data-driven top-N markers.
+  `on_panel` records membership in `cosmx_6k_panel_genes.txt`: **75 of 106 are on the
+  6k panel; the other 31 cannot be measured in this cohort at all** (notably SCN3A,
+  KCNH1/KCNH2, KCNJ10 and SLC12A5/KCC2 — so the NKCC1/KCC2 ratio is not computable and
+  the Nav-alpha module is down to SCN2A/SCN8A). The compute step re-derives this check
+  from the data and writes the skipped genes to `genes_missing.csv`.
 
 ### Provenance / how to regenerate
 
