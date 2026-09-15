@@ -356,15 +356,23 @@ message(sprintf("validation: median relative error %.3g, 90th pct %.3g, max %.3g
 if (median(err) > TOL) {
   fwrite(data.table(cell_id = cells, stored = stored, recomputed = recomputed),
          file.path(outdir, "validation_failure.csv"))
-  message(sprintf(paste0("\n*** The per-gene terms do not sum to the whole (median relative ",
-                         "error %.3g), so lls_rna is not exactly separable per gene at fixed ",
-                         "bgsub. The per-gene table is still written -- each term IS the ",
-                         "package's own scoring of that gene -- but treat the RANKING as ",
-                         "indicative and the absolute values as approximate. ***\n"),
-                  median(err)))
-  SEPARABLE <- FALSE
-} else {
-  SEPARABLE <- TRUE
+  stop(sprintf(paste0("the per-gene terms do not sum to the whole (median relative error %.3g). ",
+                      "Run 40180430 showed what this failure actually looks like: EVERY per-gene ",
+                      "contribution came back at ~1e-16, i.e. numerically zero, with a relative ",
+                      "error of exactly 1.000 for every cell. Calling lls_rna per gene at fixed ",
+                      "bgsub does not decompose the margin -- it returns the same value for both ",
+                      "profile columns. No table is written, because a table of zeros ranked by ",
+                      "floating-point noise is worse than none. Part 1's outputs are valid and ",
+                      "already written."),
+               median(err)))
+}
+SEPARABLE <- TRUE
+
+# A decomposition that is numerically empty must never reach a CSV, whatever the sum says.
+finite_contrib <- contrib[is.finite(contrib)]
+if (length(finite_contrib) == 0 || max(abs(finite_contrib)) < 1e-8) {
+  stop("every per-gene contribution is numerically zero (max |term| < 1e-8), so the ",
+       "decomposition carries no information. Not writing a gene table.")
 }
 
 per_gene <- data.table(
