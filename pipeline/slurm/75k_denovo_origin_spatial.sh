@@ -30,7 +30,13 @@
 #   ANCHOR_TYPES  types defining the vessel wall (default pericyte/SMC/perivascular fibroblast).
 #   K             spatial neighbours per cell (default 15).
 #   N_PERM        size-matched draws for the null (default 200).
-#   N_FOVS        example FOV panels to draw (default 6).
+#   N_FOVS        example FOV panels to draw (default 6). They are chosen for LEGIBILITY --
+#                 a FOV must hold MIN_NATIVE_CELLS native cells (default 10) and its mural
+#                 share must fall inside MURAL_QUANTILES (default 0.25,0.75) of the eligible
+#                 FOVs. Ranking on forced-cell count instead, as this used to, picks the most
+#                 vessel-dense FOVs in the cohort -- mural wall-to-wall, no visible
+#                 architecture, and often only a handful of native cells to compare against.
+#   MIN_NATIVE_CELLS / MURAL_QUANTILES  the two knobs above.
 #   EXCLUDE_COMPARED  set to 1 to hold the compared cells out of the neighbourhood reference.
 #                 REQUIRED for a letter whose own cells carry an anchor type under the
 #                 fixed-profile run (c is ~72% Pericyte), or each group partly supplies its own
@@ -110,6 +116,8 @@ apptainer exec \
         --k "${K:-15}" \
         --n-permutations "${N_PERM:-200}" \
         --n-example-fovs "${N_FOVS:-6}" \
+        --min-native-cells "${MIN_NATIVE_CELLS:-10}" \
+        --mural-quantiles "${MURAL_QUANTILES:-0.25,0.75}" \
         ${EXCLUDE_COMPARED:+--exclude-compared} \
         "${DEST_ARG[@]}" \
         --output-dir "$OUT"

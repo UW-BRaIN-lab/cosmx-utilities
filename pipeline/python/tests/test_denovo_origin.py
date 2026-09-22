@@ -197,6 +197,58 @@ def test_reference_none_matches_the_original_self_excluding_behaviour():
     assert frac.iloc[-1] == 0.0, frac.tail()
 
 
+class _FovArgs:
+    n_example_fovs = 3
+    min_native_cells = 10
+    mural_quantiles = "0.25,0.75"
+
+
+def _fov_selection_inputs():
+    """Five FOVs spanning the mural range, plus one that is legible but has no native cells."""
+    spec = [("wall_to_wall", 0.60, 40), ("dense", 0.40, 40), ("mid", 0.20, 40),
+            ("sparse", 0.10, 40), ("vessel_free", 0.02, 40), ("no_natives", 0.20, 0)]
+    rows, tidy_rows = [], []
+    for fov, mural_share, n_native in spec:
+        n = 500
+        for i in range(n):
+            rows.append({"cell": f"{fov}_C{i}", "fov": fov,
+                         "is_mural": i < int(n * mural_share)})
+        for i in range(n_native):
+            tidy_rows.append({"cell": f"{fov}_C{i + 200}", "group": "D [native]",
+                              "origin": origin.NATIVE_ORIGIN})
+        for i in range(60):
+            tidy_rows.append({"cell": f"{fov}_C{i + 300}", "group": "l->D",
+                              "origin": origin.FORCED_ORIGIN})
+    cells = pd.DataFrame(rows).set_index("cell")
+    tidy = pd.DataFrame(tidy_rows).set_index("cell")
+    return cells, tidy, cells["fov"]
+
+
+def test_fov_selection_requires_native_cells():
+    cells, tidy, fov_key = _fov_selection_inputs()
+    chosen = spatial.pick_example_fovs(cells, tidy, fov_key, _FovArgs())
+    assert "no_natives" not in chosen, chosen
+
+
+def test_fov_selection_skips_the_extremes_of_mural_density():
+    """The old rule picked the densest FOVs, where mural is wall-to-wall and nothing shows."""
+    cells, tidy, fov_key = _fov_selection_inputs()
+    chosen = spatial.pick_example_fovs(cells, tidy, fov_key, _FovArgs())
+    assert "wall_to_wall" not in chosen, chosen
+    assert "vessel_free" not in chosen, chosen
+    assert "mid" in chosen, chosen
+
+
+def test_fov_selection_falls_back_loudly_rather_than_drawing_nothing():
+    cells, tidy, fov_key = _fov_selection_inputs()
+
+    class Strict(_FovArgs):
+        min_native_cells = 10_000
+
+    chosen = spatial.pick_example_fovs(cells, tidy, fov_key, Strict())
+    assert len(chosen) == Strict.n_example_fovs, chosen
+
+
 # --------------------------------------------------------------------------- 75m, mixing
 
 

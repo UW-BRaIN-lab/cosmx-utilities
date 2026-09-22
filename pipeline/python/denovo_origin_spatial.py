@@ -53,7 +53,8 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
-from denovo_origin import ALL_ORIGIN, add_origin_arguments, load_origin
+from denovo_origin import (ALL_ORIGIN, NATIVE_ORIGIN, NATIVE_SUFFIX, add_origin_arguments,
+                           load_origin)
 from prep_insitucnv_input import pick_spatial_cols
 
 # Vessel-wall cells. Endothelial types are deliberately absent — see the module docstring.
@@ -82,7 +83,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-permutations", type=int, default=200,
                    help="Size-matched within-FOV draws for the null (default 200).")
     p.add_argument("--n-example-fovs", type=int, default=6,
-                   help="FOVs to draw, chosen by how many forced cells they hold (default 6).")
+                   help="FOVs to draw (default 6). See --min-native-cells for how they are "
+                        "chosen — NOT simply the ones with the most forced cells.")
+    p.add_argument("--min-native-cells", type=int, default=10,
+                   help="A FOV must hold at least this many NATIVE cells to be drawn (default "
+                        "10). Native cells are the scarce side (a few thousand across 57 "
+                        "slides), so a panel without them shows nothing to compare.")
+    p.add_argument("--mural-quantiles", default="0.25,0.75",
+                   help="Keep only FOVs whose mural share falls between these quantiles OF THE "
+                        "ELIGIBLE FOVs (default 0.25,0.75). Vessel architecture is legible in "
+                        "the middle of the range: a FOV that is mural wall-to-wall has no "
+                        "contrast, and one with no vessels has nothing to sit on.")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--output-dir", type=Path, required=True)
     return p.parse_args()
@@ -203,14 +214,21 @@ def plot_summary(table: pd.DataFrame, out: Path) -> None:
 
 def plot_fov(block: pd.DataFrame, title: str, out: Path) -> None:
     fig, ax = plt.subplots(figsize=(6.4, 6.0))
-    ax.scatter(block["x"], block["y"], s=4, color="0.88", rasterized=True, label="all cells")
+    ax.scatter(block["x"], block["y"], s=5, color="0.90", rasterized=True, label="all cells")
     mural = block[block["is_mural"]]
-    ax.scatter(mural["x"], mural["y"], s=9, color="0.35", rasterized=True, label="mural")
+    # A light tint, not the near-black this used to be: in a vessel-rich FOV the mural layer is
+    # most of the field, and drawn dark it buries the groups it is supposed to be context for.
+    ax.scatter(mural["x"], mural["y"], s=9, color="#9fb3c8", rasterized=True, label="mural")
     palette = plt.get_cmap("tab10")
     for i, (grp, sub) in enumerate(block.dropna(subset=["group"]).groupby("group",
                                                                          observed=True)):
-        ax.scatter(sub["x"], sub["y"], s=14, color=palette(i % 10), label=str(grp),
-                   edgecolors="none", rasterized=True)
+        # Native groups are a handful of cells per FOV, so they get a bigger marker and an
+        # outline; the forced groups are abundant and stay small.
+        native = str(grp).endswith(NATIVE_SUFFIX)
+        ax.scatter(sub["x"], sub["y"], s=44 if native else 15, color=palette(i % 10),
+                   label=str(grp), rasterized=True,
+                   edgecolors="black" if native else "none",
+                   linewidths=0.6 if native else 0.0, zorder=3 if native else 2)
     ax.set_aspect("equal")
     ax.set_xticks([]); ax.set_yticks([])
     ax.set_title(title, fontsize=10)
@@ -218,6 +236,55 @@ def plot_fov(block: pd.DataFrame, title: str, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out, dpi=170, bbox_inches="tight")
     plt.close(fig)
+
+
+def pick_example_fovs(cells: pd.DataFrame, tidy: pd.DataFrame, fov_key: pd.Series,
+                      args) -> list[str]:
+    """FOVs chosen for LEGIBILITY, not for holding the most forced cells.
+
+    Ranking by forced-cell count picks the most vessel-dense FOVs in the cohort — precisely the
+    ones where mural cells are wall-to-wall and no vessel architecture is visible — and says
+    nothing about whether any NATIVE cells are present to compare against. Since the native
+    groups are a few thousand cells across 57 slides, such a panel routinely held four or five
+    of them, which is not a comparison.
+
+    So: require native cells, keep the middle of the mural-density range, then rank by how many
+    native cells there are, because they are the limiting side.
+    """
+    per_fov = pd.DataFrame({
+        "mural_share": cells.groupby(fov_key, observed=True)["is_mural"].mean(),
+        "n_cells": cells.groupby(fov_key, observed=True).size()})
+    native_ids = tidy.index[tidy["origin"] == NATIVE_ORIGIN].unique()
+    forced_ids = tidy.index[(tidy["origin"] != NATIVE_ORIGIN)
+                            & (tidy["origin"] != ALL_ORIGIN)].unique()
+    per_fov["n_native"] = fov_key.loc[cells.index.intersection(native_ids)].value_counts()
+    per_fov["n_forced"] = fov_key.loc[cells.index.intersection(forced_ids)].value_counts()
+    per_fov = per_fov.fillna({"n_native": 0, "n_forced": 0})
+
+    eligible = per_fov[(per_fov["n_native"] >= args.min_native_cells)
+                       & (per_fov["n_forced"] > 0)]
+    if eligible.empty:
+        print(f"\nWARNING: no FOV holds {args.min_native_cells} native cells; falling back to "
+              f"the FOVs with the most forced cells, which are the least legible ones.",
+              file=sys.stderr)
+        return list(per_fov.sort_values("n_forced", ascending=False)
+                    .head(args.n_example_fovs).index)
+
+    lo_q, hi_q = (float(q) for q in args.mural_quantiles.split(","))
+    lo, hi = eligible["mural_share"].quantile([lo_q, hi_q])
+    banded = eligible[eligible["mural_share"].between(lo, hi)]
+    if banded.empty:
+        banded = eligible
+    chosen = banded.sort_values("n_native", ascending=False).head(args.n_example_fovs)
+
+    print(f"\nExample FOVs — {len(eligible)} of {len(per_fov)} FOVs hold "
+          f">={args.min_native_cells} native cells; keeping mural share in "
+          f"[{lo:.1%}, {hi:.1%}] (quantiles {lo_q:g}-{hi_q:g} of those):")
+    print(f"  {'fov':<26}{'cells':>7}{'mural':>8}{'forced':>8}{'native':>8}")
+    for fov, r in chosen.iterrows():
+        print(f"  {fov:<26}{int(r['n_cells']):>7,}{r['mural_share']:>8.1%}"
+              f"{int(r['n_forced']):>8,}{int(r['n_native']):>8,}")
+    return list(chosen.index)
 
 
 def main() -> None:
@@ -305,16 +372,14 @@ def main() -> None:
           "localised like it.\nA forced group at ratio ~1 is scattered through parenchyma, "
           "whatever its markers say.")
 
-    forced_cells = cells.loc[cells.index.intersection(
-        tidy.index[tidy["origin"] != ALL_ORIGIN].unique())]
+    chosen = pick_example_fovs(cells, tidy, fov_key, args)
     grouping = tidy[tidy["origin"] != ALL_ORIGIN].groupby(level=0)["group"].first()
-    top = fov_key.loc[forced_cells.index].value_counts().head(args.n_example_fovs)
-    for fov in top.index:
+    for fov in chosen:
         block = cells[(fov_key == fov).to_numpy()].copy()
         block["group"] = grouping.reindex(block.index)
         plot_fov(block, f"{fov} — {args.letter} and its native counterparts",
                  args.output_dir / f"fov_{fov}.png")
-    print(f"\nWrote {len(top)} example FOV panels to {args.output_dir}")
+    print(f"\nWrote {len(chosen)} example FOV panels to {args.output_dir}")
 
 
 if __name__ == "__main__":
