@@ -17,6 +17,12 @@
 # Env knobs (KOPAH_*, APPTAINER_INSITUTYPE from pipeline/.env):
 #   STAGE4_DIR  Kopah sub-dir with anchor/ + supervised_gbmap/ (default stage4_anchor_pruned).
 #
+# It also emits label_vs_argmax_mismatches.csv: one row per cell whose assigned label is NOT
+# its best-scoring profile, with the loglik DEFICIT the argmax beat it by, worst first. The A
+# decomposition gives only the rate; this is the list, and the deficit is what separates a
+# near-tie from a cell the fit's own evidence plainly contradicts. The job also prints where
+# those cells would have gone, and which labels lose the largest share of their cells.
+#
 # It also emits forced_named_posteriors.csv: the corrected per-cell forced-named call, taken
 # straight off the fit's own stored logliks. Because B holds, that IS the answer 75 was trying
 # to re-derive — feed it to 75b via POSTERIORS_BASENAME and the figures recompute correctly
@@ -82,6 +88,7 @@ apptainer exec \
         --posteriors "$WORK/posteriors.csv" \
         --output-csv "$WORK/forced_selfconsistency_by_label.csv" \
         --output-margins-csv "$WORK/forced_selfconsistency_margins.csv" \
+        --output-mismatch-csv "$WORK/label_vs_argmax_mismatches.csv" \
         --output-forced-csv "$WORK/forced_named_posteriors.csv"
 
 echo "Uploading diagnostic tables to Kopah (${STAGE4}/supervised_gbmap)..."
@@ -89,6 +96,8 @@ s5cmd cp "$WORK/forced_selfconsistency_by_label.csv" \
     "${BASE}/supervised_gbmap/forced_selfconsistency_by_label.csv"
 s5cmd cp "$WORK/forced_selfconsistency_margins.csv" \
     "${BASE}/supervised_gbmap/forced_selfconsistency_margins.csv"
+s5cmd cp "$WORK/label_vs_argmax_mismatches.csv" \
+    "${BASE}/supervised_gbmap/label_vs_argmax_mismatches.csv"
 s5cmd cp "$WORK/forced_named_posteriors.csv" \
     "${BASE}/supervised_gbmap/forced_named_posteriors.csv"
 

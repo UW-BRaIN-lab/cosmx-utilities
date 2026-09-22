@@ -37,6 +37,8 @@
 # Outputs:
 #   --output-csv   per-semi-supervised-label agreement table for A, B and C.
 #   --output-margins-csv  margin distribution for agreeing vs disagreeing cells.
+#   --output-mismatch-csv one row per cell whose assigned label is NOT its best-scoring
+#                       profile, with the loglik deficit, worst first.
 #   --output-forced-csv   THE CORRECTED PER-CELL ANSWER. Same schema flat_posteriors.R emits
 #                  (cell_id, top1_type, top1_prob, top2_type, top2_prob) plus `margin`, but
 #                  read straight off the anchor fit's own stored logliks instead of re-scored.
@@ -136,9 +138,24 @@ message(sprintf("%s, reading %s", Sys.time(), opt$posteriors))
 post <- data.table::fread(opt$posteriors, select = c("cell_id", "top1_type"))
 data.table::setnames(post, "top1_type", "rescored")
 
+# Per-cell loglik of the label the cell WAS given, and of the one that scored best. Taken here,
+# while dt's row order still matches ll — the merge below re-sorts by cell_id, so a lookup after
+# it would silently pair each cell with another cell's likelihoods.
+assigned_idx <- match(as.character(clust), types)
+if (anyNA(assigned_idx)) {
+  message(sprintf("WARNING: %d cells carry a label with no loglik column; their deficit is NA.",
+                  sum(is.na(assigned_idx))))
+}
+row_seq <- seq_len(nrow(ll))
+assigned_loglik <- ifelse(is.na(assigned_idx), NA_real_,
+                          ll[cbind(row_seq, ifelse(is.na(assigned_idx), 1L, assigned_idx))])
+argmax_loglik <- ll[cbind(row_seq, max.col(ll, ties.method = "first"))]
+
 dt <- data.table(cell_id = rownames(ll) %||% names(clust),
                  semisup = as.character(clust),
                  argmax_all = argmax_all,
+                 assigned_loglik = assigned_loglik,
+                 argmax_loglik = argmax_loglik,
                  forced_named = argmax_named,
                  top1_prob = prob1,
                  top2_type = argmax_named_2,
@@ -218,4 +235,40 @@ if (!is.null(opt[["output-margins-csv"]])) {
   data.table::fwrite(margins, opt[["output-margins-csv"]])
   message(sprintf("Wrote %s", opt[["output-margins-csv"]]))
 }
+if (!is.null(opt[["output-mismatch-csv"]])) {
+  # A above reports the RATE at which the assigned label differs from the best-scoring profile.
+  # This is the list itself, with the DEFICIT — how many log-likelihood units better the winning
+  # profile scored — because that is what separates a near-tie, which any numerical wobble would
+  # flip, from a cell whose label the fit's own evidence plainly contradicts.
+  dt[, deficit := argmax_loglik - assigned_loglik]
+  mism <- dt[semisup != argmax_all][order(-deficit)]
+  cat(sprintf("\n================ LABEL vs ARGMAX MISMATCHES ================\n"))
+  cat(sprintf("%d of %d cells (%.2f%%) carry a label that is NOT their best-scoring profile.\n",
+              nrow(mism), nrow(dt), 100 * nrow(mism) / nrow(dt)))
+  if (nrow(mism) > 0) {
+    cat(sprintf("deficit (loglik units the argmax beats the assigned label by): "))
+    cat(sprintf("median %.1f, p90 %.1f, max %.1f\n",
+                median(mism$deficit, na.rm = TRUE),
+                quantile(mism$deficit, 0.9, na.rm = TRUE),
+                max(mism$deficit, na.rm = TRUE)))
+    pairs <- mism[, .(n = .N, median_deficit = round(median(deficit, na.rm = TRUE), 1)),
+                  by = .(assigned = semisup, argmax = argmax_all)][order(-n)]
+    cat("\nWhere the mismatched cells would have gone (top 20 label -> argmax pairs):\n")
+    print(head(pairs, 20))
+    by_label <- dt[, .(n_cells = .N, n_mismatch = sum(semisup != argmax_all),
+                       pct_mismatch = round(100 * mean(semisup != argmax_all), 1)),
+                   by = .(assigned = semisup)][order(-pct_mismatch)][n_cells >= 100]
+    cat("\nBy assigned label, worst first (labels with >=100 cells):\n")
+    print(head(by_label, 20))
+  }
+  cat("===========================================================\n\n")
+  data.table::fwrite(
+    mism[, .(cell_id, assigned = semisup, argmax = argmax_all,
+             assigned_loglik = round(assigned_loglik, 3),
+             argmax_loglik = round(argmax_loglik, 3),
+             deficit = round(deficit, 3))],
+    opt[["output-mismatch-csv"]])
+  message(sprintf("Wrote %s (%d cells)", opt[["output-mismatch-csv"]], nrow(mism)))
+}
+
 message("Done.")
