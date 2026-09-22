@@ -74,6 +74,11 @@ def parse_args() -> argparse.Namespace:
                         f"{DEFAULT_ANCHOR_TYPES}).")
     p.add_argument("--k", type=int, default=15,
                    help="Spatial neighbours per cell (default 15).")
+    p.add_argument("--exclude-compared", action="store_true",
+                   help="Hold every compared cell out of the neighbourhood REFERENCE. Required "
+                        "whenever the letter's own cells carry an --anchor-type under the "
+                        "fixed-profile run (c is ~72%% Pericyte), or each group partly supplies "
+                        "its own evidence. The overlap is reported either way.")
     p.add_argument("--n-permutations", type=int, default=200,
                    help="Size-matched within-FOV draws for the null (default 200).")
     p.add_argument("--n-example-fovs", type=int, default=6,
@@ -108,8 +113,12 @@ def resolve_slide_fov(obs: pd.DataFrame) -> pd.DataFrame:
     return out[~bad]
 
 
-def mural_fraction(cells: pd.DataFrame, k: int) -> pd.Series:
+def mural_fraction(cells: pd.DataFrame, k: int, reference: pd.Series | None = None) -> pd.Series:
     """Fraction of each cell's k nearest neighbours (same slide) that are mural.
+
+    `reference` selects which cells may SERVE AS neighbours. Every cell is still a query point —
+    the null needs the same statistic for the background cells — but with the compared cells
+    held out of the reference the answer cannot be built from the cells under test.
 
     One KD-tree per slide, queried for every cell on that slide, then the index array is thrown
     away — only the float32 fraction is kept, so peak memory stays at one slide's worth.
@@ -117,15 +126,22 @@ def mural_fraction(cells: pd.DataFrame, k: int) -> pd.Series:
     frac = pd.Series(np.nan, index=cells.index, dtype="float32")
     radius = []
     for slide, block in cells.groupby("slide", observed=True, sort=False):
-        xy = block[["x", "y"]].to_numpy(dtype=np.float64)
-        if len(block) <= k:
+        in_ref = (np.ones(len(block), dtype=bool) if reference is None
+                  else reference.reindex(block.index).fillna(False).to_numpy())
+        ref = block[in_ref]
+        if len(ref) <= k + 1:
             continue
-        tree = cKDTree(xy)
-        # k + 1 because the first hit of every query point is the point itself.
-        dist, idx = tree.query(xy, k=k + 1, workers=-1)
-        is_mural = block["is_mural"].to_numpy()
-        frac.loc[block.index] = is_mural[idx[:, 1:]].mean(axis=1).astype(np.float32)
-        radius.append(np.median(dist[:, -1]))
+        tree = cKDTree(ref[["x", "y"]].to_numpy(dtype=np.float64))
+        # k + 1 neighbours, then drop one: for a query point that is ITSELF in the reference the
+        # first hit is the point itself, and for one that is not there is no self-hit to drop —
+        # taking the same column from both would either keep a self-match or discard a real
+        # neighbour, and the two cases coexist whenever the compared cells are held out.
+        dist, idx = tree.query(block[["x", "y"]].to_numpy(dtype=np.float64), k=k + 1, workers=-1)
+        take = np.where(in_ref[:, None], idx[:, 1:], idx[:, :-1])
+        edge = np.where(in_ref, dist[:, -1], dist[:, -2])
+        is_mural = ref["is_mural"].to_numpy()
+        frac.loc[block.index] = is_mural[take].mean(axis=1).astype(np.float32)
+        radius.append(np.median(edge))
     if radius:
         print(f"Median radius of the {k}-neighbour disc: {np.median(radius):,.0f} px "
               f"(a CosMx pixel is ~0.12 um, a cell ~10 um across)")
@@ -239,8 +255,26 @@ def main() -> None:
     if len(overlap) == 0:
         sys.exit("ERROR: no compared cell ids are present in the typed run — check the join.")
 
-    print(f"Computing the {args.k}-neighbour mural fraction, one KD-tree per slide...")
-    cells["mural_frac"] = mural_fraction(cells, args.k)
+    # How circular is this? A group whose own cells carry an anchor type under the fixed-profile
+    # run partly supplies its own evidence, and the ratio is inflated for BOTH sides of that
+    # pair. Report it always, so the caveat is visible even when the flag is off.
+    print("\nShare of each group that is ITSELF mural under the fixed-profile run:")
+    for grp in order:
+        ids = tidy.index[tidy["group"] == grp].unique().intersection(cells.index)
+        if len(ids):
+            print(f"  {grp:<32} {cells.loc[ids, 'is_mural'].mean():>6.1%}")
+    print("  (a large share means the group is part of its own neighbourhood — "
+          "re-run with --exclude-compared)")
+
+    reference = None
+    if args.exclude_compared:
+        reference = pd.Series(True, index=cells.index)
+        reference[cells.index.isin(tidy.index.unique())] = False
+        print(f"\nHolding {int((~reference).sum()):,} compared cells out of the reference; "
+              f"{int(reference.sum()):,} cells remain available as neighbours.")
+
+    print(f"\nComputing the {args.k}-neighbour mural fraction, one KD-tree per slide...")
+    cells["mural_frac"] = mural_fraction(cells, args.k, reference)
     fov_key = cells["slide"].astype(str) + "_F" + cells["fov"].astype(int).astype(str)
     pools = fov_pools(cells["mural_frac"], fov_key)
 

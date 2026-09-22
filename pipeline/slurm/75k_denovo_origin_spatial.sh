@@ -31,6 +31,10 @@
 #   K             spatial neighbours per cell (default 15).
 #   N_PERM        size-matched draws for the null (default 200).
 #   N_FOVS        example FOV panels to draw (default 6).
+#   EXCLUDE_COMPARED  set to 1 to hold the compared cells out of the neighbourhood reference.
+#                 REQUIRED for a letter whose own cells carry an anchor type under the
+#                 fixed-profile run (c is ~72% Pericyte), or each group partly supplies its own
+#                 evidence. The job reports that overlap per group either way.
 
 #SBATCH --job-name=cosmx-origin-spatial
 #SBATCH --account=glioblastoma-ckpt
@@ -106,6 +110,7 @@ apptainer exec \
         --k "${K:-15}" \
         --n-permutations "${N_PERM:-200}" \
         --n-example-fovs "${N_FOVS:-6}" \
+        ${EXCLUDE_COMPARED:+--exclude-compared} \
         "${DEST_ARG[@]}" \
         --output-dir "$OUT"
 

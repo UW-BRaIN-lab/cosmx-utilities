@@ -133,6 +133,70 @@ def test_slide_fov_falls_back_to_the_cell_id():
     assert list(got["fov"]) == [3, 3, 11], got
 
 
+def _clique_cells() -> pd.DataFrame:
+    """A group that is tightly clustered AND self-labelled mural, but NOT on the vessels.
+
+    This is the `c` situation: 72% of c's cells are Pericyte under the fixed-profile run, so
+    they sit in the anchor set and count toward each other's neighbourhoods. A group like that
+    scores as perivascular from its own members alone.
+    """
+    rng = np.random.default_rng(5)
+    blocks, kinds, fov_of = [], [], []
+    for fov in FOVS:
+        xy, kind = _fov_layout(rng, n_on_vessel=0, n_scattered=0, n_mural=70)
+        # the clique: a tight blob in a corner, far from the vessel line
+        clique = rng.normal(0, 60.0, (60, 2)) + np.array([3400.0, 3400.0])
+        blocks += [xy, clique]
+        kinds += kind + ["clique"] * len(clique)
+        fov_of += [fov] * (len(xy) + len(clique))
+    xy = np.vstack(blocks)
+    cells = pd.DataFrame({"slide": "S1", "fov": fov_of, "x": xy[:, 0], "y": xy[:, 1],
+                          "kind": kinds})
+    # BOTH the real mural cells and the clique carry an anchor type.
+    cells["is_mural"] = cells["kind"].isin(["mural", "clique"])
+    return cells
+
+
+def _clique_ratio(exclude: bool) -> float:
+    cells = _clique_cells()
+    reference = None
+    if exclude:
+        reference = pd.Series(cells["kind"] != "clique", index=cells.index)
+    cells["mural_frac"] = spatial.mural_fraction(cells, k=15, reference=reference)
+    fov_key = cells["fov"]
+    pools = spatial.fov_pools(cells["mural_frac"], fov_key)
+    return _ratio(cells, pools, fov_key, "clique", np.random.default_rng(13))
+
+
+def test_a_self_mural_clique_looks_perivascular_without_the_control():
+    """The circularity is real — without holding it out, the clique scores as vessel-bound."""
+    got = _clique_ratio(exclude=False)
+    assert got > 2.0, f"expected the uncontrolled statistic to be inflated, got {got:.2f}"
+
+
+def test_exclude_compared_removes_the_self_supplied_evidence():
+    """Held out of the reference, the clique is judged only by cells that are not under test."""
+    got = _clique_ratio(exclude=True)
+    assert got < 1.0, f"a clique away from the vessels must not look perivascular: {got:.2f}"
+
+
+def test_the_control_changes_the_verdict_not_just_the_number():
+    uncontrolled, controlled = _clique_ratio(False), _clique_ratio(True)
+    assert uncontrolled > 3 * controlled, (uncontrolled, controlled)
+
+
+def test_reference_none_matches_the_original_self_excluding_behaviour():
+    """With no reference every cell is its own query AND a neighbour; the self-hit must go."""
+    cells = pd.DataFrame({"slide": "S1", "fov": "S1_F0",
+                          "x": np.arange(60.0), "y": np.zeros(60),
+                          "is_mural": [True] * 30 + [False] * 30})
+    frac = spatial.mural_fraction(cells, k=4)
+    # Cell 0 sits at the mural end: all four nearest others are mural, and it must not count
+    # ITSELF among them (which would be indistinguishable here, so check the far end too).
+    assert frac.iloc[0] == 1.0, frac.head()
+    assert frac.iloc[-1] == 0.0, frac.tail()
+
+
 # --------------------------------------------------------------------------- 75m, mixing
 
 
