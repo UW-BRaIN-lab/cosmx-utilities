@@ -85,10 +85,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-example-fovs", type=int, default=6,
                    help="FOVs to draw (default 6). See --min-native-cells for how they are "
                         "chosen — NOT simply the ones with the most forced cells.")
-    p.add_argument("--min-native-cells", type=int, default=10,
-                   help="A FOV must hold at least this many NATIVE cells to be drawn (default "
-                        "10). Native cells are the scarce side (a few thousand across 57 "
-                        "slides), so a panel without them shows nothing to compare.")
+    p.add_argument("--min-group-cells", type=int, default=10,
+                   help="A FOV must hold at least this many cells of EACH side — the letter's "
+                        "and the natively-called — to be drawn (default 10). Both floors "
+                        "matter: without natives there is nothing to compare against, and "
+                        "without the letter's cells the panel inverts the cohort's own 91:9 "
+                        "ratio.")
     p.add_argument("--mural-quantiles", default="0.25,0.75",
                    help="Keep only FOVs whose mural share falls between these quantiles OF THE "
                         "ELIGIBLE FOVs (default 0.25,0.75). Vessel architecture is legible in "
@@ -248,8 +250,13 @@ def pick_example_fovs(cells: pd.DataFrame, tidy: pd.DataFrame, fov_key: pd.Serie
     groups are a few thousand cells across 57 slides, such a panel routinely held four or five
     of them, which is not a comparison.
 
-    So: require native cells, keep the middle of the mural-density range, then rank by how many
-    native cells there are, because they are the limiting side.
+    So: require native cells, keep the middle of the mural-density range, then rank by the
+    SMALLER of the two group counts. Ranking on the native count alone — the first attempt —
+    swaps one bias for its mirror: natives are 5-9% of vascular cells cohort-wide, so the FOVs
+    at the top of that ranking are exactly the ones where the scarce side is most
+    over-represented. The panels then showed natives outnumbering the letter's cells, when the
+    real ratio runs 91% the other way. The minimum is the honest criterion, because a panel is
+    only legible when BOTH groups are actually in it.
     """
     per_fov = pd.DataFrame({
         "mural_share": cells.groupby(fov_key, observed=True)["is_mural"].mean(),
@@ -261,13 +268,13 @@ def pick_example_fovs(cells: pd.DataFrame, tidy: pd.DataFrame, fov_key: pd.Serie
     per_fov["n_forced"] = fov_key.loc[cells.index.intersection(forced_ids)].value_counts()
     per_fov = per_fov.fillna({"n_native": 0, "n_forced": 0})
 
-    eligible = per_fov[(per_fov["n_native"] >= args.min_native_cells)
-                       & (per_fov["n_forced"] > 0)]
+    per_fov["n_smaller"] = per_fov[["n_forced", "n_native"]].min(axis=1)
+    eligible = per_fov[per_fov["n_smaller"] >= args.min_group_cells]
     if eligible.empty:
-        print(f"\nWARNING: no FOV holds {args.min_native_cells} native cells; falling back to "
-              f"the FOVs with the most forced cells, which are the least legible ones.",
+        print(f"\nWARNING: no FOV holds {args.min_group_cells} cells of BOTH groups; "
+              f"falling back to the best-balanced FOVs available, which may not be legible.",
               file=sys.stderr)
-        return list(per_fov.sort_values("n_forced", ascending=False)
+        return list(per_fov.sort_values(["n_smaller", "n_forced"], ascending=False)
                     .head(args.n_example_fovs).index)
 
     lo_q, hi_q = (float(q) for q in args.mural_quantiles.split(","))
@@ -275,15 +282,15 @@ def pick_example_fovs(cells: pd.DataFrame, tidy: pd.DataFrame, fov_key: pd.Serie
     banded = eligible[eligible["mural_share"].between(lo, hi)]
     if banded.empty:
         banded = eligible
-    chosen = banded.sort_values("n_native", ascending=False).head(args.n_example_fovs)
+    chosen = banded.sort_values("n_smaller", ascending=False).head(args.n_example_fovs)
 
     print(f"\nExample FOVs — {len(eligible)} of {len(per_fov)} FOVs hold "
-          f">={args.min_native_cells} native cells; keeping mural share in "
+          f">={args.min_group_cells} of BOTH groups; keeping mural share in "
           f"[{lo:.1%}, {hi:.1%}] (quantiles {lo_q:g}-{hi_q:g} of those):")
-    print(f"  {'fov':<26}{'cells':>7}{'mural':>8}{'forced':>8}{'native':>8}")
+    print(f"  {'fov':<26}{'cells':>7}{'mural':>8}{'forced':>8}{'native':>8}{'min':>7}")
     for fov, r in chosen.iterrows():
         print(f"  {fov:<26}{int(r['n_cells']):>7,}{r['mural_share']:>8.1%}"
-              f"{int(r['n_forced']):>8,}{int(r['n_native']):>8,}")
+              f"{int(r['n_forced']):>8,}{int(r['n_native']):>8,}{int(r['n_smaller']):>7,}")
     return list(chosen.index)
 
 

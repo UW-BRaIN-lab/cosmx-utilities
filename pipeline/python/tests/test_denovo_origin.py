@@ -199,16 +199,22 @@ def test_reference_none_matches_the_original_self_excluding_behaviour():
 
 class _FovArgs:
     n_example_fovs = 3
-    min_native_cells = 10
+    min_group_cells = 10
     mural_quantiles = "0.25,0.75"
 
 
 def _fov_selection_inputs():
-    """Five FOVs spanning the mural range, plus one that is legible but has no native cells."""
-    spec = [("wall_to_wall", 0.60, 40), ("dense", 0.40, 40), ("mid", 0.20, 40),
-            ("sparse", 0.10, 40), ("vessel_free", 0.02, 40), ("no_natives", 0.20, 0)]
+    """FOVs spanning the mural range, plus the two degenerate kinds a panel must not show.
+
+    `no_natives` has nothing to compare against; `native_heavy` is the mirror failure — the
+    scarce side over-represented and the letter's cells almost absent, which is what ranking
+    on the native count alone selected for.
+    """
+    spec = [("wall_to_wall", 0.60, 40, 60), ("dense", 0.40, 40, 60), ("mid", 0.20, 40, 60),
+            ("sparse", 0.10, 40, 60), ("vessel_free", 0.02, 40, 60),
+            ("no_natives", 0.20, 0, 60), ("native_heavy", 0.20, 90, 3)]
     rows, tidy_rows = [], []
-    for fov, mural_share, n_native in spec:
+    for fov, mural_share, n_native, n_forced in spec:
         n = 500
         for i in range(n):
             rows.append({"cell": f"{fov}_C{i}", "fov": fov,
@@ -216,12 +222,24 @@ def _fov_selection_inputs():
         for i in range(n_native):
             tidy_rows.append({"cell": f"{fov}_C{i + 200}", "group": "D [native]",
                               "origin": origin.NATIVE_ORIGIN})
-        for i in range(60):
+        for i in range(n_forced):
             tidy_rows.append({"cell": f"{fov}_C{i + 300}", "group": "l->D",
                               "origin": origin.FORCED_ORIGIN})
     cells = pd.DataFrame(rows).set_index("cell")
     tidy = pd.DataFrame(tidy_rows).set_index("cell")
     return cells, tidy, cells["fov"]
+
+
+def test_fov_selection_rejects_a_native_heavy_field():
+    """The mirror of the no-natives case: the letter's cells must be visible too.
+
+    native_heavy has the MOST native cells of any FOV, so ranking on that count alone puts it
+    first — and the panel then shows 90 native cells against 3 of the letter's, inverting the
+    cohort's 91:9 ratio.
+    """
+    cells, tidy, fov_key = _fov_selection_inputs()
+    chosen = spatial.pick_example_fovs(cells, tidy, fov_key, _FovArgs())
+    assert "native_heavy" not in chosen, chosen
 
 
 def test_fov_selection_requires_native_cells():
@@ -243,7 +261,7 @@ def test_fov_selection_falls_back_loudly_rather_than_drawing_nothing():
     cells, tidy, fov_key = _fov_selection_inputs()
 
     class Strict(_FovArgs):
-        min_native_cells = 10_000
+        min_group_cells = 10_000
 
     chosen = spatial.pick_example_fovs(cells, tidy, fov_key, Strict())
     assert len(chosen) == Strict.n_example_fovs, chosen
