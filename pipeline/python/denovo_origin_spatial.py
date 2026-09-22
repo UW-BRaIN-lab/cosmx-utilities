@@ -15,7 +15,7 @@ next to cells called endothelial would just re-read the typing back out. Pericyt
 different population, and adjacency to them is not implied by anything in the assignment.
 
 The neighbourhood is built from the FIXED-PROFILE run's 7.5M cells (cosmx_typed.h5ad), not the
-2.54M anchor: the anchor is a Leiden-STRATIFIED subsample with a cap per stratum, so its local
+2.54M anchor COHORT: that cohort is a Leiden-STRATIFIED subsample with a cap per stratum, so its local
 density is a function of how abundant each cluster was, and neighbourhood composition measured
 on it would be an artefact of the sampling. The full typed run is the real tissue.
 
@@ -57,8 +57,10 @@ from denovo_origin import (ALL_ORIGIN, NATIVE_ORIGIN, NATIVE_SUFFIX, add_origin_
                            load_origin)
 from prep_insitucnv_input import pick_spatial_cols
 
-# Vessel-wall cells. Endothelial types are deliberately absent — see the module docstring.
-DEFAULT_ANCHOR_TYPES = "Pericyte,SMC,SMC_COL,Perivascular_fibroblast,Scavenging_pericyte"
+# Vessel-wall cells that define the neighbourhood. NOT called an "anchor" set:
+# `anchor` already means two other things here (see CLAUDE.md).
+# Endothelial types are deliberately absent — see the module docstring.
+DEFAULT_MURAL_TYPES = "Pericyte,SMC,SMC_COL,Perivascular_fibroblast,Scavenging_pericyte"
 CELL_ID_PATTERN = r"^(?P<slide>.+)_F(?P<fov>\d+)_C\d+$"
 
 
@@ -70,14 +72,14 @@ def parse_args() -> argparse.Namespace:
     add_origin_arguments(p)
     p.add_argument("--celltype-key", default="cell_type",
                    help="obs column holding the fixed-profile label (default cell_type).")
-    p.add_argument("--anchor-types", default=DEFAULT_ANCHOR_TYPES,
+    p.add_argument("--mural-types", default=DEFAULT_MURAL_TYPES,
                    help=f"Comma-separated types defining the vessel wall (default "
-                        f"{DEFAULT_ANCHOR_TYPES}).")
+                        f"{DEFAULT_MURAL_TYPES}).")
     p.add_argument("--k", type=int, default=15,
                    help="Spatial neighbours per cell (default 15).")
     p.add_argument("--exclude-compared", action="store_true",
                    help="Hold every compared cell out of the neighbourhood REFERENCE. Required "
-                        "whenever the letter's own cells carry an --anchor-type under the "
+                        "whenever the letter's own cells carry a --mural-type under the "
                         "fixed-profile run (c is ~72%% Pericyte), or each group partly supplies "
                         "its own evidence. The overlap is reported either way.")
     p.add_argument("--n-permutations", type=int, default=200,
@@ -309,18 +311,18 @@ def main() -> None:
     xcol, ycol = pick_spatial_cols(obs.columns)
     print(f"Centroids from ('{xcol}', '{ycol}'); {len(obs):,} cells in the fixed-profile run")
 
-    anchor_types = {t.strip() for t in args.anchor_types.split(",") if t.strip()}
+    mural_types = {t.strip() for t in args.mural_types.split(",") if t.strip()}
     cells = resolve_slide_fov(obs)
     cells["x"] = pd.to_numeric(obs[xcol], errors="coerce").reindex(cells.index)
     cells["y"] = pd.to_numeric(obs[ycol], errors="coerce").reindex(cells.index)
     cells["is_mural"] = obs[args.celltype_key].astype(str).reindex(cells.index).isin(
-        anchor_types).to_numpy()
+        mural_types).to_numpy()
     cells = cells.dropna(subset=["x", "y"])
-    present = anchor_types & set(obs[args.celltype_key].astype(str).unique())
+    present = mural_types & set(obs[args.celltype_key].astype(str).unique())
     if not present:
-        sys.exit(f"ERROR: none of --anchor-types {sorted(anchor_types)} appear in "
+        sys.exit(f"ERROR: none of --mural-types {sorted(mural_types)} appear in "
                  f"obs['{args.celltype_key}'].")
-    print(f"Mural anchor: {int(cells['is_mural'].sum()):,} cells "
+    print(f"Mural reference: {int(cells['is_mural'].sum()):,} cells "
           f"({cells['is_mural'].mean():.2%} of the run) across types {sorted(present)}")
 
     overlap = tidy.index.unique().intersection(cells.index)
@@ -329,7 +331,7 @@ def main() -> None:
     if len(overlap) == 0:
         sys.exit("ERROR: no compared cell ids are present in the typed run — check the join.")
 
-    # How circular is this? A group whose own cells carry an anchor type under the fixed-profile
+    # How circular is this? A group whose own cells carry a mural type under the fixed-profile
     # run partly supplies its own evidence, and the ratio is inflated for BOTH sides of that
     # pair. Report it always, so the caveat is visible even when the flag is off.
     print("\nShare of each group that is ITSELF mural under the fixed-profile run:")

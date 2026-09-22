@@ -27,7 +27,9 @@
 #   TYPED_BASENAME  default cosmx_typed.h5ad.
 #   LETTER        de-novo letter under test (default l).
 #   DESTINATIONS  comma-separated GBmap types; default is the letter's own largest.
-#   ANCHOR_TYPES  types defining the vessel wall (default pericyte/SMC/perivascular fibroblast).
+#   MURAL_TYPES   types defining the vessel wall (default pericyte/SMC/perivascular
+#                 fibroblast). NOT InSituType's `anchors`, and not our anchor cohort --
+#                 see the terminology note in CLAUDE.md.
 #   K             spatial neighbours per cell (default 15).
 #   N_PERM        size-matched draws for the null (default 200).
 #   N_FOVS        example FOV panels to draw (default 6). They are chosen for LEGIBILITY --
@@ -112,7 +114,7 @@ apptainer exec \
         --typing-h5 "$WORK/anchor_typing.h5" \
         --forced-csv "$WORK/forced_named_posteriors.csv" \
         --letter "$LETTER" \
-        --anchor-types "${ANCHOR_TYPES:-Pericyte,SMC,SMC_COL,Perivascular_fibroblast,Scavenging_pericyte}" \
+        --mural-types "${MURAL_TYPES:-Pericyte,SMC,SMC_COL,Perivascular_fibroblast,Scavenging_pericyte}" \
         --k "${K:-15}" \
         --n-permutations "${N_PERM:-200}" \
         --n-example-fovs "${N_FOVS:-6}" \

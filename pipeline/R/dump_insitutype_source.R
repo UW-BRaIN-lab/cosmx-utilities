@@ -42,8 +42,12 @@ show_fn <- function(name) {
   }
 }
 
-for (fn in c("insitutypeML", "insitutype", "update_logliks_with_cohort_freqs",
-             "refineClusters", "refineAnchors")) show_fn(fn)
+# updateReferenceProfiles is the one that SELECTS the pinned cells — everything about which
+# cells get their label overwritten is decided in there — so it is dumped alongside the two
+# generics and the refinement passes.
+for (fn in c("insitutypeML", "insitutype", "updateReferenceProfiles",
+             "update_logliks_with_cohort_freqs", "refineClusters", "refineAnchors",
+             "chooseAnchors")) show_fn(fn)
 
 rule(); cat("exported + internal object names\n"); rule()
 print(sort(ls(NS)))
