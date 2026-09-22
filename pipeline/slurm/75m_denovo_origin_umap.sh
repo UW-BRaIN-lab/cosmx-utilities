@@ -101,12 +101,15 @@ apptainer exec --nv \
         --seed "${SEED:-0}" \
         "${DEST_ARG[@]}" \
         --output-dir "$OUT" \
-        --output-h5ad "$OUT/${LETTER}_origin_umap.h5ad"
+        --output-h5ad "$OUT/origin_umap.h5ad"
 
+# Every name is prefixed with the letter, as 75k and 75l do. Without it a second letter
+# OVERWRITES the first's figures and enrichment matrix in place -- the same collision that
+# destroyed 75e's per-FOV CSVs. Only the .h5ad escaped it, by carrying the letter in its name.
 echo "Uploading to Kopah..."
 DEST="${BASE}/${STAGE4}/supervised_gbmap/origin_umap"
 for f in "$OUT"/*; do
-    s5cmd cp "$f" "${DEST}/$(basename "$f")"
+    s5cmd cp "$f" "${DEST}/${LETTER}_$(basename "$f")"
 done
 
 echo "Done. The figures are umap_group.png / umap_origin.png; the number is above."

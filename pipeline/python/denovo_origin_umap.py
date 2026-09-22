@@ -154,8 +154,14 @@ def main() -> None:
     if args.output_h5ad is not None:
         keep_obs = [c for c in ("group", "origin", "cell_type", "Region", "Case", depth_col)
                     if c and c in adata.obs]
-        ad.AnnData(X=None, obs=adata.obs[keep_obs].copy(), obsm={"X_umap": xy},
-                   uns={"denovo_origin_umap": args.letter}).write_h5ad(args.output_h5ad)
+        # Carry the kNN graph, not just the projection. Every figure here is a scatter of
+        # X_umap, but the enrichment matrix is computed in PCA space off this graph -- without
+        # it a re-render would need the GPU job run again just to recover a number.
+        out = ad.AnnData(X=None, obs=adata.obs[keep_obs].copy(), obsm={"X_umap": xy},
+                         uns={"denovo_origin_umap": args.letter})
+        if graph is not None:
+            out.obsp["connectivities"] = sp.csr_matrix(graph)
+        out.write_h5ad(args.output_h5ad)
     print(f"\nWrote UMAP figures to {args.output_dir}")
 
 
