@@ -51,7 +51,9 @@ run <- function(margins, tag) {
   if (!file.exists(file.path(out, "density_at_zero.csv"))) {
     cat(paste(res, collapse = "\n"), "\n"); stop(tag, ": no verdict written")
   }
-  fread(file.path(out, "density_at_zero.csv"))[scale == "margin"]
+  v <- fread(file.path(out, "density_at_zero.csv"))[scale == "margin"]
+  attr(v, "outdir") <- out
+  v
 }
 
 set.seed(11)
@@ -70,6 +72,12 @@ two <- run(gap, "twopop")
 cat(sprintf("two populations: ratio_at_zero %.3f  trough %s\n",
             two$ratio_at_zero, two$trough_at_zero))
 stopifnot("a real gap must empty the density at the boundary" = two$ratio_at_zero < 0.2)
+# Asserted since the detector was fixed. It used to locate the argmin of the density and test
+# whether THAT sat near zero, which fails on exactly the clearest gaps: the density between two
+# well-separated modes is flat at ~0, so which.min picks an arbitrary point inside it. A planted
+# two-mode fixture therefore reported FALSE. The check is now structural -- a real mode either
+# side of zero, and the density at zero far below both.
+stopifnot("a genuine two-population gap MUST report a trough" = isTRUE(two$trough_at_zero))
 
 # --- the two must be far apart, not marginally different ----------------------
 stopifnot("the statistic must separate the two worlds decisively" =
@@ -84,5 +92,22 @@ cat(sprintf("lopsided 1-pop : ratio_at_zero %.3f  trough %s\n",
 stopifnot("a lopsided single population must still show real density at the boundary" =
             lop$ratio_at_zero > 0.3)
 stopifnot("a lopsided single population is not a trough" = !isTRUE(lop$trough_at_zero))
+
+# --- the per-group curves the figure is drawn from ----------------------------
+# The pooled density answers "where does zero fall"; it cannot answer the PI's question, which
+# is how the two groups sit relative to each other. Both curves must exist ON ONE SHARED GRID,
+# or the reader is comparing bandwidths rather than cells.
+by_group <- fread(file.path(attr(two, "outdir"), "margin_density_by_group.csv"))
+stopifnot("both groups need a curve" = length(unique(by_group[scale == "margin", group])) == 2)
+grids <- by_group[scale == "margin", .(lo = min(x), hi = max(x), pts = .N), by = group]
+stopifnot("the per-group curves must share one grid" =
+            length(unique(grids$lo)) == 1 && length(unique(grids$hi)) == 1 &&
+            length(unique(grids$pts)) == 1)
+# Each group's own mode must land on its own side of the boundary.
+modes <- by_group[scale == "margin", .(mode_x = x[which.max(density)]), by = group]
+cat(sprintf("per-group modes : %s\n",
+            paste(sprintf("%s %.1f", modes$group, modes$mode_x), collapse = " | ")))
+stopifnot("the two groups' modes must straddle zero" =
+            min(modes$mode_x) < 0 && max(modes$mode_x) > 0)
 
 cat("all tests passed\n")

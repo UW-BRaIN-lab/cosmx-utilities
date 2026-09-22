@@ -149,35 +149,67 @@ dt <- data.table(cell_id = rownames(ll)[keep], group = group, margin = margin,
                  depth = as.numeric(depth))
 dt[, margin_per_count := margin / pmax(depth, 1)]
 
-summ <- dt[, .(n = .N, median_margin = median(margin), q10 = quantile(margin, .1),
-               q90 = quantile(margin, .9), median_depth = median(depth, na.rm = TRUE),
-               median_margin_per_count = median(margin_per_count, na.rm = TRUE)), by = group]
+# Enough quantiles to draw a box or a violin from the summary alone, not just a median and a
+# 10/90 pair -- the PI's lead figure is the per-group DISTRIBUTION, and a 3-number summary
+# cannot show whether a group is tight against the boundary or spread across it.
+qs <- c(.01, .05, .1, .25, .5, .75, .9, .95, .99)
+summ <- dt[, c(.(n = .N, median_margin = median(margin), q10 = quantile(margin, .1),
+                 q90 = quantile(margin, .9), median_depth = median(depth, na.rm = TRUE),
+                 median_margin_per_count = median(margin_per_count, na.rm = TRUE),
+                 pct_above_zero = round(100 * mean(margin > 0), 1)),
+               setNames(as.list(quantile(margin, qs)),
+                        sprintf("margin_q%02d", round(qs * 100)))), by = group]
 fwrite(summ, file.path(outdir, "margin_summary.csv"))
 print(summ)
 
 # Density of the pooled margin. The boundary is at zero by construction; the question is whether
 # zero lands in a trough (two populations) or in the bulk (one continuum, arbitrarily cut).
 verdicts <- list()
+group_curves <- list()
 for (scale_name in c("margin", "margin_per_count")) {
-  v <- dt[[scale_name]]
-  v <- v[is.finite(v)]
+  sub <- dt[is.finite(get(scale_name))]
+  v <- sub[[scale_name]]
   if (length(v) < 100) next
   # Trim the extreme tails so the bandwidth is not set by outliers.
   lim <- quantile(v, c(0.001, 0.999))
-  d <- density(v[v >= lim[1] & v <= lim[2]], n = 2048)
+  inside <- v >= lim[1] & v <= lim[2]
+  d <- density(v[inside], n = 2048)
   at0 <- approx(d$x, d$y, xout = 0)$y
   peak <- max(d$y)
-  # A trough at the boundary means a genuine gap. Look for a local minimum within the middle
-  # half of the range, and report how deep it is relative to the surrounding modes.
+  # A trough at the boundary means a genuine gap. `local_min_x` locates it, but do NOT decide
+  # on "is the argmin near zero": when the gap is CLEAN the density there is flat at ~0, so
+  # which.min picks an arbitrary point inside the flat region and the test fails on exactly the
+  # clearest cases (a planted two-mode fixture with a 140-unit gap came out FALSE). Ask the
+  # structural question instead -- is there a real mode on EACH side of zero, and is the
+  # density at zero far below both of them?
   inner <- which(d$x > quantile(v, .05) & d$x < quantile(v, .95))
   local_min <- if (length(inner) > 10) d$x[inner][which.min(d$y[inner])] else NA_real_
+  left <- d$y[d$x < 0]; right <- d$y[d$x > 0]
+  flanked <- length(left) > 10 && length(right) > 10 &&
+    max(left) > 0.1 * peak && max(right) > 0.1 * peak
   verdicts[[scale_name]] <- data.table(
     scale = scale_name, density_at_zero = at0, peak_density = peak,
     ratio_at_zero = at0 / peak, mode_x = d$x[which.max(d$y)],
     local_min_x = local_min,
-    trough_at_zero = isTRUE(abs(local_min) < diff(range(d$x)) * 0.02) && at0 / peak < 0.5)
+    trough_at_zero = isTRUE(flanked && at0 / min(max(left), max(right)) < 0.5))
   fwrite(data.table(scale = scale_name, x = d$x, density = d$y),
          file.path(outdir, sprintf("margin_histogram_%s.csv", scale_name)))
+
+  # The pooled curve above answers "where does zero fall". It cannot answer the PI's question,
+  # which is how the FORCED and NATIVE groups sit relative to each other -- so also emit one
+  # curve per group, on ONE SHARED BANDWIDTH AND GRID. density() chooses its own bandwidth per
+  # vector, so a 3,456-cell group and a 61,721-cell one would be smoothed differently and the
+  # reader would be comparing the smoothing rather than the cells.
+  for (g in unique(sub$group)) {
+    vg <- v[inside & sub$group == g]
+    if (length(vg) < 20) next
+    dg <- density(vg, bw = d$bw, from = lim[[1]], to = lim[[2]], n = 512)
+    group_curves[[paste(scale_name, g)]] <- data.table(
+      scale = scale_name, group = g, n = length(vg), x = dg$x, density = dg$y)
+  }
+}
+if (length(group_curves)) {
+  fwrite(rbindlist(group_curves), file.path(outdir, "margin_density_by_group.csv"))
 }
 verdict <- rbindlist(verdicts)
 fwrite(verdict, file.path(outdir, "density_at_zero.csv"))
