@@ -85,6 +85,16 @@ if [[ -n "${KEEP_GENES:-}" ]]; then
     echo "Restricting anchor fit to pruned panel from ${KEEP_GENES}"
 fi
 
+# N_CLUSTS=0 runs InSituType's SUPERVISED mode: it skips every clustering phase and classifies
+# all cells with insitutypeML against the reference, still doing the anchor-based profile update
+# and scRNA->CosMx rescale first (so the profiles adapt to ALL the cells, not just the ones a
+# semi-supervised fit left named). That is the "what would a fresh supervised run call these
+# cells" question, and it is NOT the same as dropping the de-novo columns from a semi-supervised
+# fit's likelihood table — that counterfactual holds the fit's profiles fixed. Run both:
+#   INPUT_DIR=stage4_anchor STAGE4_DIR=stage4_anchor_supervised N_CLUSTS=0 \
+#     KEEP_GENES=stage4_anchor/gene_selection/kept_genes.txt \
+#     sbatch pipeline/slurm/72_anchor_typing.sh
+#
 # n_clusts default 10:20 (pilot); raise via N_CLUSTS to the de-novo K the 74 sweep found. The
 # de-novo EM discovers the tumor programs — shared and 38-donor patient-private — that become
 # the Malignant leaves of the rebuilt reference.
