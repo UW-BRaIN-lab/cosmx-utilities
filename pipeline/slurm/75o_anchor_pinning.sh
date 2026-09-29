@@ -67,10 +67,12 @@ s5cmd cp "${BASE}/anchor/anchor_typing.rds" "$WORK/anchor_typing.rds"
 apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}" \
     "$APPTAINER_INSITUTYPE" \
     Rscript "${PIPELINE_DIR}/R/check_anchor_pinning.R" \
-        "$WORK/anchor_typing.rds" "$WORK/anchor_pinning_by_label.csv"
+        "$WORK/anchor_typing.rds" "$WORK/anchor_pinning_by_label.csv" "$WORK/pinned_cells.csv"
 
 echo "Uploading..."
 s5cmd cp "$WORK/anchor_pinning_by_label.csv" \
     "${BASE}/supervised_gbmap/anchor_pinning_by_label.csv"
+
+s5cmd cp "$WORK/pinned_cells.csv" "${BASE}/supervised_gbmap/pinned_cells.csv"
 
 echo "Done. The verdict is the anchor x mismatch table printed above."
