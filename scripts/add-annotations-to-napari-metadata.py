@@ -16,6 +16,12 @@ Every annotation column is paired with a `<name>_color`, which napari-cosmx expe
 value column. The colour function is the SAME hash generate-slide-metadata.py and
 celltypes-to-napari-metadata.py use, so a category keeps its colour whichever script wrote it.
 
+--drop-columns removes columns from the stitched file, for the placeholder the stitcher writes
+when it has no typing to draw on: `cell_type` (every cell "Unassigned") and `hex_color`. Drop BOTH.
+`cell_type` is a dropdown entry that colours the whole slide one meaningless colour, and
+`hex_color` is worse than clutter -- napari-cosmx falls back to it for ANY column that lacks its own
+`<name>_color`, and here it holds one value, so such a column would render entirely one colour.
+
 Cells whose FOV has no annotation get an empty value, so Napari still draws them uncoloured,
 and the count is reported per slide -- silently dropping them would hide a broken join.
 
@@ -27,7 +33,8 @@ Usage:
     uv run python scripts/add-annotations-to-napari-metadata.py \\
         --metadata-dir ./stitched_metadata --out-dir ./napari_metadata \\
         --annotations pipeline/reference/gbm_fov_annotations.csv \\
-        --crosswalk pipeline/reference/gbm_slide_name_crosswalk.csv
+        --crosswalk pipeline/reference/gbm_slide_name_crosswalk.csv \\
+        --columns Region,Case --drop-columns cell_type,hex_color
 """
 
 from __future__ import annotations
@@ -63,6 +70,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--columns", default="Region",
                    help=f"Comma-separated subset of {', '.join(ALLOWED_COLUMNS)} "
                         f"(default Region).")
+    p.add_argument("--drop-columns", default="",
+                   help="Comma-separated columns to remove from each file, e.g. "
+                        "cell_type,hex_color for the stitcher's 'Unassigned' placeholder. "
+                        "Applied after the annotation columns are added; cell_ID cannot be "
+                        "dropped. A named column a file does not have is reported, not ignored.")
     return p.parse_args()
 
 
@@ -136,6 +148,16 @@ def main() -> None:
     if unknown or not columns:
         sys.exit(f"ERROR: --columns must be a subset of {list(ALLOWED_COLUMNS)}; got {columns}")
 
+    drops = [c.strip() for c in args.drop_columns.split(",") if c.strip()]
+    if CELL_ID_COLUMN in drops:
+        sys.exit(f"ERROR: {CELL_ID_COLUMN} is the join key Napari needs and cannot be dropped.")
+    # Dropping a column being added, or its _color twin, would silently undo the run.
+    overlap = [c for c in drops
+               if c in columns
+               or (c.endswith(COLOR_SUFFIX) and c[: -len(COLOR_SUFFIX)] in columns)]
+    if overlap:
+        sys.exit(f"ERROR: {overlap} is both added (--columns) and dropped (--drop-columns).")
+
     fovs = load_fov_table(args.annotations, args.crosswalk, columns)
     files = sorted(args.metadata_dir.glob(f"*{METADATA_SUFFIX}"))
     if not files:
@@ -155,6 +177,10 @@ def main() -> None:
         if clash:
             sys.exit(f"ERROR: {path.name} already has {clash}. Refusing to overwrite.")
         out, bad_ids, n_un = annotate_slide(meta, slide, fovs, columns)
+        absent = [c for c in drops if c not in out.columns]
+        if absent:
+            print(f"  NOTE: {slide} has no column(s) {absent} to drop.", file=sys.stderr)
+        out = out.drop(columns=[c for c in drops if c in out.columns])
         if len(out) != len(meta):
             sys.exit(f"ERROR: row count changed for {slide} ({len(meta):,} -> {len(out):,}).")
         out.to_csv(args.out_dir / path.name, index=False)

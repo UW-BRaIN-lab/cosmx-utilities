@@ -136,6 +136,45 @@ def test_unknown_column_is_rejected():
         assert out.returncode != 0 and "subset of" in (out.stdout + out.stderr)
 
 
+def test_dropping_the_stitcher_placeholder_removes_both_columns():
+    """cell_type AND hex_color: hex_color would otherwise colour any column lacking a _color pair."""
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        ann, xw, md = _fixture(tmp, {"SLA": ["c_1_1_1", "c_1_3_1"]})
+        out = _run(tmp, ann, xw, md, "--columns", "Region,Case", "--drop-columns", "cell_type,hex_color")
+        assert out.returncode == 0, out.stderr
+        a = _out(tmp, "SLA")
+        assert list(a.columns) == ["cell_ID", "Region", "Region_color", "Case", "Case_color"], list(a.columns)
+        assert list(a.cell_ID) == ["c_1_1_1", "c_1_3_1"]          # rows and order untouched
+
+
+def test_the_join_key_cannot_be_dropped():
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        ann, xw, md = _fixture(tmp, {"SLA": ["c_1_1_1"]})
+        out = _run(tmp, ann, xw, md, "--drop-columns", "cell_ID")
+        assert out.returncode != 0 and "cannot be dropped" in (out.stdout + out.stderr)
+
+
+def test_it_refuses_to_drop_a_column_it_is_adding_or_its_colour_twin():
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        ann, xw, md = _fixture(tmp, {"SLA": ["c_1_1_1"]})
+        for target in ("Region", "Region_color"):
+            out = _run(tmp, ann, xw, md, "--drop-columns", target)
+            assert out.returncode != 0, target
+            assert "both added" in (out.stdout + out.stderr), target
+
+
+def test_a_drop_column_the_file_lacks_is_reported_not_silently_ignored():
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        ann, xw, md = _fixture(tmp, {"SLA": ["c_1_1_1"]})
+        out = _run(tmp, ann, xw, md, "--drop-columns", "no_such_column")
+        assert out.returncode == 0, out.stderr
+        assert "no column(s) ['no_such_column']" in out.stderr
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
