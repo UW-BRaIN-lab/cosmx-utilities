@@ -33,6 +33,10 @@
 #   EXCLUDE_GENES  comma-separated genes, or 'heat-shock', left out of the marker set behind
 #                marker_amplitude.csv (reported both ways); e.g. to test whether a letter's
 #                amplitude on a destination is carried by shared stress genes.
+#   GENE_SETS    ';'-separated gene sets scored on every group regardless of marker rank, each
+#                'heat-shock', 'hypoxia' (built-in lists) or NAME=GENE,GENE,...; e.g.
+#                'heat-shock;hypoxia;stress_posthoc=HSPB1,DNAJB1,CRYAB,NEAT1'. Writes
+#                gene_set_scores.csv.
 #   PINNED_MODE  split|exclude: re-run with InSituType's pinned cells (75o pinned_cells.csv) split
 #                out of / dropped from the native groups; writes denovo_vs_native_<mode>/ and
 #                marker_amplitude.csv. Run 75o first (it uploads pinned_cells.csv).
@@ -97,6 +101,7 @@ TOP_DEST="${TOP_DEST:-3}"
 # denovo_vs_native_<mode>/ so the original comparison is not overwritten.
 PINNED_MODE="${PINNED_MODE:-}"
 EXCLUDE_GENES="${EXCLUDE_GENES:-}"
+GENE_SETS="${GENE_SETS:-}"
 OUT_SUBDIR="denovo_vs_native${PINNED_MODE:+_${PINNED_MODE}}"
 
 # State the resolved plan up front. An older checkout silently ignores LETTERS and runs the
@@ -125,6 +130,11 @@ s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/forced_named_posteriors.csv" "$WORK/forced.csv"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_gbmap_crosstab.csv" "$WORK/crosstab.csv"
+GENE_SET_ARG=()
+if [[ -n "$GENE_SETS" ]]; then
+    IFS=';' read -ra _sets <<< "$GENE_SETS"
+    for _set in "${_sets[@]}"; do GENE_SET_ARG+=(--gene-set "${_set// /}"); done
+fi
 EXCLUDE_ARG=()
 if [[ -n "$EXCLUDE_GENES" ]]; then
     EXCLUDE_ARG=(--exclude-genes "$EXCLUDE_GENES")
@@ -160,6 +170,7 @@ for spec in "${COMPARISONS[@]}"; do
             "${DEST_ARG[@]}" \
             ${PINNED_ARG[@]+"${PINNED_ARG[@]}"} \
             ${EXCLUDE_ARG[@]+"${EXCLUDE_ARG[@]}"} \
+            ${GENE_SET_ARG[@]+"${GENE_SET_ARG[@]}"} \
             --top-n "$TOP_N" \
             --min-group-n "$MIN_GROUP_N" \
             --output-dir "$outdir"
