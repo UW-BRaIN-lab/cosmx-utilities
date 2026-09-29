@@ -91,36 +91,47 @@ if (nzchar(label_map)) {
 # cell types whose similarity is the point), off for the fixed-order region view.
 if (is.na(CLUSTER_COLS)) CLUSTER_COLS <- !has_region
 col_dend <- NULL
-uniq_cl  <- unique(c(col_cluster, unname(gene_to_cluster)))
+uniq_col <- unique(col_cluster)
+uniq_row <- unique(unname(gene_to_cluster[rownames(pb_z)]))
+# Row groups are either the clusters a marker marks (data-driven markers: same vocabulary
+# as the columns) or curated modules (--gene-group-column: a disjoint vocabulary). Only in
+# the former can the row slices be ordered to follow the columns.
+rows_are_clusters <- all(uniq_row %in% uniq_col)
+
 if (CLUSTER_COLS && !has_region && ncol(pb_z) > 2) {
   message("Clustering columns for the relatedness dendrogram")
   col_hc   <- stats::hclust(stats::dist(t(pb_z)), method = "average")
   col_dend <- stats::as.dendrogram(col_hc)
-  # Order the row-split slices to follow the column dendrogram so the block diagonal aligns.
-  leaf_lab  <- remap(colnames(pb_z)[col_hc$order])
-  cl_levels <- c(leaf_lab, setdiff(uniq_cl, leaf_lab))
+  col_levels <- remap(colnames(pb_z)[col_hc$order])
 } else {
   # Cluster ordering: numeric when leiden-like, else lexical.
-  cl_levels <- tryCatch(as.character(sort(as.integer(uniq_cl))),
-                        warning = function(w) sort(uniq_cl))
+  col_levels <- tryCatch(as.character(sort(as.integer(uniq_col))),
+                         warning = function(w) sort(uniq_col))
+}
+# Row slices follow the column order when they share its vocabulary (so the block diagonal
+# aligns); curated modules instead keep the order they appear in the marker CSV.
+row_levels <- if (rows_are_clusters) {
+  c(intersect(col_levels, uniq_row), setdiff(uniq_row, col_levels))
+} else {
+  unique(unname(gene_to_cluster[rownames(pb_z)]))
 }
 region_levels <- intersect(REGION_ORDER, unique(col_region))
 
-col_cluster <- factor(col_cluster, levels = cl_levels)
+col_cluster <- factor(col_cluster, levels = col_levels)
 col_region  <- if (has_region) factor(col_region, levels = region_levels) else NULL
-row_cluster <- factor(gene_to_cluster[rownames(pb_z)], levels = cl_levels)
+row_cluster <- factor(gene_to_cluster[rownames(pb_z)], levels = row_levels)
 
 # --- palettes -----------------------------------------------------------------
 cl_palette <- setNames(
   colorRampPalette(c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-                     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"))(length(cl_levels)),
-  cl_levels)
+                     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"))(length(row_levels)),
+  row_levels)
 region_colors <- REGION_COLORS[region_levels]
 heatmap_col <- colorRamp2(c(-3, 0, 3), c("navy", "white", "firebrick"))
 
 # Long annotated labels (e.g. "a - MES/AC-like tumor") overlap as horizontal bottom
 # split titles; rotate them vertical. Short ids (Leiden integers) stay horizontal.
-long_labels  <- max(nchar(cl_levels)) > 6
+long_labels  <- max(nchar(col_levels)) > 6
 col_title_rot <- if (long_labels) 90 else 0
 
 top_anno <- if (has_region) HeatmapAnnotation(
@@ -179,7 +190,7 @@ ht <- Heatmap(
 
 n_genes <- nrow(pb_z)
 # Vertical (rotated) bottom split titles need headroom proportional to label length.
-title_pad <- if (long_labels) max(nchar(cl_levels)) * 0.13 else 0
+title_pad <- if (long_labels) max(nchar(col_levels)) * 0.13 else 0
 height  <- max(10, n_genes * PER_ROW_IN + 5 + title_pad)
 width   <- max(14, ncol(pb_z) * PER_COL_IN + 4)
 
