@@ -64,6 +64,7 @@ Writes exactly what R/marker_heatmap.R reads in its no-region mode:
   <out>/top_markers_per_cluster.csv   gene, cluster (row split)
   <out>/group_sizes.csv               group, n_cells, dropped
   <out>/marker_amplitude.csv          destination, group, n_cells, amplitude, marker_set
+  <out>/gene_set_scores.csv           destination, group, gene_set, score (with --gene-set)
   <out>/marker_amplitude_genes.csv    destination, group, gene, contribution, is_excluded
   <out>/sibling_vs_destination.csv    per forced subset: r to siblings vs r to native destination
   <out>/column_correlations.csv       full column x column Pearson r on the marker z-matrix
@@ -101,6 +102,14 @@ UNPINNED_SUFFIX = " [native, unpinned]"
 # HSP90AA1, HSPH1). --exclude-genes heat-shock expands to this.
 HEAT_SHOCK_GENES = ("HSPA1A", "HSPA1B", "HSPB1", "DNAJB1", "HSP90AA1", "HSPH1")
 HEAT_SHOCK_KEYWORD = "heat-shock"
+# Core HIF targets, fixed in advance (glycolysis, glucose transport, pH, angiogenesis, BNIP3
+# family). --gene-set hypoxia expands to this; genes absent from the panel are reported, not
+# silently dropped.
+HYPOXIA_GENES = ("VEGFA", "ADM", "NDRG1", "BNIP3", "BNIP3L", "CA9", "PGK1", "LDHA", "ENO1",
+                 "SLC2A1", "PDK1", "ALDOA", "P4HA1", "ANGPTL4", "PFKFB3", "ERO1A", "FAM162A",
+                 "HK2", "EGLN3", "BHLHE40")
+HYPOXIA_KEYWORD = "hypoxia"
+NAMED_GENE_SETS = {HEAT_SHOCK_KEYWORD: HEAT_SHOCK_GENES, HYPOXIA_KEYWORD: HYPOXIA_GENES}
 GENE_DETAIL_N = 30
 
 
@@ -141,6 +150,10 @@ def parse_args() -> argparse.Namespace:
                         "marker set used for marker_amplitude.csv. Amplitude is then reported for "
                         "both marker sets (marker_set = all / excluding_listed), so a gap that "
                         "shrinks when these genes go is one they were carrying.")
+    p.add_argument("--gene-set", action="append", default=[], metavar="NAME[=GENE,GENE]",
+                   help="Score a gene set on every group, independent of which genes are the "
+                        "top markers. NAME alone must be 'heat-shock' or 'hypoxia'; otherwise "
+                        "NAME=GENE,GENE,... Repeatable. Written to gene_set_scores.csv.")
     p.add_argument("--gene-detail-n", type=int, default=GENE_DETAIL_N,
                    help="Genes per destination in marker_amplitude_genes.csv (default 30).")
     p.add_argument("--no-all-column", action="store_true",
@@ -276,6 +289,57 @@ def marker_amplitude(profile: pd.DataFrame, pooled_native: pd.DataFrame,
                                       "contribution": float(col[gene] - baseline[gene]),
                                       "is_excluded": gene in exclude_genes})
     return pd.DataFrame(rows), pd.DataFrame(gene_rows)
+
+
+def parse_gene_sets(specs: list[str]) -> dict[str, tuple[str, ...]]:
+    """--gene-set values -> {name: genes}. A bare keyword expands to its built-in list."""
+    out: dict[str, tuple[str, ...]] = {}
+    for spec in specs:
+        name, sep, genes = spec.partition("=")
+        name = name.strip()
+        if not sep:
+            if name.lower() not in NAMED_GENE_SETS:
+                raise ValueError(f"--gene-set {spec!r}: give NAME=GENE,GENE or one of "
+                                 f"{sorted(NAMED_GENE_SETS)}")
+            out[name.lower()] = NAMED_GENE_SETS[name.lower()]
+        else:
+            listed = tuple(g.strip() for g in genes.split(",") if g.strip())
+            if not name or not listed:
+                raise ValueError(f"--gene-set {spec!r}: empty name or gene list")
+            out[name] = listed
+    return out
+
+
+def gene_set_scores(profile: pd.DataFrame, pooled_native: pd.DataFrame,
+                    groups_by_dest: dict[str, list[str]], sizes: pd.Series,
+                    gene_sets: dict[str, tuple[str, ...]]) -> pd.DataFrame:
+    """Mean (group - baseline) log-norm expression over each gene set, per destination.
+
+    Same baseline and unit as marker_amplitude (the OTHER destinations' pooled natives), but the
+    genes are fixed by the set, not chosen because they mark the destination. That is what makes
+    it a test of a specific explanation: it answers "does this group carry this programme, and
+    do the destination's own cells?" whether or not those genes are among the top markers.
+    Genes off the panel are left out and counted in `n_genes_used` / `n_genes_listed`.
+    """
+    rows = []
+    for dest, groups in groups_by_dest.items():
+        others = [o for o in pooled_native.columns if o != dest]
+        if not others:
+            continue
+        baseline = pooled_native[others].mean(axis=1)
+        columns = {f"{dest} [native, all]": pooled_native[dest]}
+        columns.update({g: profile[g] for g in groups if g in profile.columns})
+        for set_name, listed in gene_sets.items():
+            used = [g for g in listed if g in profile.index]
+            if not used:
+                continue
+            for name, col in columns.items():
+                n = int(sizes[name]) if name in sizes.index else np.nan
+                rows.append({"destination": dest, "group": name, "gene_set": set_name,
+                             "n_cells": n, "n_genes_used": len(used),
+                             "n_genes_listed": len(listed),
+                             "score": float((col[used] - baseline[used]).mean())})
+    return pd.DataFrame(rows)
 
 
 def sibling_vs_destination(pb_z: pd.DataFrame, letter: str, destinations: list[str]
@@ -415,6 +479,7 @@ def main() -> None:
     if all_col in profile.columns:
         order.append(all_col)
     profile = profile[order]
+    profile_before_drop = profile.copy()
 
     small = sizes[sizes < args.min_group_n].index.tolist()
     if small:
@@ -438,6 +503,24 @@ def main() -> None:
     sizes.rename("n_cells").rename_axis("group").reset_index().assign(
         dropped=lambda d: d["group"].isin(small)).to_csv(
         args.output_dir / "group_sizes.csv", index=False)
+
+    if args.gene_set:
+        try:
+            gene_sets = parse_gene_sets(args.gene_set)
+        except ValueError as err:
+            sys.exit(f"ERROR: {err}")
+        scores = gene_set_scores(profile_before_drop, pooled_native, groups_by_dest, sizes,
+                                 gene_sets)
+        for set_name, listed in gene_sets.items():
+            off = [g for g in listed if g not in set(genes)]
+            if off:
+                print(f"NOTE: gene set {set_name}: {len(off)} of {len(listed)} genes not on "
+                      f"this panel: {off}")
+        if not scores.empty:
+            scores.to_csv(args.output_dir / "gene_set_scores.csv", index=False)
+            print("\nGene-set scores (mean of group minus baseline over the set; comparable "
+                  "within a destination):")
+            print(scores.to_string(index=False, float_format=lambda x: f"{x:.3f}"))
 
     sib = sibling_vs_destination(pb_z, args.letter, destinations)
     if not sib.empty:
