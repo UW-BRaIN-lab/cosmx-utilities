@@ -66,7 +66,8 @@ token in our stage-1 cell ids (`<slide>_F<fov>_C<cell>`), so the join key is
 CosMx slide, and this cohort's FOV numbering runs continuously 1–200 across both, so the
 pieces cannot be separated from the cell ids alone — only from this reference. Any
 per-donor analysis must join it; `python/fov_annotations.py` (`load_fov_annotations`,
-`annotate_cells`) does, and defaults to these two files.
+`annotate_cells`) does, and defaults to these two files;
+`python/program_gap_by_group.py --group-by case` uses it the same way.
 
 Regions are exactly three: `Tumor bulk`, `Infiltrating edge`, `Contralateral uninvolved`.
 
