@@ -70,6 +70,35 @@ def test_it_is_readable_by_the_same_reader_the_napari_script_uses():
     assert list(got["cell_type"]) == ["leiden_12", "leiden_3"]
 
 
+def test_the_output_is_accepted_by_the_real_napari_consumer():
+    """End to end through celltypes-to-napari-metadata.py, the script that actually reads this file.
+
+    The earlier round-trip test used a different reader (anchor_profiles.read_cell_calls, where
+    /prob is optional) and so missed that the consumer requires /prob and raises a KeyError without
+    it. This runs the real thing on a tiny synthetic slide.
+    """
+    import gzip
+    consumer = Path(__file__).resolve().parents[1] / "celltypes-to-napari-metadata.py"
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        # Two FOVs x two cells, in the flat-file shape the consumer joins on (fov, cell_ID).
+        flat = tmp / "flat"; flat.mkdir()
+        rows = [(f, c, f"c_5_{f}_{c}") for f in (1, 2) for c in (1, 2)]
+        with gzip.open(flat / "SLA_metadata_file.csv.gz", "wt") as fh:
+            fh.write("fov,cell_ID,cell_id\n" + "\n".join(f"{f},{c},{cid}" for f, c, cid in rows) + "\n")
+        csv = _csv(tmp, [{"cell_id": "SLA_F1_C1", "cluster": 12}, {"cell_id": "SLA_F2_C2", "cluster": 3}])
+        h5 = tmp / "leiden.h5"
+        assert _run(csv, h5, "--label-prefix", "leiden_").returncode == 0
+        out = subprocess.run([sys.executable, str(consumer), "--typing-h5", str(h5),
+                              "--flatfiles", str(flat), "--column", "leiden",
+                              "--out-dir", str(tmp / "out")], capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        got = pd.read_csv(tmp / "out" / "SLA_metadata.csv", dtype=str, keep_default_na=False)
+        by_id = dict(zip(got.cell_ID, got.leiden))
+        assert by_id == {"c_5_1_1": "leiden_12", "c_5_1_2": "", "c_5_2_1": "", "c_5_2_2": "leiden_3"}, by_id
+        assert "leiden_color" in got.columns
+
+
 def test_duplicate_ids_are_refused():
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)

@@ -12,6 +12,11 @@ The cell-id join between the pipeline index and Napari's own key is the part tha
 get quietly wrong, and it lives in celltypes-to-napari-metadata.py; this script deliberately
 does nothing but reshape, so it cannot introduce a second way of getting it wrong.
 
+`/prob` is written too, as NaN. celltypes-to-napari-metadata.py reads it unconditionally
+(`np.asarray(f["prob"][()])`), so a two-dataset file dies there with a KeyError. There is no
+posterior for a clustering label, and NaN says so honestly: it can never pass or fail a
+--min-prob threshold, whereas a placeholder of 1.0 would look like real confidence.
+
 Labels are written as strings. Integer cluster ids become "0", "1", ... which Napari will
 colour but which read poorly in a legend, so --label-prefix turns them into e.g. "leiden_12".
 
@@ -77,6 +82,7 @@ def main() -> None:
     with h5py.File(args.output, "w") as f:
         f.create_dataset("cell_id", data=np.array(ids, dtype=f"S{id_width}"))
         f.create_dataset("cell_type", data=np.array(labels, dtype=f"S{label_width}"))
+        f.create_dataset("prob", data=np.full(len(ids), np.nan, dtype="float64"))
 
     print(f"{len(df):,} cells, {df[args.label_column].nunique()} distinct labels")
     print(f"  id width {id_width}, label width {label_width}")
