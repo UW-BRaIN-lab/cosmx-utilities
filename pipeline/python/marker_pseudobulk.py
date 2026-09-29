@@ -40,7 +40,8 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
+
+from pseudobulk_core import group_means, log_normalize, onehot, select_markers, zscore_rows
 
 
 # Tumor -> edge -> normal; column order in the heatmap and the default region set.
@@ -78,33 +79,6 @@ def parse_args() -> argparse.Namespace:
                         "top-N picked (and dedup priority) and which appear in the "
                         "heatmap. Default: all clusters.")
     return p.parse_args()
-
-
-def log_normalize(counts: sp.csr_matrix, scale_factor: float) -> sp.csr_matrix:
-    """log1p(counts / per-cell total * scale_factor), sparse (Seurat LogNormalize)."""
-    counts = counts.tocsr().astype(np.float64)
-    totals = np.asarray(counts.sum(axis=1)).ravel()
-    inv = np.where(totals > 0, scale_factor / totals, 0.0)
-    norm = sp.diags(inv) @ counts          # row-scale to scale_factor
-    norm = norm.tocsr()
-    norm.data = np.log1p(norm.data)        # log1p(0)=0, so only stored entries change
-    return norm
-
-
-def onehot(labels: np.ndarray) -> tuple[sp.csr_matrix, np.ndarray]:
-    """Cells x categories one-hot (sparse) + the category labels (first-seen order)."""
-    cats = pd.Categorical(labels)
-    codes = cats.codes
-    n, k = len(codes), len(cats.categories)
-    oh = sp.csr_matrix((np.ones(n), (np.arange(n), codes)), shape=(n, k))
-    return oh, np.asarray(cats.categories)
-
-
-def group_means(norm: sp.csr_matrix, oh: sp.csr_matrix) -> np.ndarray:
-    """Mean of `norm` rows within each one-hot group -> (n_groups x n_genes) dense."""
-    sums = np.asarray((oh.T @ norm).todense())   # n_groups x n_genes
-    sizes = np.asarray(oh.sum(axis=0)).ravel()
-    return sums / sizes[:, None]
 
 
 def main() -> None:
@@ -166,15 +140,7 @@ def main() -> None:
         select_order = cl_order
 
     print(f"Selecting top {args.top_n} markers per cluster")
-    ordered_markers: list[str] = []
-    gene_to_cluster: dict[str, str] = {}
-    for c in select_order:
-        others_mean = profile.drop(columns=c).mean(axis=1)
-        diff = (profile[c] - others_mean).sort_values(ascending=False)
-        for g in diff.index[: args.top_n]:
-            if g not in gene_to_cluster:
-                ordered_markers.append(g)
-                gene_to_cluster[g] = c
+    ordered_markers, gene_to_cluster = select_markers(profile, select_order, args.top_n)
 
     # Pseudobulk the marker genes by cluster x Region, over the selected clusters' cells.
     sel_mask = np.isin(cluster, select_order)
@@ -199,10 +165,7 @@ def main() -> None:
         return (cl_rank.get(c, len(cl_rank)), region_rank.get(r, len(region_rank)))
     pb = pb[sorted(pb.columns, key=_col_key)]
 
-    mean = pb.mean(axis=1)
-    sd = pb.std(axis=1, ddof=1)
-    pb_z = pb.sub(mean, axis=0).div(sd.where(sd > 0, 1.0), axis=0)
-    pb_z[sd <= 0] = 0.0  # constant markers -> flat (avoid NaN)
+    pb_z = zscore_rows(pb)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     zpath = args.output_dir / "marker_heatmap_zmatrix.csv"
