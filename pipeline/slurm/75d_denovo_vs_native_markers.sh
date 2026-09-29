@@ -30,6 +30,9 @@
 #   TOP_DEST     with LETTERS, destinations per letter (default 3).
 #   TOP_N        markers selected per group (default 8).
 #   MIN_GROUP_N  drop groups smaller than this (default 50).
+#   PINNED_MODE  split|exclude: re-run with InSituType's pinned cells (75o pinned_cells.csv) split
+#                out of / dropped from the native groups; writes denovo_vs_native_<mode>/ and
+#                marker_amplitude.csv. Run 75o first (it uploads pinned_cells.csv).
 
 #SBATCH --job-name=cosmx-denovo-vs-native
 #SBATCH --account=glioblastoma-ckpt
@@ -86,6 +89,11 @@ elif [[ -n "${LETTERS:-}" ]]; then
     for _l in "${_letters[@]}"; do COMPARISONS+=("${_l// /}:"); done
 fi
 TOP_DEST="${TOP_DEST:-3}"
+# PINNED_MODE=split|exclude re-runs the comparison with InSituType's pinned cells (75o's
+# pinned_cells.csv) split out of, or dropped from, the native groups. Outputs then go to
+# denovo_vs_native_<mode>/ so the original comparison is not overwritten.
+PINNED_MODE="${PINNED_MODE:-}"
+OUT_SUBDIR="denovo_vs_native${PINNED_MODE:+_${PINNED_MODE}}"
 
 # State the resolved plan up front. An older checkout silently ignores LETTERS and runs the
 # defaults instead, which is invisible until you go looking for outputs that were never made.
@@ -113,6 +121,12 @@ s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/forced_named_posteriors.csv" "$WORK/forced.csv"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_gbmap_crosstab.csv" "$WORK/crosstab.csv"
+PINNED_ARG=()
+if [[ -n "$PINNED_MODE" ]]; then
+    echo "Staging 75o's pinned cells (PINNED_MODE=${PINNED_MODE})..."
+    s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/pinned_cells.csv" "$WORK/pinned_cells.csv"
+    PINNED_ARG=(--pinned-csv "$WORK/pinned_cells.csv" --pinned-mode "$PINNED_MODE")
+fi
 
 for spec in "${COMPARISONS[@]}"; do
     letter="${spec%%:*}"
@@ -136,20 +150,21 @@ for spec in "${COMPARISONS[@]}"; do
             --forced-csv "$WORK/forced.csv" \
             --letter "$letter" \
             "${DEST_ARG[@]}" \
+            ${PINNED_ARG[@]+"${PINNED_ARG[@]}"} \
             --top-n "$TOP_N" \
             --min-group-n "$MIN_GROUP_N" \
             --output-dir "$outdir"
 
     echo "Uploading ${letter} marker inputs to Kopah..."
     s5cmd cp "$outdir/*" \
-        "${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_native/${letter}/"
+        "${BASE}/${STAGE4}/supervised_gbmap/${OUT_SUBDIR}/${letter}/"
 done
 
 echo
 echo "Done. Fetch to the Mac and render there (no ComplexHeatmap in the container)."
 echo "NOTE: every letter writes the SAME three filenames, so they must stay in per-letter"
 echo "subdirectories — do NOT pass --flatten here or one letter overwrites the other."
-echo "  s5cmd cp '${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_native/*' ~/denovo_vs_native/"
+echo "  s5cmd cp '${BASE}/${STAGE4}/supervised_gbmap/${OUT_SUBDIR}/*' ~/${OUT_SUBDIR}/"
 echo "  # then, from a Mac terminal:"
-echo "  scp -r emilyek@klone.hyak.uw.edu:denovo_vs_native ~/keene-lab/cosmx-utilities/"
-echo "  Rscript pipeline/R/marker_heatmap.R denovo_vs_native/t t_heatmap \"\" \"t forced vs native\""
+echo "  scp -r emilyek@klone.hyak.uw.edu:${OUT_SUBDIR} ~/keene-lab/cosmx-utilities/"
+echo "  Rscript pipeline/R/marker_heatmap.R ${OUT_SUBDIR}/t t_heatmap \"\" \"t forced vs native\""

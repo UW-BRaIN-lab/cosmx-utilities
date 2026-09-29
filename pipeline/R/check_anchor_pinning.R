@@ -20,6 +20,9 @@ suppressPackageStartupMessages({ library(data.table) })
 args <- commandArgs(trailingOnly = TRUE)
 rds <- args[[1]]
 out_csv <- if (length(args) > 1) args[[2]] else NULL
+# Optional third argument: one row per pinned cell (cell_id, pinned_type, label), for tools that
+# need to exclude or split by the pinned cells (denovo_vs_native_pseudobulk.py --pinned-csv).
+cells_csv <- if (length(args) > 2) args[[3]] else NULL
 
 res <- readRDS(rds)
 cat("objects in the fit:", paste(names(res), collapse = ", "), "\n\n")
@@ -70,6 +73,13 @@ print(head(per, 20))
 if (!is.null(out_csv)) {
   fwrite(per, out_csv)
   cat(sprintf("\nWrote %s\n", out_csv))
+}
+if (!is.null(cells_csv)) {
+  pinned <- data.table(cell_id = names(clust)[is_anchor],
+                       pinned_type = as.character(anchors[is_anchor]),
+                       label = as.character(clust[is_anchor]))
+  fwrite(pinned, cells_csv)
+  cat(sprintf("Wrote %s (%d pinned cells)\n", cells_csv, nrow(pinned)))
 }
 cat("\nREAD: if pct_anchored tracks pct_mismatch, the mismatches are the pinning step and\n",
     "nothing more — and the affected cells are the reference's own best exemplars.\n", sep = "")

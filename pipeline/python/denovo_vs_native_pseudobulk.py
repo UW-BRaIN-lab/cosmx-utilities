@@ -25,6 +25,16 @@ and put the pair side by side in one heatmap. Two things are then readable at on
      This is usually the more interesting axis, and it is why every destination is drawn in one
      figure rather than one figure per destination.
 
+PINNED CELLS. The `D [native]` group is not a clean "the likelihood chose D" population:
+insitutype() derives its own best-exemplar cells and overwrites their labels (75o measured
+30.6% of named cells pinned, up to 97.8% of a native group). `--pinned-csv` takes 75o's
+pinned_cells.csv and either SPLITS each native group into `D [native, pinned]` and
+`D [native, unpinned]` (--pinned-mode split, the default) or DROPS the pinned cells
+(--pinned-mode exclude). Either way marker_amplitude.csv is written: for each destination,
+how strongly each group carries D's own markers, in one unit across groups, so "the l->D cells
+carry D's markers at half the strength" can be checked against natives that were not selected
+as exemplars. Letter cells are never pinned (pinned cells always carry a named label).
+
 A `<letter> [all]` column is included by default so each subset can also be read against the
 letter as a whole.
 
@@ -43,6 +53,7 @@ Writes exactly what R/marker_heatmap.R reads in its no-region mode:
   <out>/marker_heatmap_zmatrix.csv    genes x groups, z-scored
   <out>/top_markers_per_cluster.csv   gene, cluster (row split)
   <out>/group_sizes.csv               group, n_cells, dropped
+  <out>/marker_amplitude.csv          destination, group, n_cells, amplitude (2+ destinations)
 
 Usage:
     uv run python pipeline/python/denovo_vs_native_pseudobulk.py \\
@@ -70,6 +81,9 @@ from pseudobulk_core import (DEFAULT_SCALE_FACTOR, group_means, log_normalize, o
 NATIVE_SUFFIX = " [native]"
 ALL_SUFFIX = " [all]"
 FORCED_SEP = "->"
+PINNED_MODES = ("split", "exclude")
+PINNED_SUFFIX = " [native, pinned]"
+UNPINNED_SUFFIX = " [native, unpinned]"
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,6 +113,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-group-n", type=int, default=50,
                    help="Drop groups with fewer cells than this (default 50).")
     p.add_argument("--scale-factor", type=float, default=DEFAULT_SCALE_FACTOR)
+    p.add_argument("--pinned-csv", type=Path,
+                   help="75o's pinned_cells.csv (cell_id, ...): InSituType's pinned cells.")
+    p.add_argument("--pinned-mode", choices=PINNED_MODES, default="split",
+                   help="With --pinned-csv: split each native group into pinned/unpinned "
+                        "(default) or exclude the pinned cells.")
     p.add_argument("--no-all-column", action="store_true",
                    help="Omit the '<letter> [all]' whole-letter reference column.")
     return p.parse_args()
@@ -162,6 +181,54 @@ def build_groups(semisup: pd.Series, forced: pd.Series, letter: str,
     return group, is_letter if include_all else None
 
 
+def split_natives_by_pinned(group: pd.Series, pinned: set[str], mode: str) -> pd.Series:
+    """Re-label native groups by whether InSituType pinned the cell.
+
+    Only `<D> [native]` groups are touched. `split` turns each into `<D> [native, pinned]` and
+    `<D> [native, unpinned]`; `exclude` drops the pinned cells from the comparison (NaN).
+    """
+    if mode not in PINNED_MODES:
+        raise ValueError(f"mode must be one of {PINNED_MODES}, got {mode!r}")
+    is_native = group.str.endswith(NATIVE_SUFFIX, na=False).to_numpy()
+    is_pinned = group.index.isin(pinned)
+    out = group.copy()
+    if mode == "exclude":
+        out[is_native & is_pinned] = pd.NA
+        return out
+    base = group.str[:-len(NATIVE_SUFFIX)]
+    out[is_native & is_pinned] = base[is_native & is_pinned] + PINNED_SUFFIX
+    out[is_native & ~is_pinned] = base[is_native & ~is_pinned] + UNPINNED_SUFFIX
+    return out
+
+
+def marker_amplitude(profile: pd.DataFrame, pooled_native: pd.DataFrame,
+                     groups_by_dest: dict[str, list[str]], sizes: pd.Series,
+                     top_n: int, min_group_n: int) -> pd.DataFrame:
+    """How strongly each group carries destination D's own markers, in one unit.
+
+    Markers of D = the top_n genes by (pooled native D - mean of the OTHER destinations' pooled
+    natives), where "pooled" is every cell the fit named D, pinned or not, so the marker set is
+    the same however the natives are split. A group's amplitude = mean over those genes of
+    (its mean log-norm expression - the same baseline). All groups of one destination share the
+    gene set and the baseline, so their amplitudes are directly comparable.
+    """
+    rows = []
+    for dest, groups in groups_by_dest.items():
+        others = [o for o in pooled_native.columns if o != dest]
+        if not others:
+            continue
+        baseline = pooled_native[others].mean(axis=1)
+        markers = (pooled_native[dest] - baseline).sort_values(ascending=False).index[:top_n]
+        candidates = {f"{dest} [native, all]": pooled_native[dest]}
+        candidates.update({g: profile[g] for g in groups if g in profile.columns})
+        for name, col in candidates.items():
+            n = int(sizes.get(name, 0)) if name in sizes.index else np.nan
+            rows.append({"destination": dest, "group": name, "n_cells": n,
+                         "amplitude": float((col[markers] - baseline[markers]).mean()),
+                         "below_min_group_n": bool(n < min_group_n) if n == n else False})
+    return pd.DataFrame(rows)
+
+
 def main() -> None:
     args = parse_args()
     if args.destinations:
@@ -187,6 +254,13 @@ def main() -> None:
 
     group, letter_mask = build_groups(labels["cell_type"], labels["top1_type"],
                                       args.letter, destinations, not args.no_all_column)
+    if args.pinned_csv:
+        pinned = set(pd.read_csv(args.pinned_csv, usecols=["cell_id"])["cell_id"])
+        n_pinned_letter = int(group.index.isin(pinned)[(labels["cell_type"] == args.letter)
+                                                       .to_numpy()].sum())
+        print(f"Pinned cells: {len(pinned):,} in the file; {n_pinned_letter:,} of them carry "
+              f"the letter's label (expected 0)")
+        group = split_natives_by_pinned(group, pinned, args.pinned_mode)
 
     counts, genes, cell_id = read_counts(args.counts_h5)
     print(f"Counts: {counts.shape[0]:,} genes x {counts.shape[1]:,} cells")
@@ -198,6 +272,11 @@ def main() -> None:
     keep = group.notna().to_numpy()
     if letter_mask is not None:
         keep = keep | letter_mask
+    # Every cell the fit named a compared destination is needed for the pooled-native marker
+    # baseline, even when --pinned-mode exclude drops it from the groups.
+    semisup_by_count = labels["cell_type"].reindex(cell_id)
+    native_any = semisup_by_count.isin(destinations).to_numpy()
+    keep = keep | native_any
     if not keep.any():
         sys.exit("ERROR: no cells matched the requested letter/destinations.")
     print(f"Comparing {int(keep.sum()):,} cells")
@@ -206,6 +285,7 @@ def main() -> None:
     norm = log_normalize(counts[:, keep].T.tocsr(), args.scale_factor)
     kept_group = group[keep]
     kept_letter = letter_mask[keep] if letter_mask is not None else None
+    kept_semisup = semisup_by_count[keep]
 
     # Mean log-norm profile per group (genes x groups) over the paired groups only; the
     # whole-letter column is appended after, since its cells overlap the <letter>-><D> ones.
@@ -219,11 +299,20 @@ def main() -> None:
         profile[all_col] = np.asarray(norm[kept_letter].mean(axis=0)).ravel()
         sizes[all_col] = int(kept_letter.sum())
 
+    pooled_native = pd.DataFrame(
+        {d: np.asarray(norm[(kept_semisup == d).to_numpy()].mean(axis=0)).ravel()
+         for d in destinations if (kept_semisup == d).any()}, index=genes)
+    native_variants = (NATIVE_SUFFIX, PINNED_SUFFIX, UNPINNED_SUFFIX)
+    groups_by_dest = {d: [f"{args.letter}{FORCED_SEP}{d}"] + [f"{d}{v}" for v in native_variants]
+                      for d in pooled_native.columns}
+    amplitude = marker_amplitude(profile, pooled_native, groups_by_dest, sizes,
+                                 args.top_n, args.min_group_n)
+
     # Interleave each forced subset with its native counterpart so the pair reads together,
     # then the whole-letter reference last.
     order = []
     for dest in destinations:
-        for col in (f"{args.letter}{FORCED_SEP}{dest}", f"{dest}{NATIVE_SUFFIX}"):
+        for col in (f"{args.letter}{FORCED_SEP}{dest}", *(f"{dest}{v}" for v in native_variants)):
             if col in profile.columns:
                 order.append(col)
     if all_col in profile.columns:
@@ -252,6 +341,12 @@ def main() -> None:
     sizes.rename("n_cells").rename_axis("group").reset_index().assign(
         dropped=lambda d: d["group"].isin(small)).to_csv(
         args.output_dir / "group_sizes.csv", index=False)
+
+    if not amplitude.empty:
+        amplitude.to_csv(args.output_dir / "marker_amplitude.csv", index=False)
+        print("\nMarker amplitude (each destination's own markers; comparable within a "
+              "destination):")
+        print(amplitude.to_string(index=False, float_format=lambda x: f"{x:.3f}"))
 
     print(f"\nWrote {args.output_dir} — {pb_z.shape[0]} markers x {pb_z.shape[1]} groups.")
     print("Render on the Mac (the container has no ComplexHeatmap):")
