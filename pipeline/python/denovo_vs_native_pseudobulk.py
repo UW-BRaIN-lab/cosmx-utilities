@@ -35,6 +35,16 @@ how strongly each group carries D's own markers, in one unit across groups, so "
 carry D's markers at half the strength" can be checked against natives that were not selected
 as exemplars. Letter cells are never pinned (pinned cells always carry a named label).
 
+Two further readouts answer "is the resemblance to the destination real?":
+
+  * sibling_vs_destination.csv — for each forced subset, its Pearson r (over the marker genes, on
+    the z-scored matrix) to its SIBLINGS (the letter's other forced subsets) against its r to the
+    destination's native cells, split pinned/unpinned. Siblings, not the `[all]` column: the whole
+    letter contains the subset, so r to it is inflated. The z-scoring across k columns gives a
+    null r of -1/(k-1), reported as `null_r` so a small negative r is not read as anti-correlation.
+  * marker_amplitude_genes.csv — the per-gene contribution behind each amplitude, and with
+    --exclude-genes (e.g. heat-shock) the amplitude recomputed without those genes.
+
 A `<letter> [all]` column is included by default so each subset can also be read against the
 letter as a whole.
 
@@ -53,7 +63,10 @@ Writes exactly what R/marker_heatmap.R reads in its no-region mode:
   <out>/marker_heatmap_zmatrix.csv    genes x groups, z-scored
   <out>/top_markers_per_cluster.csv   gene, cluster (row split)
   <out>/group_sizes.csv               group, n_cells, dropped
-  <out>/marker_amplitude.csv          destination, group, n_cells, amplitude (2+ destinations)
+  <out>/marker_amplitude.csv          destination, group, n_cells, amplitude, marker_set
+  <out>/marker_amplitude_genes.csv    destination, group, gene, contribution, is_excluded
+  <out>/sibling_vs_destination.csv    per forced subset: r to siblings vs r to native destination
+  <out>/column_correlations.csv       full column x column Pearson r on the marker z-matrix
 
 Usage:
     uv run python pipeline/python/denovo_vs_native_pseudobulk.py \\
@@ -84,6 +97,11 @@ FORCED_SEP = "->"
 PINNED_MODES = ("split", "exclude")
 PINNED_SUFFIX = " [native, pinned]"
 UNPINNED_SUFFIX = " [native, unpinned]"
+# The heat-shock block the PI page names as t's defining programme (HSPA1A, HSPA1B, HSPB1, DNAJB1,
+# HSP90AA1, HSPH1). --exclude-genes heat-shock expands to this.
+HEAT_SHOCK_GENES = ("HSPA1A", "HSPA1B", "HSPB1", "DNAJB1", "HSP90AA1", "HSPH1")
+HEAT_SHOCK_KEYWORD = "heat-shock"
+GENE_DETAIL_N = 30
 
 
 def parse_args() -> argparse.Namespace:
@@ -118,6 +136,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--pinned-mode", choices=PINNED_MODES, default="split",
                    help="With --pinned-csv: split each native group into pinned/unpinned "
                         "(default) or exclude the pinned cells.")
+    p.add_argument("--exclude-genes",
+                   help="Comma-separated genes (or the keyword 'heat-shock') to leave out of the "
+                        "marker set used for marker_amplitude.csv. Amplitude is then reported for "
+                        "both marker sets (marker_set = all / excluding_listed), so a gap that "
+                        "shrinks when these genes go is one they were carrying.")
+    p.add_argument("--gene-detail-n", type=int, default=GENE_DETAIL_N,
+                   help="Genes per destination in marker_amplitude_genes.csv (default 30).")
     p.add_argument("--no-all-column", action="store_true",
                    help="Omit the '<letter> [all]' whole-letter reference column.")
     return p.parse_args()
@@ -201,9 +226,20 @@ def split_natives_by_pinned(group: pd.Series, pinned: set[str], mode: str) -> pd
     return out
 
 
+def resolve_excluded_genes(spec: str | None) -> set[str]:
+    """--exclude-genes value -> gene set; 'heat-shock' expands to the page's six genes."""
+    if not spec:
+        return set()
+    genes: set[str] = set()
+    for token in (t.strip() for t in spec.split(",") if t.strip()):
+        genes.update(HEAT_SHOCK_GENES if token.lower() == HEAT_SHOCK_KEYWORD else [token])
+    return genes
+
+
 def marker_amplitude(profile: pd.DataFrame, pooled_native: pd.DataFrame,
                      groups_by_dest: dict[str, list[str]], sizes: pd.Series,
-                     top_n: int, min_group_n: int) -> pd.DataFrame:
+                     top_n: int, min_group_n: int, exclude_genes: frozenset[str] = frozenset(),
+                     detail_n: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
     """How strongly each group carries destination D's own markers, in one unit.
 
     Markers of D = the top_n genes by (pooled native D - mean of the OTHER destinations' pooled
@@ -211,21 +247,72 @@ def marker_amplitude(profile: pd.DataFrame, pooled_native: pd.DataFrame,
     the same however the natives are split. A group's amplitude = mean over those genes of
     (its mean log-norm expression - the same baseline). All groups of one destination share the
     gene set and the baseline, so their amplitudes are directly comparable.
+
+    `exclude_genes` are removed BEFORE the top_n are taken, so the set refills with the next-best
+    markers rather than shrinking. Returns (amplitude table, per-gene table); the per-gene table
+    covers the top `detail_n` markers of the UNfiltered set, with `is_excluded` marking the genes
+    that would be removed, and is empty when detail_n is 0.
     """
-    rows = []
+    rows, gene_rows = [], []
     for dest, groups in groups_by_dest.items():
         others = [o for o in pooled_native.columns if o != dest]
         if not others:
             continue
         baseline = pooled_native[others].mean(axis=1)
-        markers = (pooled_native[dest] - baseline).sort_values(ascending=False).index[:top_n]
+        ranked = (pooled_native[dest] - baseline).sort_values(ascending=False)
+        markers = ranked[~ranked.index.isin(exclude_genes)].index[:top_n]
         candidates = {f"{dest} [native, all]": pooled_native[dest]}
         candidates.update({g: profile[g] for g in groups if g in profile.columns})
         for name, col in candidates.items():
             n = int(sizes.get(name, 0)) if name in sizes.index else np.nan
             rows.append({"destination": dest, "group": name, "n_cells": n,
                          "amplitude": float((col[markers] - baseline[markers]).mean()),
-                         "below_min_group_n": bool(n < min_group_n) if n == n else False})
+                         "below_min_group_n": bool(n < min_group_n) if n == n else False,
+                         "marker_set": "excluding_listed" if exclude_genes else "all"})
+            if detail_n:
+                for rank, gene in enumerate(ranked.index[:detail_n], start=1):
+                    gene_rows.append({"destination": dest, "group": name, "gene": gene,
+                                      "marker_rank": rank,
+                                      "contribution": float(col[gene] - baseline[gene]),
+                                      "is_excluded": gene in exclude_genes})
+    return pd.DataFrame(rows), pd.DataFrame(gene_rows)
+
+
+def sibling_vs_destination(pb_z: pd.DataFrame, letter: str, destinations: list[str]
+                           ) -> pd.DataFrame:
+    """Each forced subset's r to its siblings vs its r to the destination's native cells.
+
+    r is Pearson over the marker genes on the z-scored matrix. Siblings are the letter's OTHER
+    forced subsets; the `[all]` column is deliberately not used because it contains the subset.
+    A z-score across k columns gives a null r of -1/(k-1), reported as `null_r`.
+    A positive `siblings_minus_native` means the subset resembles its siblings more than the
+    cells natively called its destination.
+    """
+    k = pb_z.shape[1]
+    forced_cols = [f"{letter}{FORCED_SEP}{d}" for d in destinations
+                   if f"{letter}{FORCED_SEP}{d}" in pb_z.columns]
+    all_col = f"{letter}{ALL_SUFFIX}"
+    rows = []
+    for dest in destinations:
+        col = f"{letter}{FORCED_SEP}{dest}"
+        if col not in pb_z.columns:
+            continue
+        siblings = [c for c in forced_cols if c != col]
+        r_sib = [float(pb_z[col].corr(pb_z[c])) for c in siblings]
+        for variant in (NATIVE_SUFFIX, UNPINNED_SUFFIX, PINNED_SUFFIX):
+            ref = f"{dest}{variant}"
+            if ref not in pb_z.columns:
+                continue
+            r_native = float(pb_z[col].corr(pb_z[ref]))
+            rows.append({
+                "forced": col, "native_ref": ref, "n_siblings": len(siblings),
+                "r_siblings_mean": float(np.mean(r_sib)) if r_sib else np.nan,
+                "r_siblings_max": float(np.max(r_sib)) if r_sib else np.nan,
+                "r_native": r_native,
+                "siblings_minus_native": (float(np.mean(r_sib)) - r_native) if r_sib else np.nan,
+                "r_letter_all_contains_subset": (float(pb_z[col].corr(pb_z[all_col]))
+                                                 if all_col in pb_z.columns else np.nan),
+                "null_r": -1.0 / (k - 1), "n_columns": k})
     return pd.DataFrame(rows)
 
 
@@ -305,8 +392,18 @@ def main() -> None:
     native_variants = (NATIVE_SUFFIX, PINNED_SUFFIX, UNPINNED_SUFFIX)
     groups_by_dest = {d: [f"{args.letter}{FORCED_SEP}{d}"] + [f"{d}{v}" for v in native_variants]
                       for d in pooled_native.columns}
-    amplitude = marker_amplitude(profile, pooled_native, groups_by_dest, sizes,
-                                 args.top_n, args.min_group_n)
+    exclude_genes = frozenset(resolve_excluded_genes(args.exclude_genes))
+    absent = sorted(g for g in exclude_genes if g not in set(genes))
+    if absent:
+        print(f"NOTE: --exclude-genes not on this panel, ignored: {absent}")
+    amplitude, amplitude_genes = marker_amplitude(
+        profile, pooled_native, groups_by_dest, sizes, args.top_n, args.min_group_n,
+        detail_n=args.gene_detail_n)
+    if exclude_genes:
+        amp_ex, _ = marker_amplitude(profile, pooled_native, groups_by_dest, sizes,
+                                     args.top_n, args.min_group_n, exclude_genes=exclude_genes)
+        amplitude = pd.concat([amplitude, amp_ex], ignore_index=True)
+        amplitude_genes["is_excluded"] = amplitude_genes["gene"].isin(exclude_genes)
 
     # Interleave each forced subset with its native counterpart so the pair reads together,
     # then the whole-letter reference last.
@@ -342,6 +439,16 @@ def main() -> None:
         dropped=lambda d: d["group"].isin(small)).to_csv(
         args.output_dir / "group_sizes.csv", index=False)
 
+    sib = sibling_vs_destination(pb_z, args.letter, destinations)
+    if not sib.empty:
+        sib.to_csv(args.output_dir / "sibling_vs_destination.csv", index=False)
+        print("\nSiblings vs destination (r over the marker genes; null r = "
+              f"{sib['null_r'].iloc[0]:.3f}):")
+        print(sib.drop(columns=["n_columns"]).to_string(index=False,
+                                                        float_format=lambda x: f"{x:.3f}"))
+    pb_z.corr().to_csv(args.output_dir / "column_correlations.csv")
+    if not amplitude_genes.empty:
+        amplitude_genes.to_csv(args.output_dir / "marker_amplitude_genes.csv", index=False)
     if not amplitude.empty:
         amplitude.to_csv(args.output_dir / "marker_amplitude.csv", index=False)
         print("\nMarker amplitude (each destination's own markers; comparable within a "

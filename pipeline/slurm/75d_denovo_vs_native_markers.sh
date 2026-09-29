@@ -30,6 +30,9 @@
 #   TOP_DEST     with LETTERS, destinations per letter (default 3).
 #   TOP_N        markers selected per group (default 8).
 #   MIN_GROUP_N  drop groups smaller than this (default 50).
+#   EXCLUDE_GENES  comma-separated genes, or 'heat-shock', left out of the marker set behind
+#                marker_amplitude.csv (reported both ways); e.g. to test whether a letter's
+#                amplitude on a destination is carried by shared stress genes.
 #   PINNED_MODE  split|exclude: re-run with InSituType's pinned cells (75o pinned_cells.csv) split
 #                out of / dropped from the native groups; writes denovo_vs_native_<mode>/ and
 #                marker_amplitude.csv. Run 75o first (it uploads pinned_cells.csv).
@@ -93,6 +96,7 @@ TOP_DEST="${TOP_DEST:-3}"
 # pinned_cells.csv) split out of, or dropped from, the native groups. Outputs then go to
 # denovo_vs_native_<mode>/ so the original comparison is not overwritten.
 PINNED_MODE="${PINNED_MODE:-}"
+EXCLUDE_GENES="${EXCLUDE_GENES:-}"
 OUT_SUBDIR="denovo_vs_native${PINNED_MODE:+_${PINNED_MODE}}"
 
 # State the resolved plan up front. An older checkout silently ignores LETTERS and runs the
@@ -121,6 +125,10 @@ s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/forced_named_posteriors.csv" "$WORK/forced.csv"
 s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/denovo_vs_gbmap_crosstab.csv" "$WORK/crosstab.csv"
+EXCLUDE_ARG=()
+if [[ -n "$EXCLUDE_GENES" ]]; then
+    EXCLUDE_ARG=(--exclude-genes "$EXCLUDE_GENES")
+fi
 PINNED_ARG=()
 if [[ -n "$PINNED_MODE" ]]; then
     echo "Staging 75o's pinned cells (PINNED_MODE=${PINNED_MODE})..."
@@ -151,6 +159,7 @@ for spec in "${COMPARISONS[@]}"; do
             --letter "$letter" \
             "${DEST_ARG[@]}" \
             ${PINNED_ARG[@]+"${PINNED_ARG[@]}"} \
+            ${EXCLUDE_ARG[@]+"${EXCLUDE_ARG[@]}"} \
             --top-n "$TOP_N" \
             --min-group-n "$MIN_GROUP_N" \
             --output-dir "$outdir"
