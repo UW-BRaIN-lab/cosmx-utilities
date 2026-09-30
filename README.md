@@ -302,7 +302,7 @@ uv run napari /path/to/local/stitched
 
 **One-time setup**
 
-1. **AWS credentials in the same account as the data bucket.** The IAM user or role needs the permissions in [`ec2/ec2-operator-policy.json`](./ec2/ec2-operator-policy.json) (launch, stop and terminate instances, SSM sessions, `iam:PassRole` to EC2) plus read access to the data bucket. Your administrator attaches these; the commands are in the header of [`ec2/.env.example`](./ec2/.env.example).
+1. **AWS credentials in the same account as the data bucket.** The IAM user or role needs the permissions in [`ec2/ec2-operator-policy.json`](./ec2/ec2-operator-policy.json) (launch, stop and terminate instances, SSM sessions, `iam:PassRole` to EC2) plus read access to the data bucket. Your administrator attaches these; the commands are in the header of [`ec2/.env.example`](./ec2/.env.example). The scripts use the credentials your AWS CLI already has, not `ec2/.env`: set them up once with `aws configure sso` then `aws sso login` (repeat the login when it expires), or `aws configure` for access keys, and `export AWS_PROFILE=<name>` if you use a named profile. `aws sts get-caller-identity` confirms they work.
 2. **An `ec2/.env` file.** It is gitignored. Copy `ec2/.env.example` to `ec2/.env` and fill in the region, subnet, security group, key pair, instance profile, base Ubuntu AMI, and a `DCV_PASSWORD`. The network and instance profile already exist in the lab's AWS account; ask a lab member for the values. Never commit them.
 3. **Tools:** `uv` and the AWS CLI. For the remote desktop you also need the UW VPN and the NICE DCV client, since instances only get private IPs. SSM sessions work without the VPN.
 
