@@ -296,6 +296,50 @@ uv run napari /path/to/local/stitched
 
 **Resource notes.** Loading a stitched slide pulls the zarr pyramid and `targets.hdf5` into memory lazily, but interactive panning at high zoom is RAM-hungry. Plan for at least 64 GB free RAM; 128 GB is comfortable for the typical CosMx slide.
 
+## Launching a Napari viewer on EC2
+
+`ec2/start_ec2.py --napari` starts a GPU instance (`g4dn`) with the stitched slides copied onto its local NVMe drive. Cloning this repo is not enough to use it — you also need AWS access and a local `ec2/.env`.
+
+**One-time setup**
+
+1. **AWS credentials in the same account as the data bucket.** The IAM user or role needs the permissions in [`ec2/ec2-operator-policy.json`](./ec2/ec2-operator-policy.json) (launch, stop and terminate instances, SSM sessions, `iam:PassRole` to EC2) plus read access to the data bucket. Your administrator attaches these; the commands are in the header of [`ec2/.env.example`](./ec2/.env.example).
+2. **An `ec2/.env` file.** It is gitignored. Copy `ec2/.env.example` to `ec2/.env` and fill in the region, subnet, security group, key pair, instance profile, base Ubuntu AMI, and a `DCV_PASSWORD`. The network and instance profile already exist in the lab's AWS account; ask a lab member for the values. Never commit them.
+3. **Tools:** `uv` and the AWS CLI. For the remote desktop you also need the UW VPN and the NICE DCV client, since instances only get private IPs. SSM sessions work without the VPN.
+
+**Launch**
+
+```bash
+uv run python ec2/start_ec2.py --name <your-name>-napari --napari --raw \
+    --s3 s3://<bucket>/napari-stitched/<study>/<experiment>/
+```
+
+The script sums the S3 prefix and picks the smallest instance that fits: `g4dn.4xlarge` for up to 200 GB, `g4dn.8xlarge` for up to 850 GB. Above that it stops with an error, so point `--s3` at a smaller prefix. Pointing `--s3` at a parent prefix keeps the slides nested as `/mnt/local/stitched/<slide>/`; pointing it at one slide puts its files flat in `/mnt/local/stitched/`.
+
+Setup takes about 5 minutes and the copy about 15–25 minutes for several hundred GB. To check progress without logging in, look for the `S3 sync complete` marker in the console output:
+
+```bash
+aws ec2 get-console-output --region <region> --instance-id <id> --latest --output text | grep "S3 sync complete"
+```
+
+The first console output appears 4–6 minutes after launch. Don't use `ssm describe-instance-information` as a readiness check; many IAM users are denied it, so it returns nothing whether or not the instance is fine.
+
+**Connect and view**
+
+- DCV: connect to `<private-ip>:8443` on the VPN as user `ubuntu`, with your `DCV_PASSWORD`.
+- SSM: `aws ssm start-session --target <id> --region <region>`.
+
+The viewer renders on the CPU (software OpenGL), not the GPU, so open **2–3 slides at a time**, each from its own slide folder. Pointing Napari at the parent `stitched` folder does not work. From the DCV desktop:
+
+```bash
+/opt/cosmx-utilities/ec2/open-napari-slides.sh /mnt/local/stitched/<slide>
+```
+
+**Cost and cleanup.** Instances bill by the hour until terminated. `/mnt/local` is wiped when an instance stops or terminates, which is safe because the data lives on S3. Terminate when you are done:
+
+```bash
+aws ec2 terminate-instances --instance-ids <id> --region <region>
+```
+
 ## Infrastructure setup
 
 Fargate task definitions, IAM roles, and networking configuration are documented in [`fargate/FARGATE-SETUP.md`](./fargate/FARGATE-SETUP.md). Infrastructure IDs are stored in `fargate/.env` (gitignored) — copy `fargate/.env.example` to get started.
