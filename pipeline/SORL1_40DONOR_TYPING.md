@@ -118,9 +118,8 @@ or **(b)** unresolved sibling confusion (Astrocyte A/B, Microglia A/B, Inhibitor
 L2/3-L4-L6) — its value is deferring those calls with a readable posterior. It needs a
 hierarchy JSON; Brain_6k ships `Brain_6k.celltypeslist.R` as the starting tree.
 
-## Open items
+## Resolved items
 
-1. Maddie: the sheet's slide names and donor ids disagree for two donors. Slide
-   `6562 A7 576 A6 …` has donor **526** in the sheet (name says 576), and slide
-   `7678 A7 7484 A6 7316 A6 6802 A6` has donor **6803** (name says 6802). Written as in the
-   sheet; confirm which is right (affects only the `Region` label).
+- Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
+  entered; the real donors are **526** and **6803**, as in the annotation sheet. The slide
+  names are export directory names and stay as they are, so never infer donors from them.
