@@ -90,10 +90,11 @@ so sweep wide and check the curve **turns over inside the range**:
 
 ```bash
 KEEP_GENES=stage4/gene_selection/kept_genes.txt K_SWEEP_RANGE=5:40 K_SWEEP_OUT=k_sweep_pruned \
-    sbatch --account=carrolllab --partition=cpu-g2-mem2x --qos=normal pipeline/slurm/74_choose_k.sh
+    sbatch pipeline/slurm/74_choose_k.sh
 ```
 
-(dedicated partition: the job does not checkpoint, so ckpt preemption makes it thrash).
+The job does not checkpoint, so if ckpt preempts and requeues it, rerun on a non-preempted
+partition (see the header of `74_choose_k.sh`; do not use the collaborator allocation).
 AIC alone over-splits, so treat its optimum as an upper bound and confirm with a second,
 reference-free criterion: run 80 at the AIC K and at a smaller K, then compare the Leiden ×
 `cell_type` crosstab (85d) — keep the smallest K at which no further de novo cluster is a
