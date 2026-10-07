@@ -119,5 +119,5 @@ hierarchy JSON; Brain_6k ships `Brain_6k.celltypeslist.R` as the starting tree.
 1. Maddie: FOV → donor → diagnosis (case_broad, case_group, SORL1 variant) for the 6 new slides.
 2. Maddie: confirm her source annotation CSVs for the pilot slides carry the 741 fix (the
    committed table is corrected, but regenerating from an old CSV would undo it).
-3. `7068` FOV 100 has `case_group=AD+LATE` but `sorl1_mutation=AD+LATE SORL1 R953C`
-   (rest of the donor says SORL1) — one-FOV inconsistency in the pilot table; confirm.
+3. Resolved: `7068` FOV 100 had `case_group=AD+LATE` against `sorl1_mutation=AD+LATE SORL1 R953C`;
+   AtoMx shows R953C, so `case_group` was corrected to `AD+LATE SORL1`.
