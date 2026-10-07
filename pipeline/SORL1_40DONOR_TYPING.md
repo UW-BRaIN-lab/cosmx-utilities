@@ -14,14 +14,18 @@ then InSituTree only if the diagnostics call for it. Same machinery and `.env` p
   7163_7181_7665_7796, 787_795_6589_6745}`, 16 donors, identical FOV grids). 6 slides are new
   (`6562A7…`, `6760A7…`, `699A7…`, `728A7…`, `7678A7…`, `7999A7…`, 24 donors).
 - Panel: the 6,175-probe 6k Discovery panel, identical to `cosmx_6k_panel_genes.txt`.
-- **Annotations are blank in the flat files for 9 of 10 slides** (only `7163_…_7796` carries
-  `UWA`/`Case_braod`/`Case_specific`/`SORL1_mutation`; note the exported column is spelled
-  `Case_braod`). Donor therefore comes from the per-FOV table
-  `reference/fov_annotations_sorl1.csv` via `FOV_ANNOTATIONS`, which sets `Region` = donor id.
-  It currently covers the 4 pilot-named slides only; **the 6 new slides need Maddie's
-  FOV → donor → diagnosis table before stage 1** (see Open items).
-- Donor 741 was mislabelled as a SORL1 carrier; corrected to AD+LATE (38 FOVs, slide
-  `…599_657_710_741` FOV 1–38) in `fov_annotations_sorl1.csv`.
+- **Annotations are blank in the flat files for 9 of 10 slides** (only `7163_…_7796` is
+  annotated; the exported column is spelled `Case_braod`). Donor therefore comes from the
+  per-FOV table `reference/fov_annotations_sorl1.csv` via `FOV_ANNOTATIONS`, which sets
+  `Region` = donor id. It is built from Maddie's sheet
+  (`reference/sorl1_annotations_combined.csv`) and covers all 1,868 FOVs / 10 slides / 40
+  donors; the builder fails if any slide or FOV is missing:
+  `build_fov_annotations_sorl1.py --annotations-csv reference/sorl1_annotations_combined.csv
+  --manifest <manifest> --fov-counts reference/sorl1_fov_counts.csv --output reference/fov_annotations_sorl1.csv`.
+- Donors 741 (now AD+LATE) and 7068 FOV 100 (SORL1 R953C) are correct in her sheet.
+- **Confound to remember downstream:** every SORL1 carrier (599, 6589, 7068, 7137, 7181,
+  7796) is on one of the four pilot-named slides; the six new slides have none. SORL1 status
+  is therefore partly confounded with slide / run.
 
 ## Reference
 
@@ -116,8 +120,7 @@ hierarchy JSON; Brain_6k ships `Brain_6k.celltypeslist.R` as the starting tree.
 
 ## Open items
 
-1. Maddie: FOV → donor → diagnosis (case_broad, case_group, SORL1 variant) for the 6 new slides.
-2. Maddie: confirm her source annotation CSVs for the pilot slides carry the 741 fix (the
-   committed table is corrected, but regenerating from an old CSV would undo it).
-3. Resolved: `7068` FOV 100 had `case_group=AD+LATE` against `sorl1_mutation=AD+LATE SORL1 R953C`;
-   AtoMx shows R953C, so `case_group` was corrected to `AD+LATE SORL1`.
+1. Maddie: the sheet's slide names and donor ids disagree for two donors. Slide
+   `6562 A7 576 A6 …` has donor **526** in the sheet (name says 576), and slide
+   `7678 A7 7484 A6 7316 A6 6802 A6` has donor **6803** (name says 6802). Written as in the
+   sheet; confirm which is right (affects only the `Region` label).
