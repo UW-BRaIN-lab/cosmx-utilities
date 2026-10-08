@@ -27,7 +27,7 @@ import pandas as pd
 
 from plot_qc import umap_view_limits
 
-BACKGROUND_COLOR = "#d4d4d4"
+BACKGROUND_COLOR = "#bdbdbd"
 HIGHLIGHT_COLOR = "#c0392b"
 PANEL_SIZE_IN = 3.2
 DEFAULT_MAX_BACKGROUND = 150_000

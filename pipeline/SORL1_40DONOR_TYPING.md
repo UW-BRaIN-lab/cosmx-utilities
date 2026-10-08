@@ -88,6 +88,13 @@ sbatch pipeline/slurm/70_prep_insitutype.sh
 sbatch pipeline/slurm/73_select_genes.sh   # FAQ 3-5k gene band
 ```
 
+## Batch-mixing figures (52)
+
+`sbatch pipeline/slurm/52_umap_panels.sh` makes one UMAP panel per slide and per donor
+(highlighted over all other cells in grey) plus `<key>_by_leiden_share.csv`. Use
+`PANEL_NCOLS=8` for the 40 donor panels. The all-in-one UMAPs are overplotted and cannot show
+mixing; these can.
+
 ## Choosing the number of de novo clusters (74)
 
 `74_choose_k.sh` runs InSituType's AIC sweep; the pilot at 10:20 censored at the ceiling,
