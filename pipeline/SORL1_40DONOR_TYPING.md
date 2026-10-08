@@ -95,6 +95,16 @@ sbatch pipeline/slurm/73_select_genes.sh   # FAQ 3-5k gene band
 `PANEL_NCOLS=8` for the 40 donor panels. The all-in-one UMAPs are overplotted and cannot show
 mixing; these can.
 
+## Depth confound table (53)
+
+`sbatch pipeline/slurm/53_donor_depth.sh` writes `stage3/depth/donor_depth.csv`: per donor,
+median counts / genes, the share of cells in the shallow clusters (median `total_counts` below
+560, i.e. clusters 1, 3, 4, 5, 8, 13), and slide, run date, diagnosis and carrier status. The
+SORL1 carriers all sit on the earlier-run pilot slides and carry the largest shallow share
+(80% vs 47% for new-slide non-carriers), so a carrier-vs-non-carrier comparison needs depth
+accounted for. The table is post-QC (50-count floor), so it understates how shallow the
+lowest donors are.
+
 ## Choosing the number of de novo clusters (74)
 
 `74_choose_k.sh` runs InSituType's AIC sweep; the pilot at 10:20 censored at the ceiling,
