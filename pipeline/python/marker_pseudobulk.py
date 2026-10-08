@@ -46,6 +46,10 @@ from pseudobulk_core import group_means, log_normalize, onehot, select_markers, 
 
 # Tumor -> edge -> normal; column order in the heatmap and the default region set.
 REGION_ORDER = ["Tumor bulk", "Infiltrating edge", "Contralateral uninvolved"]
+# --region-key value that skips the Region split: one column per cluster. For studies whose
+# `Region` is not a tissue-region axis (e.g. SORL1, where it is the donor id and the REGION_ORDER
+# filter below would match no cells).
+NO_REGION = "none"
 DEFAULT_TOP_N = 5
 DEFAULT_MIN_GROUP_N = 10
 DEFAULT_SCALE_FACTOR = 1e4
@@ -61,7 +65,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--group-key", default="leiden",
                    help="obs column to group cells by (default: leiden clusters).")
     p.add_argument("--region-key", default="Region",
-                   help="obs column with the tissue region.")
+                   help="obs column with the tissue region, or 'none' for one column per "
+                        "cluster (no Region split; the renderer then draws a profile view).")
     p.add_argument("--regions", nargs="+", default=None,
                    help="Regions to include (default: all of REGION_ORDER present).")
     p.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
@@ -86,7 +91,8 @@ def main() -> None:
 
     print(f"Reading {args.clustered_h5ad}")
     adata = ad.read_h5ad(args.clustered_h5ad)
-    for key in (args.group_key, args.region_key):
+    by_region = args.region_key != NO_REGION
+    for key in (args.group_key, args.region_key) if by_region else (args.group_key,):
         if key not in adata.obs:
             print(f"ERROR: obs is missing '{key}'. Available: {list(adata.obs.columns)}",
                   file=sys.stderr)
@@ -96,13 +102,23 @@ def main() -> None:
         sys.exit(1)
 
     # Region filter (default: all of REGION_ORDER that are present).
-    region = adata.obs[args.region_key].astype(str).to_numpy()
-    wanted = args.regions or [r for r in REGION_ORDER if r in set(region)]
-    keep = np.isin(region, wanted)
-    adata = adata[keep].copy()
-    region = adata.obs[args.region_key].astype(str).to_numpy()
+    if by_region:
+        region = adata.obs[args.region_key].astype(str).to_numpy()
+        wanted = args.regions or [r for r in REGION_ORDER if r in set(region)]
+        keep = np.isin(region, wanted)
+        adata = adata[keep].copy()
+        region = adata.obs[args.region_key].astype(str).to_numpy()
+        print(f"{adata.n_obs:,} cells across regions {wanted}")
+    else:
+        region, wanted = None, []
+        print(f"{adata.n_obs:,} cells, grouped by '{args.group_key}' only (no Region split)")
+    if adata.n_obs == 0:
+        # An empty selection used to write empty CSVs and upload them over the real output.
+        print(f"ERROR: no cells selected. Region values present in obs['{args.region_key}'] "
+              f"do not match REGION_ORDER; pass --regions, or --region-key {NO_REGION}.",
+              file=sys.stderr)
+        sys.exit(1)
     cluster = adata.obs[args.group_key].astype(str).to_numpy()
-    print(f"{adata.n_obs:,} cells across regions {wanted}")
 
     gene_mask = (adata.var["probe_type"] == "gene").to_numpy()
     genes = adata.var_names[gene_mask].to_numpy()
@@ -145,8 +161,9 @@ def main() -> None:
     # Pseudobulk the marker genes by cluster x Region, over the selected clusters' cells.
     sel_mask = np.isin(cluster, select_order)
     marker_idx = pd.Index(genes).get_indexer(ordered_markers)
-    group = np.char.add(np.char.add(cluster[sel_mask].astype(str), " | "),
-                        region[sel_mask].astype(str))
+    group = cluster[sel_mask].astype(str)
+    if by_region:
+        group = np.char.add(np.char.add(group, " | "), region[sel_mask].astype(str))
     grp_oh, grp_labels = onehot(group)
     pb = group_means(norm[sel_mask][:, marker_idx], grp_oh).T   # markers x groups
     pb = pd.DataFrame(pb, index=ordered_markers, columns=grp_labels)
@@ -161,7 +178,7 @@ def main() -> None:
     region_rank = {r: i for i, r in enumerate(wanted)}
     cl_rank = {c: i for i, c in enumerate(select_order)}
     def _col_key(g: str):
-        c, r = g.split(" | ", 1)
+        c, _, r = g.partition(" | ")
         return (cl_rank.get(c, len(cl_rank)), region_rank.get(r, len(region_rank)))
     pb = pb[sorted(pb.columns, key=_col_key)]
 
