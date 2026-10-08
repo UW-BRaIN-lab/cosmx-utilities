@@ -88,7 +88,9 @@ def apply_fov_annotations(obs: pd.DataFrame, table: Path, slide_id: str) -> pd.D
     table keeps its original Region and is reported rather than silently blanked, since a
     partial table must not quietly erase annotation.
     """
-    ann = pd.read_csv(table, dtype={"slide_id": str})
+    # region is read as text: a donor-id region (741) would otherwise parse as an int,
+    # breaking the composition report and giving a numeric batch column downstream.
+    ann = pd.read_csv(table, dtype={"slide_id": str, "region": str})
     ann = ann[ann["slide_id"].astype(str) == slide_id]
     if ann.empty:
         print(f"WARN: no rows for slide_id={slide_id} in {table}; "
