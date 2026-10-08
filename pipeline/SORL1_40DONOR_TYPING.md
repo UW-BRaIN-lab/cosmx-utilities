@@ -51,6 +51,7 @@ MAX_AREA=50000              # see QC note
 REFERENCE_BASENAME=brain6k_panel.csv
 FOV_ANNOTATIONS=reference/fov_annotations_sorl1.csv
 QC_COLOR=slide_id,Region,leiden
+REGION_KEY=none             # marker heatmap (50): Region is the donor id, so no Region split
 STAGE4_DIR=stage4
 INPUT_KEY=stage4/insitutype_input.h5
 ```
