@@ -125,8 +125,16 @@ was), so do not over-invest in the sweep.
 
 ## Stage 4 + InSituTree decision
 
+**`RESCALE=false` for this study.** `rescale` is the gene-level correction for the scRNA-seq to
+CosMx platform shift (GBM, retina). `Brain_6k` is already CosMx-derived, so there is no shift to
+correct. The first two fits (K=21, K=10) wrongly ran with `RESCALE=true` (the 80 default); they
+are superseded by `stage4_k21_norescale` / `stage4_k10_norescale`. Check the log line
+`insitutype: ... rescale=FALSE` before trusting a run. InSituTree needs profiles from one
+rescale-consistent fit, so take them from the run that is finally chosen.
+
+
 ```bash
-sbatch pipeline/slurm/80_insitutype.sh     # N_CLUSTS=<chosen K>, RESCALE=true, REFIT=false
+RESCALE=false REFIT=false sbatch pipeline/slurm/80_insitutype.sh   # + N_CLUSTS=<K>, STAGE4_DIR, INPUT_DIR, KEEP_GENES
 sbatch pipeline/slurm/81_diagnose_typing.sh
 sbatch pipeline/slurm/90_write_celltypes.sh
 ```
