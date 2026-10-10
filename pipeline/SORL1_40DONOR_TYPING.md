@@ -138,6 +138,19 @@ The first fits (K=21, K=10, `stage4_k21`/`stage4_k10`, `rescale=TRUE`) and the s
 `stage4_k21_asis` / `stage4_k10_asis`. The first two were run with the retina defaults without
 checking where the reference came from.
 
+```bash
+UPDATE_REFERENCE=false RESCALE=false REFIT=false sbatch pipeline/slurm/80_insitutype.sh   # + N_CLUSTS=<K>, STAGE4_DIR, INPUT_DIR, KEEP_GENES
+sbatch pipeline/slurm/90_write_celltypes.sh      # then 85d (Leiden x type) and 51 (QC by type)
+```
+
+`81_diagnose_typing.sh` tests the call against `Region`, which is the donor id here, so its
+spatial-concordance test is uninformative for this study; use the 85d cross-tab instead.
+
+Go to InSituTree (85) only if the diagnostics show **(a)** a large flat/low-confidence sink,
+or **(b)** unresolved sibling confusion (Astrocyte A/B, Microglia A/B, Inhibitory A/B/C,
+L2/3-L4-L6) — its value is deferring those calls with a readable posterior. It needs a
+hierarchy JSON; Brain_6k ships `Brain_6k.celltypeslist.R` as the starting tree.
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
