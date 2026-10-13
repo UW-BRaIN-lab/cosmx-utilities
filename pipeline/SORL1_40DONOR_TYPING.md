@@ -105,6 +105,14 @@ SORL1 carriers all sit on the earlier-run pilot slides and carry the largest sha
 accounted for. The table is post-QC (50-count floor), so it understates how shallow the
 lowest donors are.
 
+## Offline copies (54, export_summary_bundle.sh)
+
+`RUNS="k10:stage4_k10 k21:stage4_k21 k30:stage4_k30" sbatch pipeline/slurm/54_export_cell_labels.sh`
+writes `stage3/labels/cell_labels.csv.gz`: one row per cell (slide, donor, diagnosis, Leiden,
+UMAP, depth) with `celltype_<run>` and `prob_<run>` for every run. `bash pipeline/export_summary_bundle.sh`
+packs every small output (figures, tables, compact results, logs; not the `.rds` or typed AnnData)
+into one tarball on Klone scratch.
+
 ## Choosing the number of de novo clusters (74)
 
 `74_choose_k.sh` runs InSituType's AIC sweep; the pilot at 10:20 censored at the ceiling,
