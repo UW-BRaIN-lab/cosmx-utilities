@@ -1,0 +1,31 @@
+denovo_label,annotation,top_markers,quality
+r,r - Oligodendrocyte,"HHIP,PLP1,MOBP,MOG,MYRF,GPR37,SLCO1A2",clean; 63% Leiden 2; profile cos 0.95 to named Oligodendrocyte (which sits mainly in Leiden 22)
+y,y - Astrocyte (AQP4/ALDH1L1),"ALDH1L1,GPAM,HIF3A,SERPINA3,GJA1,F3,ADGRV1,AQP4",clean; 93% Leiden 4+19; SERPINA3 suggests a mildly reactive-leaning state
+i,i - Mural / fibroblast (vascular support),"TGM2,FN1,DCN,NOTCH3,MYL9,TAGLN,NDUFA4L2,BGN","clean; takes 66% of Leiden 24 (pericyte) and 61% of Leiden 17 (fibroblast), split from Endothelial"
+u,u - Unresolved: reactive/inflammatory-stress mix,"CLDN5,SERPINH1,GFAP,NEAT1,HSPA1A,SRGN,SPP1,C1QB","low-confidence; 16.3% of cells, median 270 counts; 47% Leiden 8, 16% microglia, 14% endothelial; 2.45x enriched for SORL1-carrier cells; do not interpret as one population"
+z,z - Unresolved: low-information (LTBP2/FOXJ1 set),"LTBP2,FOXJ1,TRAV8-4,FAAP24,KITLG,SLC6A3,AURKA","low-signal; 12.4% of cells; odd low-expressed markers; spread over Leiden 13, 8, 5; 2.2x carrier-enriched"
+q,q - Unresolved: low-information (A1BG/SNRPA1 set),"A1BG,SNRPA1,F2RL3,B9D2,HOXA3,IGLL1,IL22RA2,H2AX",low-signal; 9.3% of cells; nearest named cosine only 0.70; 21% from donor 699 and 17% from 548; carrier-depleted (0.43x)
+o,"o - OPC-like glial progenitor (mixed, low-count)","VCAN,PTPRZ1,PDGFRA,PCDH15,BCAN,GPR17,GPR37L1",moderate; OPC markers but 43% from Leiden 8 (low-count GFAP cluster); 45% of cells below posterior 0.99
+t,t - Excitatory neuron (CCK/SLC17A7),"SYNGR1,IFI6,TUBB2A,PFKP,GRIN1,CCK,STMN2,SLC17A7",moderate
+ab,ab - VIP/CALB2 interneuron,"CALB2,VIP,CXCL14,PROX1,RELN,SLC24A3,CNR1,GAD1",clean; 48% Leiden 12
+l,l - Neuron (tubulin/GAP43-high),"LGALS1,TUBB2A,SNCA,TMSB10,STMN2,TUBA1B,GAP43",low-moderate; cytoskeletal-gene-driven
+v,"v - Excitatory neuron, L4-like (RORB/TSHZ2)","TSHZ2,RORB,TNNT2,ACOT11,CD24,TOX,CNTN5",moderate; 62% Leiden 10
+h,"h - Excitatory neuron, L5-like (CARTPT)","CARTPT,DUSP6,DUSP2,SNCG,CCK,NEFL",moderate; also carries catch-all genes IGLL1/SNRPA1
+ad,ad - Upper-layer excitatory neuron (CDH9/RASGRF2),"PDGFD,CDH9,GNAL,ACVR1C,SERPINE2,SYN3,RASGRF2,WFS1",moderate-high; 94% of cells in Leiden 9 (NRGN cluster)
+s,"s - Neuron (GAP43/SNAP25), donor-skewed","GAP43,YWHAG,CALM2,CLSTN2,BEX1,SNAP25,ELK1",low; 31% from donor 7316
+a,a - Neuron (CDH9/SYN3) with catch-all genes,"SIGMAR1,LINC01857,PTEN,CDH9,SPIB,LAMB1,SYN3",low; shares LINC01857/SPIB with the catch-all clusters
+f,"f - Excitatory neuron, L5/6-like (RORB/PCP4)","CD24,SNCA,SMYD2,RAB27B,RORB,PCP4",moderate
+c,c - Mixed neuron/astrocyte (CARTPT + AQP4/SLC1A3),"CARTPT,ELK1,SERPINA3,HOPX,SLC1A3,AQP4,CLU","low; combined neuronal and astrocytic markers (possible cell overlap, unverified); 43% from donor 7678"
+n,"n - Excitatory neuron, L4/5-like (RORB/COL6A1)","GPAM,TSHZ2,RORB,TNNT2,IL1RAP,COL6A1,TOX",moderate; 63% Leiden 10
+g,g - Heat-shock stress state (donor-specific),"HSPA1B,HSPA1A,DNAJB1,HSPB1,HSPH1","moderate identity, but 54% from donor 6760 and 36% from donor 728 (about 25-30x their share): a tissue-handling or donor-specific state, not a cell type"
+x,x - Immediate-early-gene stress state (one donor),"FOS,ARC,DNAJB1,EGR1,BAG3,JUNB,GADD45G","moderate identity, but 94% from donor 6803 (26x its share): donor-specific"
+d,d - Neuron (SLIT3/SEMA3A),"SMYD2,CLSTN2,SLIT3,TRABD2A,SEMA3A,TMEFF2",low-moderate; 70% Leiden 18
+ac,ac - Neuron (SEMA3E/HS3ST4),"SEMA3E,CCN2,KIAA1217,HS3ST4,RYR3,TRPM3,DGKG","low-moderate; 80% Leiden 14 (a small, unlabelled Leiden cluster)"
+e,e - Neuron (NR4A2/SYNPR),"NR4A2,SYNPR,RGS12,ITGB8,GNB4,GNG2,NR2F2",low-moderate; 90% Leiden 16
+b,"b - Excitatory neuron (CARTPT/HOPX), donor-skewed","GLIS3,CARTPT,LPL,RFX3,HOPX,GPX3,NTNG1",low; 39% from donor 733
+j,j - Neuron (NR4A2/SYNPR/CUX1),"NR4A2,SYNPR,RGS12,ITGB8,GNB4,CUX1,PTPRU",moderate; 94% Leiden 16
+p,"p - Excitatory neuron, L5-like (PCP4/ETV1)","PCP4,FGFR1,SEMA3E,TSHZ2,COL11A1,ETV1,ALCAM",moderate; 89% Leiden 15
+w,w - PVALB interneuron with IEG stress (one donor),"BAG3,FOS,PVALB,ARC,MFGE8,EGR1,JUNB",low; 81% from donor 6803
+k,k - Deep-layer excitatory neuron (BCL11B/RIT2),"SULF2,ADRA1A,KCNN2,RIT2,BCL11B,DGKH,EPHA6",moderate-high; 85% Leiden 21
+aa,aa - Degenerate cluster (115 cells),"TNC,PDGFD,BLNK,ICAM2,EYA4,CACNG4","low; too small to use; median 214 counts, 88% of cells below posterior 0.99"
+m,m - Degenerate cluster (45 cells),"TNC,NCKAP1L,NOTCH1,LAT2,ADAMTS17,NOTCH3",low; too small to use
