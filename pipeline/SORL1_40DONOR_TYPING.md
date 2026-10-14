@@ -197,8 +197,10 @@ calibrated run (`stage4_k21`) is that.
 
 **How InSituTree picks genes (read from `supervisedSubcluster.R`).** At each node it takes the children's profiles
 (an internal child is the mean of its leaves), normalises each to sum 100, and keeps genes whose range across
-the children exceeds the 0.5 quantile on both absolute and percentage difference. That is a loose filter
-(about 1,000 to 1,350 of the 3,323 genes pass at each node here), not a per-leaf "maximum contrast". The marker genes
+the children exceeds the 0.5 quantile on both absolute and percentage difference. That is a loose filter,
+not a per-leaf "maximum contrast". Note `85_insitutree.sh` defaults `QUANTILE_PCT=0` (package default 0.5), so
+the job selects on absolute difference alone: expect exactly half the genes (1,661 of 3,323) at every node in the
+log (`These are the selected N genes`); with the package default it would be about 1,000 to 1,350. The marker genes
 of every kept leaf pass at their node (PCP4, RORB, BCL11B, RIT2, SEMA3E, HS3ST4, SYNPR, NR4A2; VIP, CALB2, CNR1, RGS12).
 Near-identical siblings are the case to avoid: at an [Oligodendrocyte, Oligodendrocyte_denovo] node the
 selection includes the real oligodendrocyte genes and the neuronal ambient genes, so the split between the two
