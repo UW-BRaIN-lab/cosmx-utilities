@@ -77,11 +77,22 @@ def test_no_empty_branches_and_sink_is_top_level():
         for k, v in node.items():
             walk(v, path + "/" + k)
     walk(hierarchy, "")
-    assert "Low_signal" in hierarchy and isinstance(hierarchy["Low_signal"], list)
+    # Top-level sink is the generic flat cluster; the neuron-leaning flat cluster sits in the Neuron branch,
+    # where it competes with the neuron types it resembles (cosine 0.93 to Excitatory_CCK, 0.67 to the generic sink).
+    assert hierarchy["Low_signal"] == ["Low_signal_generic_denovo"]
+    assert hierarchy["Neuron"]["Neuron_low_signal"] == ["Low_signal_neuronal_denovo"]
+
+
+def test_excitatory_branch_is_flat():
+    """Cosine similarity does not support sub-groups among the excitatory leaves (within 0.941 vs between 0.924)."""
+    hierarchy = json.load(open(REFERENCE_DIR / "sorl1_hierarchy.json"))
+    excitatory = hierarchy["Neuron"]["Excitatory neuron"]
+    assert isinstance(excitatory, list) and len(excitatory) == 12
 
 
 if __name__ == "__main__":
     test_hierarchy_leaves_match_profile_columns_both_ways()
     test_kept_names_are_unique_and_collision_free()
     test_no_empty_branches_and_sink_is_top_level()
+    test_excitatory_branch_is_flat()
     print("OK")
