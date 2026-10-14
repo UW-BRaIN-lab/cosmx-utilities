@@ -175,20 +175,34 @@ first: the supported route is semi-supervised InSituType, then a reference built
 InSituTree with those profiles and a hierarchy. The profiles must come from ONE `rescale=TRUE` fit; the K=21
 calibrated run (`stage4_k21`) is that.
 
-- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 15 kept (13 new cell types plus
-  two flat clusters), 6 not kept (`a` hybrid profile; `j`, `f`, `b` weak or donor-skewed; `k`, `e`
-  donor-specific stress states). Their cells fall to the nearest leaf.
-- `reference/sorl1_hierarchy.json`: Brain_6k's tree with two corrections and the kept clusters as sibling leaves.
-  Brain_6k's own `celltypeslist.R` nests `Glial` inside `Neuronal`; the K=21 profile similarity separates glia
-  from neurons, so `Glia` is top level here. De novo clusters sit beside their closest reference type
-  (profile r 0.89-0.95) so InSituTree competes them against it within the branch and can defer to the parent.
-  The excitatory leaves are one flat branch: profile cosine does not support sub-groups (within-group 0.941 vs
-  between-group 0.924 for the two groups first tried). The neuron-leaning flat cluster
-  (`Low_signal_neuronal_denovo`, cosine 0.93 to `Excitatory_CCK_denovo`) sits in the Neuron branch so it competes
-  with the neurons it resembles; the generic flat cluster is the top-level `Low_signal` sink. Checked with
-  InSituTree's own `plotProfileSimilarity()` (`sorl1_summary_for_maddie/insitutree/` has the plots).
-- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 28-type matrix.
-- `python/tests/test_sorl1_hierarchy.py` checks that the leaves and the matrix columns match both ways.
+- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 8 kept: **6 new cell types**
+  (`c`, `g`, `s`, `m`, `p` excitatory; `l` VIP interneuron) plus the two flat clusters (`i`, `u`). 13 not kept.
+- **Rule for keeping a de novo leaf:** it must differ from the leaves it competes with in its branch, at least 10
+  genes at 2-fold over its siblings. Marker lists against all 34 types are misleading here, because a cluster's
+  siblings share its genes and a no-floor fold-change lets near-zero genes top the list. Failed the test and
+  dropped: `q`, `h`, `r`, `d` (0, 0, 1, 4 genes versus the other excitatory leaves); `n` (0 versus reference OPC);
+  `o` (5 genes, all neuronal: ambient RNA); `t` (15 genes, stress and blood genes: HSPA1A/B, NEAT1, HBA1/2).
+  `l` has only 4 (CALB2, VIP, CNR1, RGS12) but they are the established VIP markers; kept by judgment.
+  Dropped clusters' cells fall to the reference type or nearest leaf. `a`, `j`, `f`, `b`, `k`, `e` were excluded
+  earlier (hybrid profile, donor-skewed, or donor-specific stress states).
+- `reference/sorl1_hierarchy.json`: Brain_6k's tree with `Glial` moved to the top level (the source file nests it inside
+  `Neuronal`; the K=21 profiles separate glia from neurons). The excitatory leaves are one flat branch (cosine
+  does not support sub-groups: within 0.941 vs between 0.924). `Low_signal_neuronal_denovo` (cosine 0.93 to
+  an excitatory leaf) sits in the Neuron branch so it competes with the neurons it resembles; the generic flat
+  cluster is the top-level `Low_signal` sink. Checked with InSituTree's own `plotProfileSimilarity()` (plots in
+  `sorl1_summary_for_maddie/insitutree/`).
+- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 21-type matrix.
+- `python/tests/test_sorl1_hierarchy.py` checks that leaves and matrix columns match both ways and that only the
+  distinct de novo leaves are kept.
+
+**How InSituTree picks genes (read from `supervisedSubcluster.R`).** At each node it takes the children's profiles
+(an internal child is the mean of its leaves), normalises each to sum 100, and keeps genes whose range across
+the children exceeds the 0.5 quantile on both absolute and percentage difference. That is a loose filter
+(about 1,000 to 1,350 of the 3,323 genes pass at each node here), not a per-leaf "maximum contrast". The marker genes
+of every kept leaf pass at their node (PCP4, RORB, BCL11B, RIT2, SEMA3E, HS3ST4, SYNPR, NR4A2; VIP, CALB2, CNR1, RGS12).
+Near-identical siblings are the case to avoid: at an [Oligodendrocyte, Oligodendrocyte_denovo] node the
+selection includes the real oligodendrocyte genes and the neuronal ambient genes, so the split between the two
+would reflect expression level and contamination, not a cell type.
 
 ```bash
 # on Klone: rebuild the matrix from the fit (only if the K=21 result changes), upload it
@@ -203,7 +217,7 @@ INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21 REFERENCE_BASENAME=sorl1_insit
 ```
 
 The R job prints the tree (`printTree`) and stops if a leaf is missing from the matrix. Check its log for
-`hierarchy: 28 leaves over the reference's 28 types`. Calls are read from the finest resolved level; low
+`hierarchy: 21 leaves over the reference's 21 types`. Calls are read from the finest resolved level; low
 `prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
 across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
 
