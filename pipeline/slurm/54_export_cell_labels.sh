@@ -3,7 +3,8 @@
 # donor, diagnosis, Leiden, UMAP, depth, and celltype_<run> + prob_<run> per run. Built so the
 # typing can be used offline without the multi-GB AnnData. CPU only, reads obs + obsm only.
 #
-# Submit (RUNS = space-separated name:kopah-subdir pairs):
+# Submit (RUNS = space-separated name:kopah-subdir[:result-file] entries; the file defaults to
+# insitutype_result.h5, so an InSituTree run is  tree:stage4_insitutree_k21:insitutree_result.h5):
 #   RUNS="k10:stage4_k10 k21:stage4_k21 k30:stage4_k30" sbatch pipeline/slurm/54_export_cell_labels.sh
 #
 # Env knobs (KOPAH_*, APPTAINER_RSC, from pipeline/.env):
@@ -62,9 +63,10 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/cosmx_clustered.h5ad" "
 
 RUN_ARGS=()
 for spec in $RUNS; do
-    name="${spec%%:*}"; subdir="${spec#*:}"
-    echo "Staging ${subdir}/insitutype_result.h5 as '${name}'..."
-    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${subdir}/insitutype_result.h5" "$WORK/${name}.h5"
+    IFS=: read -r name subdir resultfile <<< "$spec"
+    resultfile="${resultfile:-insitutype_result.h5}"
+    echo "Staging ${subdir}/${resultfile} as '${name}'..."
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${subdir}/${resultfile}" "$WORK/${name}.h5"
     RUN_ARGS+=(--run "${name}=$WORK/${name}.h5")
 done
 
