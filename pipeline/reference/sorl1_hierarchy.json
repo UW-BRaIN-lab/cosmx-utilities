@@ -1,30 +1,27 @@
 {
  "Neuron": {
-  "Excitatory neuron": {
-   "Excitatory_group_1": [
-    "L2/3 neuron",
-    "L6 neuron",
-    "Excitatory_CCK_denovo",
-    "Excitatory_CARTPT_L5_denovo",
-    "Excitatory_CARTPT_GAP43_denovo",
-    "Neuron_SNCA_CD24_denovo"
-   ],
-   "Excitatory_group_2": [
-    "L4 neuron",
-    "Excitatory_RORB_L4_denovo",
-    "Neuron_SEMA3E_HS3ST4_denovo",
-    "Excitatory_PCP4_L5_denovo",
-    "Excitatory_BCL11B_deep_denovo"
-   ],
-   "NR4A2_SYNPR_neuron": [
-    "Neuron_NR4A2_SYNPR_denovo"
-   ]
-  },
+  "Excitatory neuron": [
+   "L2/3 neuron",
+   "L4 neuron",
+   "L6 neuron",
+   "Excitatory_CCK_denovo",
+   "Excitatory_CARTPT_L5_denovo",
+   "Excitatory_CARTPT_GAP43_denovo",
+   "Neuron_SNCA_CD24_denovo",
+   "Excitatory_RORB_L4_denovo",
+   "Neuron_SEMA3E_HS3ST4_denovo",
+   "Excitatory_PCP4_L5_denovo",
+   "Excitatory_BCL11B_deep_denovo",
+   "Neuron_NR4A2_SYNPR_denovo"
+  ],
   "Inhibitory neuron": [
    "Inhibitory neuron A",
    "Inhibitory neuron B",
    "Inhibitory neuron C",
    "VIP_interneuron_denovo"
+  ],
+  "Neuron_low_signal": [
+   "Low_signal_neuronal_denovo"
   ]
  },
  "Glia": {
@@ -52,7 +49,6 @@
   "Endothelial"
  ],
  "Low_signal": [
-  "Low_signal_neuronal_denovo",
   "Low_signal_generic_denovo"
  ]
 }

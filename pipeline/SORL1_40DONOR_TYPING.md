@@ -176,13 +176,17 @@ InSituTree with those profiles and a hierarchy. The profiles must come from ONE 
 calibrated run (`stage4_k21`) is that.
 
 - `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 15 kept (13 new cell types plus
-  two flat sink clusters), 6 not kept (`a` hybrid profile; `j`, `f`, `b` weak or donor-skewed; `k`, `e`
+  two flat clusters), 6 not kept (`a` hybrid profile; `j`, `f`, `b` weak or donor-skewed; `k`, `e`
   donor-specific stress states). Their cells fall to the nearest leaf.
 - `reference/sorl1_hierarchy.json`: Brain_6k's tree with two corrections and the kept clusters as sibling leaves.
   Brain_6k's own `celltypeslist.R` nests `Glial` inside `Neuronal`; the K=21 profile similarity separates glia
   from neurons, so `Glia` is top level here. De novo clusters sit beside their closest reference type
   (profile r 0.89-0.95) so InSituTree competes them against it within the branch and can defer to the parent.
-  Excitatory sub-groups come from clustering the profiles. `Low_signal` is a top-level sink.
+  The excitatory leaves are one flat branch: profile cosine does not support sub-groups (within-group 0.941 vs
+  between-group 0.924 for the two groups first tried). The neuron-leaning flat cluster
+  (`Low_signal_neuronal_denovo`, cosine 0.93 to `Excitatory_CCK_denovo`) sits in the Neuron branch so it competes
+  with the neurons it resembles; the generic flat cluster is the top-level `Low_signal` sink. Checked with
+  InSituTree's own `plotProfileSimilarity()` (`sorl1_summary_for_maddie/insitutree/` has the plots).
 - `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 28-type matrix.
 - `python/tests/test_sorl1_hierarchy.py` checks that the leaves and the matrix columns match both ways.
 
