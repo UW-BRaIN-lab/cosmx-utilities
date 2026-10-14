@@ -168,6 +168,41 @@ or **(b)** unresolved sibling confusion (Astrocyte A/B, Microglia A/B, Inhibitor
 L2/3-L4-L6) — its value is deferring those calls with a readable posterior. It needs a
 hierarchy JSON; Brain_6k ships `Brain_6k.celltypeslist.R` as the starting tree.
 
+## InSituTree: profiles and hierarchy (K=21)
+
+InSituTree is fully supervised, so the new populations found by InSituType have to be turned into a reference
+first: the supported route is semi-supervised InSituType, then a reference built from its fitted profiles, then
+InSituTree with those profiles and a hierarchy. The profiles must come from ONE `rescale=TRUE` fit; the K=21
+calibrated run (`stage4_k21`) is that.
+
+- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 15 kept (13 new cell types plus
+  two flat sink clusters), 6 not kept (`a` hybrid profile; `j`, `f`, `b` weak or donor-skewed; `k`, `e`
+  donor-specific stress states). Their cells fall to the nearest leaf.
+- `reference/sorl1_hierarchy.json`: Brain_6k's tree with two corrections and the kept clusters as sibling leaves.
+  Brain_6k's own `celltypeslist.R` nests `Glial` inside `Neuronal`; the K=21 profile similarity separates glia
+  from neurons, so `Glia` is top level here. De novo clusters sit beside their closest reference type
+  (profile r 0.89-0.95) so InSituTree competes them against it within the branch and can defer to the parent.
+  Excitatory sub-groups come from clustering the profiles. `Low_signal` is a top-level sink.
+- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 28-type matrix.
+- `python/tests/test_sorl1_hierarchy.py` checks that the leaves and the matrix columns match both ways.
+
+```bash
+# on Klone: rebuild the matrix from the fit (only if the K=21 result changes), upload it
+s5cmd cp s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage4_k21/insitutype_result.h5 .
+uv run --no-project --python 3.11 --with h5py --with numpy --with pandas python pipeline/python/prep_insitutree_profiles.py \
+    --profiles-h5 insitutype_result.h5 --annotations pipeline/reference/denovo_annotations/stage4_k21.csv \
+    --output pipeline/reference/sorl1_insitutree_profiles.csv
+s5cmd cp pipeline/reference/sorl1_insitutree_profiles.csv s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/sorl1_insitutree_profiles.csv
+sed -i '/^REFERENCE_BASENAME=/d' pipeline/.env   # .env beats submit-time values; it points at the raw 13-type reference
+INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21 REFERENCE_BASENAME=sorl1_insitutree_profiles.csv \
+    HIERARCHY_BASENAME=sorl1_hierarchy.json sbatch pipeline/slurm/85_insitutree.sh
+```
+
+The R job prints the tree (`printTree`) and stops if a leaf is missing from the matrix. Check its log for
+`hierarchy: 28 leaves over the reference's 28 types`. Calls are read from the finest resolved level; low
+`prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
+across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
