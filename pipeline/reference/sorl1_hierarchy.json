@@ -4,10 +4,6 @@
    "L2/3 neuron",
    "L4 neuron",
    "L6 neuron",
-   "Excitatory_CCK_denovo",
-   "Excitatory_CARTPT_L5_denovo",
-   "Excitatory_CARTPT_GAP43_denovo",
-   "Neuron_SNCA_CD24_denovo",
    "Excitatory_RORB_L4_denovo",
    "Neuron_SEMA3E_HS3ST4_denovo",
    "Excitatory_PCP4_L5_denovo",
@@ -27,19 +23,12 @@
  "Glia": {
   "Astrocyte": [
    "Astrocyte A",
-   "Astrocyte B",
-   "Astrocyte_reactive_denovo"
+   "Astrocyte B"
   ],
-  "Oligodendrocyte_lineage": {
-   "Oligodendrocyte": [
-    "Oligodendrocyte",
-    "Oligodendrocyte_denovo"
-   ],
-   "OPC": [
-    "Oligodendrocyte precursor cell",
-    "OPC_denovo"
-   ]
-  },
+  "Oligodendrocyte-like": [
+   "Oligodendrocyte precursor cell",
+   "Oligodendrocyte"
+  ],
   "Microglia": [
    "Microglia A",
    "Microglia B"
