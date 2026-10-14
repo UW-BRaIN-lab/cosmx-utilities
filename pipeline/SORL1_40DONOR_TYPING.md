@@ -113,6 +113,15 @@ UMAP, depth) with `celltype_<run>` and `prob_<run>` for every run. `bash pipelin
 packs every small output (figures, tables, compact results, logs; not the `.rds` or typed AnnData)
 into one tarball on Klone scratch.
 
+## Marker lists (top_markers_from_profiles.py)
+
+`python/top_markers_from_profiles.py --profiles-h5 insitutype_result.h5 --names names.csv` writes the top 20
+genes for every type (named and de novo) from the fitted profiles, ranked by log2 fold-change against the other
+types, with an expression floor (`--min-profile 0.2`). Fold-enrichment with no floor lets near-zero genes top the
+list (the inspector's "markers" for the flat clusters were of that kind). A cluster with no gene above 2-fold is
+either flat (every fold-change negative, K=21 cluster `i`) or shares its genes with sibling clusters (`a`, `q`);
+the most-expressed genes tell them apart.
+
 ## Choosing the number of de novo clusters (74)
 
 `74_choose_k.sh` runs InSituType's AIC sweep; the pilot at 10:20 censored at the ceiling,

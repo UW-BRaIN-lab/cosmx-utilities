@@ -35,3 +35,6 @@ rescale-vs-refit / Core-vs-Extended findings.
 marker lists, the Leiden cross-tab, per-cluster donor spread and carrier enrichment. Letters are specific to
 that run. The 13 named Brain_6k types are unchanged. Confidence is in `quality`; several rows are
 donor-specific stress states or unresolved low-information clusters and should not be read as cell types.
+
+`stage4_k21.csv`: the 21 de novo clusters of the K=21 run (the recommended working resolution), same method.
+Marker lists for every type in a fit come from `python/top_markers_from_profiles.py`.

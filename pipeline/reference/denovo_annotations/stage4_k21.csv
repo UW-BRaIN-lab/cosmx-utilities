@@ -1,0 +1,22 @@
+denovo_label,annotation,top_markers,quality
+i,i - Unresolved: low-information (LTBP2/FOXJ1 set),"LTBP2,FOXJ1,TRAV8-4,FAAP24,KITLG,SLC6A3,FAAH2","low-signal; 15.0% of cells; diffuse over Leiden 8, 13, 5, 9"
+o,o - Oligodendrocyte,"HHIP,PLP1,SLCO1A2,SLC5A11,MOBP,TTYH2,MOG,MYRF",clean; 56% Leiden 2; cos 0.95 to named Oligodendrocyte
+t,t - Astrocyte (reactive-leaning),"ALDH1L1,SERPINA3,HIF3A,ADORA2B,GJA1,F3,CHI3L1",clean; Leiden 4 and 19
+u,u - Unresolved: low-information (A1BG/SNRPA1 set),"A1BG,SNRPA1,F2RL3,B9D2,HOXA3,IGLL1,IL22RA2",low-signal; 9.5% of cells; nearest named cosine 0.70
+n,n - OPC,"VCAN,PCDH15,PTPRZ1,PDGFRA,OLIG1,BCAN",clean; Leiden 0 and 8
+a,a - Astrocyte (homeostatic),"ALDH1L1,SLC1A2,APOE,SLC1A3,GJA1,AQP4,VIM,GLUL",moderate; 41% from Leiden 8
+l,l - VIP/CALB2 interneuron,"CALB2,VIP,CXCL14,PROX1,RELN,SLC24A3,CNR1",clean; 39% Leiden 12
+q,q - Excitatory neuron (CCK/SLC17A7),"IFI6,SYNGR1,TUBB2A,CCK,GRIN1,STMN2,SLC17A7",moderate
+b,b - Neuron (shares catch-all genes),"LINC01857,SPIB,SIGMAR1,PTEN,CDH18,CDH9,CHMP3",low; shares LINC01857/SPIB with the catch-all clusters
+d,"d - Excitatory neuron, L5-like (CARTPT)","CARTPT,MFGE8,GPX3,CCK,HOPX,NEFL,SNCG",moderate
+h,h - Excitatory neuron (CARTPT/GAP43),"CARTPT,GAP43,YWHAG,HOPX,ELK1,CALM2,SNAP25",moderate
+r,r - Neuron (SNCA/CD24),"SNCA,LGALS1,CD24,SMYD2,TMSB10,RAB27B,TUBA1C",low-moderate
+s,"s - Excitatory neuron, L4-like (RORB)","CD24,SNCA,TRABD2A,SMYD2,SIGMAR1,RAB27B,RORB",moderate
+j,"j - Excitatory neuron, L4-like (RORB/TNNT2)","TNNT2,COL6A1,CRHR1,LAMB1,AP1G2,SYN3,RORB",moderate
+f,f - Neuron (GPAM/FSTL4),"GPAM,FSTL4,SLIT3,PTPRK,CLSTN2,ELK1,SMYD2",low-moderate
+k,k - Immediate-early-gene stress state,"FOS,ARC,BAG3,EGR1,DNAJB1,SERPINH1,HSPA1A,JUNB",moderate identity; check donor spread
+e,e - Heat-shock stress state,"HSPA1B,HSPA1A,HSPB1,DNAJB1,HSPH1,LINC01857",moderate identity; check donor spread
+g,g - Neuron (NR4A2/SYNPR),"NR4A2,SYNPR,RGS12,ITGB8,GNB4,GNG2,STT3B",low-moderate; 93% Leiden 16
+p,p - Neuron (SEMA3E/HS3ST4),"SEMA3E,CCN2,HS3ST4,KIAA1217,SEMA3A,DGKG,RYR3",low-moderate; 92% Leiden 14
+c,"c - Excitatory neuron, L5-like (PCP4/FGFR1)","PCP4,FGFR1,TSHZ2,SEMA3E,COL11A1,IRAG2,ETV1",moderate; 88% Leiden 15
+m,m - Deep-layer excitatory neuron (BCL11B/RIT2),"SULF2,ADRA1A,RIT2,KCNN2,SNCG,BCL11B,DGKH",moderate-high; 84% Leiden 21
