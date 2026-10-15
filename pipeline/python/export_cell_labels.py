@@ -31,6 +31,11 @@ OBS_COLUMNS = {
     "total_counts": "total_counts", "qc_genes_detected": "genes_detected", "qc_area": "area",
 }
 DONOR_COLUMNS = ["case_broad", "case_group", "sorl1_mutation"]
+# A confident-OPC call: the run called the cell OPC AND it sits in the OPC-marker Leiden cluster or is deep
+# enough to trust. InSituTree labels very shallow glial cells (mostly Leiden 8) OPC with a posterior near 1, so the
+# posterior cannot be used for this. In the SORL1 v2 tree: counts < 300 -> 6-9% real OPC; >= 1200 -> 78%.
+OPC_LEIDEN = "0"
+OPC_MIN_COUNTS = 600
 
 
 def _decode(arr) -> np.ndarray:
@@ -48,8 +53,15 @@ def read_run(path: Path) -> pd.DataFrame:
                             index=pd.Index(_decode(f["cell_id"]), name="cell_id"))
 
 
+def opc_confident(table: pd.DataFrame, run: str, labels: list[str], leiden: str = OPC_LEIDEN,
+                  min_counts: float = OPC_MIN_COUNTS) -> pd.Series:
+    """Called OPC by `run` (label in `labels`) AND (in the OPC-marker Leiden cluster OR total_counts >= min_counts)."""
+    called = table[f"celltype_{run}"].isin(labels)
+    return called & ((table["leiden"].astype(str) == str(leiden)) | (table["total_counts"] >= min_counts))
+
+
 def build_table(obs: pd.DataFrame, umap: np.ndarray, annotations: pd.DataFrame,
-                runs: dict[str, pd.DataFrame]) -> pd.DataFrame:
+                runs: dict[str, pd.DataFrame], opc_flags: dict[str, list[str]] | None = None) -> pd.DataFrame:
     table = obs[list(OBS_COLUMNS)].rename(columns=OBS_COLUMNS).copy()
     table.index.name = "cell_id"
     table["donor"] = table["donor"].astype(str)
@@ -66,6 +78,10 @@ def build_table(obs: pd.DataFrame, umap: np.ndarray, annotations: pd.DataFrame,
                   file=sys.stderr)
         table[f"celltype_{name}"] = aligned["cell_type"]
         table[f"prob_{name}"] = aligned["prob"].round(4)
+    for run, labels in (opc_flags or {}).items():
+        if run not in runs:
+            raise ValueError(f"--opc-flag run '{run}' is not one of the runs given: {list(runs)}")
+        table[f"opc_confident_{run}"] = opc_confident(table, run, labels)
     return table
 
 
@@ -78,6 +94,9 @@ def main() -> None:
     p.add_argument("--output", type=Path, required=True, help="Output .csv.gz")
     p.add_argument("--run", action="append", default=[], metavar="NAME=RESULT_H5",
                    help="A typing run: name=path/to/insitutype_result.h5. Repeatable.")
+    p.add_argument("--opc-flag", action="append", default=[], metavar="RUN=LABEL[,LABEL]",
+                   help="Add opc_confident_<RUN>: called one of these OPC labels AND (Leiden "
+                        f"{OPC_LEIDEN} OR total_counts >= {OPC_MIN_COUNTS}). Repeatable.")
     args = p.parse_args()
 
     import anndata as ad
@@ -91,6 +110,13 @@ def main() -> None:
         print(f"run '{name}': {len(runs[name]):,} typed cells, "
               f"{runs[name]['cell_type'].nunique()} cell types")
 
+    opc_flags = {}
+    for spec in args.opc_flag:
+        run, _, labels = spec.partition("=")
+        if not run or not labels:
+            p.error(f"--opc-flag needs RUN=LABEL[,LABEL], got {spec!r}")
+        opc_flags[run] = labels.split(",")
+
     adata = ad.read_h5ad(args.clustered_h5ad, backed="r")
     absent = [c for c in OBS_COLUMNS if c not in adata.obs]
     if absent or "X_umap" not in adata.obsm:
@@ -98,7 +124,7 @@ def main() -> None:
               file=sys.stderr)
         sys.exit(1)
     table = build_table(adata.obs[list(OBS_COLUMNS)].copy(), np.asarray(adata.obsm["X_umap"]),
-                        pd.read_csv(args.annotations, dtype=str), runs)
+                        pd.read_csv(args.annotations, dtype=str), runs, opc_flags)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(args.output, compression="gzip")

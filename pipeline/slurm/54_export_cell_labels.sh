@@ -12,6 +12,8 @@
 #   STAGE3_DIR    Kopah sub-dir holding cosmx_clustered.h5ad (default stage3)
 #   ANNOTATIONS   repo path of the FOV table (default pipeline/reference/fov_annotations_sorl1.csv)
 #   OUT_SUBDIR    Kopah sub-dir under STAGE3_DIR for the output (default labels)
+#   OPC_FLAG      optional RUN=LABEL[,LABEL] adding opc_confident_<RUN> (called OPC AND in Leiden 0 or
+#                 total_counts >= 600), e.g. OPC_FLAG="tree_v2=OPC"
 
 #SBATCH --job-name=cosmx-export-labels
 #SBATCH --account=glioblastoma-ckpt
@@ -75,6 +77,7 @@ apptainer exec --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" --bind "${WORK}:${WORK}"
         --clustered-h5ad "$WORK/clustered.h5ad" \
         --annotations "${SLURM_SUBMIT_DIR:-$PWD}/${ANNOTATIONS}" \
         --output "$WORK/out/cell_labels.csv.gz" \
+        ${OPC_FLAG:+--opc-flag "$OPC_FLAG"} \
         "${RUN_ARGS[@]}"
 
 echo "Uploading cell_labels.csv.gz to Kopah..."

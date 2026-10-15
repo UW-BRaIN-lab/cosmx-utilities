@@ -20,7 +20,7 @@ import scipy.sparse as sp
 
 SCRIPT = Path(__file__).resolve().parents[1] / "export_cell_labels.py"
 sys.path.insert(0, str(SCRIPT.parent))
-from export_cell_labels import build_table  # noqa: E402
+from export_cell_labels import build_table, opc_confident  # noqa: E402
 
 CELLS = ["c0", "c1", "c2", "c3"]
 
@@ -48,6 +48,33 @@ def test_join_is_by_cell_id_not_position(capsys=None):
     assert table.loc["c1", "umap1"] == 2.0 and table.loc["c3", "umap2"] == 7.0
 
 
+def test_opc_confident_needs_the_call_and_leiden_or_depth():
+    table = pd.DataFrame({
+        "leiden": ["0", "8", "8", "0", "2"],
+        "total_counts": [100, 700, 100, 50, 900],
+        "celltype_tree": ["OPC", "OPC", "OPC", "Oligodendrocyte", "OPC"]})
+    flag = opc_confident(table, "tree", ["OPC"]).tolist()
+    print(flag)
+    # Leiden-0 shallow OPC call: yes | deep Leiden-8 OPC call: yes | shallow Leiden-8 OPC call: NO |
+    # Leiden 0 but not called OPC: no | deep OPC call from Leiden 2: yes (depth alone qualifies)
+    assert flag == [True, True, False, False, True]
+    assert opc_confident(table, "tree", ["OPC"], min_counts=1000).tolist() == [True, False, False, False, False]
+
+
+def test_opc_flag_column_and_unknown_run():
+    obs = _obs()
+    run = pd.DataFrame({"cell_type": ["OPC", "OPC", "x", "OPC"], "prob": 1.0}, index=pd.Index(CELLS, name="cell_id"))
+    table = build_table(obs, np.zeros((4, 2)), ANN, {"tree": run}, {"tree": ["OPC"]})
+    # c0 leiden 0 -> True; c1 leiden 1 and counts 200 -> False; c2 not OPC -> False; c3 leiden 1, counts 400 -> False
+    assert table["opc_confident_tree"].tolist() == [True, False, False, False]
+    try:
+        build_table(obs, np.zeros((4, 2)), ANN, {"tree": run}, {"nope": ["OPC"]})
+    except ValueError as exc:
+        assert "nope" in str(exc)
+    else:
+        raise AssertionError("an unknown run in --opc-flag must fail loudly")
+
+
 def test_cli_end_to_end():
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
@@ -70,5 +97,7 @@ def test_cli_end_to_end():
 
 if __name__ == "__main__":
     test_join_is_by_cell_id_not_position()
+    test_opc_confident_needs_the_call_and_leiden_or_depth()
+    test_opc_flag_column_and_unknown_run()
     test_cli_end_to_end()
     print("OK")

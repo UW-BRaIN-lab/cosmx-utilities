@@ -175,20 +175,24 @@ first: the supported route is semi-supervised InSituType, then a reference built
 InSituTree with those profiles and a hierarchy. The profiles must come from ONE `rescale=TRUE` fit; the K=21
 calibrated run (`stage4_k21`) is that.
 
-- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 10 kept: **8 new cell types**
-  (`c`, `g`, `s`, `m`, `p` excitatory; `l` VIP interneuron; `o` oligodendrocyte; `n` OPC_low_count) plus the two flat
-  clusters (`i`, `u`). 11 not kept.
-- **v1 -> v2 -> v3.** v1 (`stage4_insitutree_k21`) had neither `o` nor `n`: the OPC leaf held 62,887 cells of which only
-  22% were real OPC (Leiden 0), 24% were oligodendrocytes (Leiden 2) and 38% very shallow Leiden-8 cells; only 57% of
-  Leiden 2 reached Oligodendrocyte. v2 (`stage4_insitutree_k21_v2`) restored `o` and nested the glia so the first
-  decision is OPC versus the oligodendrocyte lineage: oligodendrocytes (Leiden 2+22) called oligodendrocyte lineage
-  66% -> 76%, called OPC 18% -> 8%. The OPC leaf stayed 63,186 cells and only 23% real OPC (48% Leiden 8, median 319
-  counts, 33% from the dropped `n`). v3 restores `n` as `OPC_low_count_denovo` beside the reference OPC: it has an
-  OPC profile (24 genes at 2-fold over the other types, cosine 0.934 to OPC), so it is NOT a Low_signal sink
-  (`i` has 0 enriched genes); what is low is its cells (median 322 counts). Judge v3 by: does the OPC leaf's Leiden-0
-  share rise from 23%, and where do `n`'s cells (42% Leiden 8, 35% Leiden 0) go. If the OPC leaf is still impure,
-  stop editing the tree and flag confident OPC calls instead (called OPC and in Leiden 0, or above a counts floor).
-  v3 outputs go to `stage4_insitutree_k21_v3`.
+- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 9 kept: **7 new cell types**
+  (`c`, `g`, `s`, `m`, `p` excitatory; `l` VIP interneuron; `o` oligodendrocyte) plus the two flat
+  clusters (`i`, `u`). 12 not kept.
+- **v1 -> v2 -> v3, and the final choice (v2).** v1 (`stage4_insitutree_k21`) had neither `o` nor `n`: the OPC leaf held
+  62,887 cells, only 22% real OPC (Leiden 0), 24% oligodendrocytes (Leiden 2), 38% very shallow Leiden-8 cells; 57% of
+  Leiden 2 reached Oligodendrocyte. **v2** (`stage4_insitutree_k21_v2`) restored `o` and nested the glia so the first decision
+  is OPC versus the oligodendrocyte lineage: oligodendrocytes (Leiden 2+22) called oligodendrocyte lineage 66% -> 76%, OPC
+  18% -> 8%. The OPC leaf stayed 63,186 cells, 23% real OPC. **v3** (`stage4_insitutree_k21_v3`) added `n` as
+  `OPC_low_count_denovo` beside reference OPC. **It did not help and is not used:** the reference OPC leaf fell to 9% real
+  OPC while the "low count" leaf took the real OPC cells (35% Leiden 0, higher counts), total OPC calls (62.4k vs 63.2k) and
+  real-OPC recall (76% vs 75%) were unchanged, and both leaves had 28-30% of cells below posterior 0.9 (posterior <0.99 rose
+  21.2% -> 23.2%). `n` has 0 genes at 2-fold over reference OPC, so InSituTree cannot separate them by anything but noise.
+  **The repo's `sorl1_hierarchy.json` and matrix are v2, byte-identical to what the v2 run used.**
+- **OPC calls are unreliable for shallow cells, and the posterior does not warn.** In v2's OPC leaf the share that is real OPC
+  (Leiden 0) rises with depth: <150 counts 6%, 150-299 9%, 300-599 16%, 600-1,199 38%, 1,200+ 78%, while the median
+  posterior stays 0.99-1.00. Use `opc_confident_<run>` (called OPC AND (Leiden 0 OR total_counts >= 600)):
+  22,289 cells (2.8% of all), 65% in Leiden 0. Add it with
+  `OPC_FLAG="tree_v2=OPC" RUNS="... tree_v2:stage4_insitutree_k21_v2:insitutree_result.h5" sbatch pipeline/slurm/54_export_cell_labels.sh`.
 - **Rule for keeping a de novo leaf (and the exception, `o`):** it must differ from the leaves it competes with in its branch, at least 10
   genes at 2-fold over its siblings. Marker lists against all 34 types are misleading here, because a cluster's
   siblings share its genes and a no-floor fold-change lets near-zero genes top the list. Failed the test and
@@ -203,7 +207,7 @@ calibrated run (`stage4_k21`) is that.
   an excitatory leaf) sits in the Neuron branch so it competes with the neurons it resembles; the generic flat
   cluster is the top-level `Low_signal` sink. Checked with InSituTree's own `plotProfileSimilarity()` (plots in
   `sorl1_summary_for_maddie/insitutree/`).
-- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 23-type matrix.
+- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 22-type matrix.
 - `python/tests/test_sorl1_hierarchy.py` checks that leaves and matrix columns match both ways and that only the
   distinct de novo leaves are kept.
 
@@ -226,12 +230,12 @@ uv run --no-project --python 3.11 --with h5py --with numpy --with pandas python 
     --output pipeline/reference/sorl1_insitutree_profiles.csv
 s5cmd cp pipeline/reference/sorl1_insitutree_profiles.csv s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/sorl1_insitutree_profiles.csv
 sed -i '/^REFERENCE_BASENAME=/d' pipeline/.env   # .env beats submit-time values; it points at the raw 13-type reference
-INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21 REFERENCE_BASENAME=sorl1_insitutree_profiles.csv \
+INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21_v2 REFERENCE_BASENAME=sorl1_insitutree_profiles_v2.csv \
     HIERARCHY_BASENAME=sorl1_hierarchy.json sbatch pipeline/slurm/85_insitutree.sh
 ```
 
 The R job prints the tree (`printTree`) and stops if a leaf is missing from the matrix. Check its log for
-`hierarchy: 23 leaves over the reference's 23 types`. Calls are read from the finest resolved level; low
+`hierarchy: 22 leaves over the reference's 22 types`. Calls are read from the finest resolved level; low
 `prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
 across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
 
