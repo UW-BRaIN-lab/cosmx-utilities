@@ -161,6 +161,100 @@ def test_registry_digest_ignores_non_ghcr_and_malformed():
     assert ps._registry_digest("bare-name") == ""
 
 
+# ---- Auto-sizing by transcript-file size -------------------------------------
+
+class _FakeS3Head:
+    """S3 stand-in answering head_object with a fixed size, or failing."""
+
+    def __init__(self, size=None, error=None):
+        self.size = size
+        self.error = error
+        self.requested = []
+
+    def head_object(self, Bucket, Key):
+        self.requested.append((Bucket, Key))
+        if self.error:
+            raise self.error
+        return {"ContentLength": self.size}
+
+
+def _sized(size=None, error=None):
+    fake = _FakeS3Head(size=size, error=error)
+    ps._get_s3 = lambda: fake
+    return fake
+
+
+def _maddie_slide():
+    return ps.Slide(
+        bucket="keene-cosmx-data",
+        base_path=("CosMx-Maddie/20261002_SORL1_3D_40donors/DecodedFiles/"
+                   "7678A77484A67316A66802A6/20260903_213537_S1"))
+
+
+def test_tx_file_key_is_the_runs_flatfile_for_this_slide():
+    key = _maddie_slide().tx_file_key
+    print(f"  tx_file_key = {key}")
+    assert key == ("CosMx-Maddie/20261002_SORL1_3D_40donors/flatFiles/"
+                   "7678A77484A67316A66802A6/7678A77484A67316A66802A6_tx_file.csv.gz")
+
+
+def test_tx_file_key_handles_an_experiment_directory_level():
+    """Slides nested under an experiment directory keep their run's flatFiles."""
+    slide = ps.Slide(bucket="b", base_path="Study/Exp/Run/DecodedFiles/S/Scan")
+    assert slide.tx_file_key == "Study/Exp/Run/flatFiles/S/S_tx_file.csv.gz"
+
+
+def test_the_two_slides_that_ran_out_of_memory_get_the_large_profile():
+    """The real failures: 3.98 GB and 3.12 GB transcript files, killed at 4 vCPU."""
+    for size in (3_978_455_480, 3_121_813_666):
+        fake = _sized(size)
+        got = ps.auto_fargate_size(_maddie_slide())
+        print(f"  tx_file={size / 1e9:.2f} GB -> {got}")
+        assert got == (ps.LARGE_SLIDE_CPU, ps.LARGE_SLIDE_MEMORY)
+        assert fake.requested == [("keene-cosmx-data", _maddie_slide().tx_file_key)]
+
+
+def test_small_slides_that_passed_keep_the_default():
+    for size in (2_198_341_860, 2_053_511_023, 967_873_281):
+        _sized(size)
+        got = ps.auto_fargate_size(_maddie_slide())
+        print(f"  tx_file={size / 1e9:.2f} GB -> {got}")
+        assert got == (None, None)
+
+
+def test_largest_slide_that_passed_is_deliberately_over_provisioned():
+    """2.75 GB finished at 4 vCPU / 30 GB, but it is near the cliff, so it is
+    given the large profile: an unneeded bigger task costs less than a failed one."""
+    _sized(2_747_701_342)
+    assert ps.auto_fargate_size(_maddie_slide()) == (
+        ps.LARGE_SLIDE_CPU, ps.LARGE_SLIDE_MEMORY)
+
+
+def test_threshold_sits_below_the_largest_passing_slide():
+    """Near the boundary the cost of over-provisioning is small and a failure is
+    not, so the threshold must not exceed the largest slide known to pass."""
+    assert ps.LARGE_SLIDE_TX_FILE_BYTES <= 2_747_701_342
+    assert ps.LARGE_SLIDE_TX_FILE_BYTES < 3_121_813_666
+
+
+def test_boundary_is_inclusive():
+    _sized(ps.LARGE_SLIDE_TX_FILE_BYTES)
+    assert ps.auto_fargate_size(_maddie_slide())[0] == ps.LARGE_SLIDE_CPU
+    _sized(ps.LARGE_SLIDE_TX_FILE_BYTES - 1)
+    assert ps.auto_fargate_size(_maddie_slide()) == (None, None)
+
+
+def test_unreadable_transcript_file_keeps_the_default():
+    """A missing or denied tx file must not block the launch or guess a size."""
+    _sized(error=RuntimeError("404"))
+    assert ps.tx_file_bytes(_maddie_slide()) is None
+    assert ps.auto_fargate_size(_maddie_slide()) == (None, None)
+
+
+def test_large_profile_is_the_largest_benchmark_profile():
+    assert (ps.LARGE_SLIDE_CPU, ps.LARGE_SLIDE_MEMORY) == ("16384", "122880")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
