@@ -234,6 +234,16 @@ more than the 2D one.
 Existing 2D mosaics are unaffected and need no re-stitching — they carry no
 `ndim` attribute, and the reader defaults to 2D.
 
+#### Fargate sizing
+
+`process-slides.py` launches each slide at the task definition's default
+(4 vCPU / 30 GB) unless its transcript file (`flatFiles/<slide>/<slide>_tx_file.csv.gz`)
+is 2.5 GB or larger, in which case it launches at 16 vCPU / 120 GB. Above that size
+read-targets is killed for memory (exit 137), and the retry then fails its final
+upload because the stale benchmark file from the first attempt cannot be deleted by
+the task role. An explicit `--cpu`/`--memory` always wins; `--no-auto-size` turns the
+check off. If the transcript file cannot be read the default is kept.
+
 ### Docker images
 
 The multi-stage Dockerfile produces two image variants:
