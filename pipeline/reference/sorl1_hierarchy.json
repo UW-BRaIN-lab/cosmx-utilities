@@ -27,8 +27,7 @@
   ],
   "Oligodendrocyte-like": {
    "OPC": [
-    "Oligodendrocyte precursor cell",
-    "OPC_low_count_denovo"
+    "Oligodendrocyte precursor cell"
    ],
    "Oligodendrocyte": [
     "Oligodendrocyte",
