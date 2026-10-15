@@ -234,6 +234,18 @@ more than the 2D one.
 Existing 2D mosaics are unaffected and need no re-stitching — they carry no
 `ndim` attribute, and the reader defaults to 2D.
 
+**Pre-fix 3D data is superseded.** Bruker notified customers that an aspect of
+the AtoMx 3D segmentation module was not completing as expected (source,
+decoded and 2D segmentation data unaffected) and asked them to pause 3D
+segmentation until a fixed module was deployed. 3D exports made before that fix
+should not be used. For Maddie's SORL1 study the August pilot run
+(`20260813_MV_SORL1_pilot_3D_resegmentation_…`, and its stitched output under
+`napari-stitched/CosMx-Maddie/`) is superseded by
+`20261002_SORL1_3D_40donors_…`. The two differ measurably: slide
+`599_657_710_741` has 97,292 cells with thousands of 2-4-plane cells in August,
+versus 103,995 cells with far fewer short ones in October. That the October run
+used the patched module is inferred, not yet confirmed with Bruker.
+
 ### Docker images
 
 The multi-stage Dockerfile produces two image variants:
