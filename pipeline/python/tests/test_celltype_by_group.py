@@ -49,6 +49,9 @@ def test_percentages_enrichment_and_donor_unit():
     assert dl.loc["X", "mean_pct_Control"] < 15 and dl.loc["X", "mean_pct_AD+LATE SORL1"] > 25    # planted 10% -> 30%
     assert dl.loc["Y", "mean_pct_Control"] > 25 and dl.loc["Y", "mean_pct_AD+LATE SORL1"] < 15    # planted 30% -> 10%
     assert dl.loc["X", "q"] < 0.1 and dl.loc["Y", "q"] < 0.1 and dl.loc["Z", "q"] > 0.1           # Z is flat
+    # trend across the ordered Control < AD Pure < AD+LATE axis (planted X 10->15->20%, Y 30->25->20%, Z flat)
+    assert dl.loc["X", "trend_rho"] > 0.5 and dl.loc["Y", "trend_rho"] < -0.5, dl[["trend_rho", "trend_q"]]
+    assert dl.loc["X", "trend_q"] < 0.05 and dl.loc["Z", "trend_q"] > 0.1
 
 
 def test_crosswalk_follows_cells_and_reports_the_destination_result():
@@ -80,6 +83,15 @@ def test_workbook_and_figure_are_written_and_readable():
         assert png.stat().st_size > 5000
 
 
+def test_a_group_with_no_donors_left_is_blank_not_an_error():
+    """Leaving out the slides that hold a group's donors (the September-only comparison) must not crash."""
+    t = _table(); t = t[t.case_group != "AD+LATE SORL1"]
+    dl = cg.donor_level(t, "fine", cg.GROUPS)
+    print(dl[["mean_pct_AD+LATE SORL1", "p", "trend_rho"]])
+    assert dl["mean_pct_AD+LATE SORL1"].isna().all()
+    assert dl.loc["X", "q"] < 0.1 and dl.loc["X", "trend_rho"] > 0.5        # the other three groups still compare
+
+
 def test_named_letters_and_unknown_groups():
     names = Path("/tmp/_names_test.csv"); pd.DataFrame({"denovo_label": ["o"], "annotation": ["o - Oligodendrocyte"]}).to_csv(names, index=False)
     t = pd.DataFrame({"x": ["o", "Endothelial"]})
@@ -92,5 +104,6 @@ if __name__ == "__main__":
     test_percentages_enrichment_and_donor_unit()
     test_crosswalk_follows_cells_and_reports_the_destination_result()
     test_workbook_and_figure_are_written_and_readable()
+    test_a_group_with_no_donors_left_is_blank_not_an_error()
     test_named_letters_and_unknown_groups()
     print("OK")

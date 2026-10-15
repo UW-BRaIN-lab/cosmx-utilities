@@ -31,12 +31,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import kruskal
+from scipy.stats import kruskal, spearmanr
 
 GROUP_COLUMN = "case_group"
 DONOR_COLUMN = "donor"
 GROUPS = ["Control", "AD Pure", "AD+LATE", "AD+LATE SORL1"]
 FDR_THRESHOLD = 0.10
+# Groups with an assumed disease order, for the trend test (Spearman across donors). SORL1 is left off the axis: it is not
+# "more" of the same thing, and in this study it is confounded with the July run.
+TREND_GROUPS = ["Control", "AD Pure", "AD+LATE"]
+SLIDE_COLUMN = "slide_id"
 
 
 def benjamini_hochberg(p: np.ndarray) -> np.ndarray:
@@ -77,6 +81,17 @@ def donor_level(table: pd.DataFrame, label: str, groups: list[str]) -> pd.DataFr
         rows.append([t] + [round(float(v.mean()), 2) if len(v) else np.nan for v in values] + [p])
     out = pd.DataFrame(rows, columns=["type"] + [f"mean_pct_{g}" for g in groups] + ["p"]).set_index("type")
     out["q"] = benjamini_hochberg(out["p"].to_numpy())
+    rank = donor_group.map({g: i for i, g in enumerate(TREND_GROUPS)})
+    on_axis = rank.notna()
+    trend = []
+    for t in per_donor.columns:
+        if on_axis.sum() < 4 or rank[on_axis].nunique() < 2:
+            trend.append((np.nan, 1.0)); continue
+        rho, p_trend = spearmanr(rank[on_axis].to_numpy(), per_donor.loc[on_axis, t].to_numpy())
+        trend.append((round(float(rho), 3), 1.0 if np.isnan(p_trend) else float(p_trend)))
+    out["trend_rho"] = [r for r, _ in trend]
+    out["trend_p"] = [x for _, x in trend]
+    out["trend_q"] = benjamini_hochberg(out["trend_p"].to_numpy())
     out["donors_per_group"] = ", ".join(f"{g}: {int((donor_group == g).sum())}" for g in groups)
     return out
 
@@ -167,9 +182,18 @@ def main() -> None:
     p.add_argument("--title", action="append", default=[], help="Figure panel title per --label, in order.")
     p.add_argument("--xlsx", type=Path, default=None, help="Also write one workbook.")
     p.add_argument("--figure", type=Path, default=None, help="Also write the enrichment heatmap PNG.")
+    p.add_argument("--exclude-slide-prefix", action="append", default=[],
+                   help="Drop cells on slides whose id starts with this (repeatable), e.g. 20260708 to leave out the "
+                        "July-run slides that hold every SORL1 donor. A group left with no donors becomes a blank column.")
     args = p.parse_args()
 
-    table = pd.read_csv(args.labels, dtype={DONOR_COLUMN: str}, usecols=["cell_id", DONOR_COLUMN, GROUP_COLUMN, *args.label])
+    extra = [SLIDE_COLUMN] if args.exclude_slide_prefix else []
+    table = pd.read_csv(args.labels, dtype={DONOR_COLUMN: str}, usecols=["cell_id", DONOR_COLUMN, GROUP_COLUMN, *args.label, *extra])
+    if args.exclude_slide_prefix:
+        drop = table[SLIDE_COLUMN].str.startswith(tuple(args.exclude_slide_prefix))
+        print(f"excluding {int(drop.sum()):,} cells on slides starting {args.exclude_slide_prefix}; "
+              f"{table.loc[~drop, DONOR_COLUMN].nunique()} donors remain")
+        table = table[~drop].drop(columns=SLIDE_COLUMN)
     unknown = sorted(set(table[GROUP_COLUMN].dropna()) - set(GROUPS))
     if unknown or table[GROUP_COLUMN].isna().any():
         sys.exit(f"ERROR: groups outside {GROUPS}: {unknown}, or missing values")
