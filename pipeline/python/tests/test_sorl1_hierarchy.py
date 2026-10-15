@@ -56,16 +56,18 @@ def test_hierarchy_leaves_match_profile_columns_both_ways():
     extra = sorted(set(got) - set(named + kept))
     assert not missing, f"profile columns in no leaf (never called): {missing}"
     assert not extra, f"leaves with no profile column (R will stop): {extra}"
-    assert len(named) == 13 and len(kept) == 8
+    assert len(named) == 13 and len(kept) == 9
 
 
 def test_only_distinct_de_novo_leaves_are_kept():
     """A de novo leaf must differ from the leaves it competes with (>= 10 genes at 2-fold over its siblings).
-    q, h, r, d (excitatory), n, o, t (glial) failed that and are not leaves; l is kept by judgment (real VIP markers)."""
+    q, h, r, d (excitatory), n, t (glial) failed that and are not leaves; l is kept by judgment (real VIP markers).
+    o ALSO failed it (5 neuronal genes) but was restored after the first InSituTree run: without it the reference
+    Oligodendrocyte profile claimed only 57% of the Leiden-2 oligodendrocytes and 23% went to OPC."""
     _, kept = expected_columns()
     assert set(kept) == {"Excitatory_PCP4_L5_denovo", "Neuron_NR4A2_SYNPR_denovo", "Excitatory_RORB_L4_denovo",
                          "Excitatory_BCL11B_deep_denovo", "Neuron_SEMA3E_HS3ST4_denovo", "VIP_interneuron_denovo",
-                         "Low_signal_neuronal_denovo", "Low_signal_generic_denovo"}
+                         "Oligodendrocyte_denovo", "Low_signal_neuronal_denovo", "Low_signal_generic_denovo"}
 
 
 def test_kept_names_are_unique_and_collision_free():
