@@ -44,6 +44,17 @@ BENCHMARK_PROFILES = [
     ("16384", "122880"),    # 16 vCPU, 120 GB
 ]
 
+# The task definition's default (4 vCPU / 30 GB) runs out of memory in read-targets
+# on slides with a large transcript file (exit 137), and the failed attempt leaves a
+# stale benchmark file that makes the retry's upload fail on `sync --delete`. So such
+# slides are launched at the largest profile the first time.
+LARGE_SLIDE_CPU, LARGE_SLIDE_MEMORY = BENCHMARK_PROFILES[-1]
+# Compressed *_tx_file.csv.gz size at which a slide gets the large profile. Measured
+# on Maddie's 3D SORL1 slides: 3.12 GB and 3.98 GB ran out of memory at the default,
+# 2.75 GB and below passed. Set under the largest slide known to pass so that a slide
+# near the boundary is over-provisioned rather than failed.
+LARGE_SLIDE_TX_FILE_BYTES = 2_500_000_000
+
 
 def env(key: str) -> str:
     """Get a required environment variable."""
@@ -84,6 +95,14 @@ class Slide:
             experiment = parts[1]
             return f"napari-stitched/{study}/{experiment}/{self.atomx_run}/{self.slide_name}"
         return f"napari-stitched/{study}/{self.atomx_run}/{self.slide_name}"
+
+    @property
+    def tx_file_key(self) -> str:
+        """Key of the AtoMx transcript flat file, which sets how much memory the
+        worker's read-targets step needs."""
+        run_prefix = "/".join(self.base_path.rstrip("/").split("/")[:-3])
+        return (f"{run_prefix}/flatFiles/{self.slide_name}/"
+                f"{self.slide_name}_tx_file.csv.gz")
 
     def __str__(self) -> str:
         return f"s3://{self.bucket}/{self.base_path}"
@@ -345,6 +364,33 @@ def task_definition_drift() -> list[tuple[str, object, object]]:
             for field, value in expected.items() if active.get(field) != value]
 
 
+def tx_file_bytes(slide: Slide) -> int | None:
+    """Size of the slide's transcript flat file, or None when it cannot be read."""
+    try:
+        return _get_s3().head_object(
+            Bucket=slide.bucket, Key=slide.tx_file_key)["ContentLength"]
+    except Exception as e:
+        print(f"WARNING: could not size {slide.slide_name} from "
+              f"{slide.tx_file_key}: {e}", file=sys.stderr)
+        return None
+
+
+def auto_fargate_size(slide: Slide) -> tuple[str | None, str | None]:
+    """The (cpu, memory) overrides a slide needs, or (None, None) for the default.
+
+    An unreadable transcript file keeps the default rather than guessing: the
+    check is a guard rail, not a new way for the pipeline to refuse to run.
+    """
+    size = tx_file_bytes(slide)
+    if size is None or size < LARGE_SLIDE_TX_FILE_BYTES:
+        return None, None
+    print(f"  {slide.slide_name}: transcript file is {size / 1e9:.2f} GB "
+          f"(>= {LARGE_SLIDE_TX_FILE_BYTES / 1e9:.2f} GB), launching at "
+          f"{int(LARGE_SLIDE_CPU) // 1024} vCPU / "
+          f"{int(LARGE_SLIDE_MEMORY) // 1024} GB")
+    return LARGE_SLIDE_CPU, LARGE_SLIDE_MEMORY
+
+
 def launch_fargate_task(
     slide: Slide,
     whatif: bool,
@@ -478,6 +524,12 @@ def main() -> None:
         default=None,
         help="Override Fargate memory in MB (e.g. 122880 for 120 GB). "
              "When omitted, uses the task definition default.",
+    )
+    parser.add_argument(
+        "--no-auto-size",
+        action="store_true",
+        help="Do not raise the Fargate size for slides with a large transcript "
+             "file; use the task definition default unless --cpu/--memory are given.",
     )
     parser.add_argument(
         "--segmentation-version",
@@ -634,7 +686,10 @@ def main() -> None:
             task_ids = []
             for slide in slides:
                 print(f"Launching: {slide.atomx_run} / {slide.slide_name}")
-                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=args.cpu, memory=args.memory, spot=args.spot, extra_flags=flags)
+                cpu, memory = args.cpu, args.memory
+                if cpu is None and memory is None and not args.no_auto_size:
+                    cpu, memory = auto_fargate_size(slide)
+                task_id = launch_fargate_task(slide, whatif=args.whatif, cpu=cpu, memory=memory, spot=args.spot, extra_flags=flags)
                 if task_id:
                     task_ids.append((slide, task_id))
                     print(f"  Task: {task_id}")
