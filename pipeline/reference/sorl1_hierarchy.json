@@ -25,10 +25,15 @@
    "Astrocyte A",
    "Astrocyte B"
   ],
-  "Oligodendrocyte-like": [
-   "Oligodendrocyte precursor cell",
-   "Oligodendrocyte"
-  ],
+  "Oligodendrocyte-like": {
+   "OPC": [
+    "Oligodendrocyte precursor cell"
+   ],
+   "Oligodendrocyte": [
+    "Oligodendrocyte",
+    "Oligodendrocyte_denovo"
+   ]
+  },
   "Microglia": [
    "Microglia A",
    "Microglia B"
