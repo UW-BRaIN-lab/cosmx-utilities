@@ -175,16 +175,20 @@ first: the supported route is semi-supervised InSituType, then a reference built
 InSituTree with those profiles and a hierarchy. The profiles must come from ONE `rescale=TRUE` fit; the K=21
 calibrated run (`stage4_k21`) is that.
 
-- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 9 kept: **7 new cell types**
-  (`c`, `g`, `s`, `m`, `p` excitatory; `l` VIP interneuron; `o` oligodendrocyte) plus the two flat clusters
-  (`i`, `u`). 12 not kept.
-- **v1 -> v2.** v1 (first InSituTree run, `stage4_insitutree_k21`) had no `o`. Result: the OPC leaf held 62,887
-  cells of which only 22% were real OPC (Leiden 0), 24% were oligodendrocytes (Leiden 2) and 38% very shallow
-  Leiden-8 cells; only 57% of Leiden 2 reached Oligodendrocyte and 23% went to OPC (32% of the dropped `o`
-  cluster went to OPC). Those cells are not shallower than the ones called Oligodendrocyte (630 vs 539 median
-  counts), so the reference profile simply does not claim them. v2 restores `o` and nests the glia so the first
-  decision is OPC versus the oligodendrocyte lineage (`Oligodendrocyte` = reference + `Oligodendrocyte_denovo`).
-  v2 outputs go to `stage4_insitutree_k21_v2`; compare the same checks (Leiden 2 and 0, OPC leaf composition).
+- `reference/denovo_annotations/stage4_k21.csv`: `keep`/`new_name` per cluster. 10 kept: **8 new cell types**
+  (`c`, `g`, `s`, `m`, `p` excitatory; `l` VIP interneuron; `o` oligodendrocyte; `n` OPC_low_count) plus the two flat
+  clusters (`i`, `u`). 11 not kept.
+- **v1 -> v2 -> v3.** v1 (`stage4_insitutree_k21`) had neither `o` nor `n`: the OPC leaf held 62,887 cells of which only
+  22% were real OPC (Leiden 0), 24% were oligodendrocytes (Leiden 2) and 38% very shallow Leiden-8 cells; only 57% of
+  Leiden 2 reached Oligodendrocyte. v2 (`stage4_insitutree_k21_v2`) restored `o` and nested the glia so the first
+  decision is OPC versus the oligodendrocyte lineage: oligodendrocytes (Leiden 2+22) called oligodendrocyte lineage
+  66% -> 76%, called OPC 18% -> 8%. The OPC leaf stayed 63,186 cells and only 23% real OPC (48% Leiden 8, median 319
+  counts, 33% from the dropped `n`). v3 restores `n` as `OPC_low_count_denovo` beside the reference OPC: it has an
+  OPC profile (24 genes at 2-fold over the other types, cosine 0.934 to OPC), so it is NOT a Low_signal sink
+  (`i` has 0 enriched genes); what is low is its cells (median 322 counts). Judge v3 by: does the OPC leaf's Leiden-0
+  share rise from 23%, and where do `n`'s cells (42% Leiden 8, 35% Leiden 0) go. If the OPC leaf is still impure,
+  stop editing the tree and flag confident OPC calls instead (called OPC and in Leiden 0, or above a counts floor).
+  v3 outputs go to `stage4_insitutree_k21_v3`.
 - **Rule for keeping a de novo leaf (and the exception, `o`):** it must differ from the leaves it competes with in its branch, at least 10
   genes at 2-fold over its siblings. Marker lists against all 34 types are misleading here, because a cluster's
   siblings share its genes and a no-floor fold-change lets near-zero genes top the list. Failed the test and
@@ -199,7 +203,7 @@ calibrated run (`stage4_k21`) is that.
   an excitatory leaf) sits in the Neuron branch so it competes with the neurons it resembles; the generic flat
   cluster is the top-level `Low_signal` sink. Checked with InSituTree's own `plotProfileSimilarity()` (plots in
   `sorl1_summary_for_maddie/insitutree/`).
-- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 22-type matrix.
+- `reference/sorl1_insitutree_profiles.csv`: the matching 3,323-gene x 23-type matrix.
 - `python/tests/test_sorl1_hierarchy.py` checks that leaves and matrix columns match both ways and that only the
   distinct de novo leaves are kept.
 
@@ -227,7 +231,7 @@ INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21 REFERENCE_BASENAME=sorl1_insit
 ```
 
 The R job prints the tree (`printTree`) and stops if a leaf is missing from the matrix. Check its log for
-`hierarchy: 22 leaves over the reference's 22 types`. Calls are read from the finest resolved level; low
+`hierarchy: 23 leaves over the reference's 23 types`. Calls are read from the finest resolved level; low
 `prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
 across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
 
