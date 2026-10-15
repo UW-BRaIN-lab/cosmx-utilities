@@ -88,6 +88,13 @@ def parse_args() -> argparse.Namespace:
                    help="Also write a <column>_prob column. Off by default: napari-cosmx "
                         "expects every value column to have a paired _color, and a bare "
                         "numeric column has none.")
+    p.add_argument("--drop-columns", default="",
+                   help="Comma-separated columns to remove from the existing file before merging "
+                        "(needs --merge-into). For the placeholder a stitch without AtoMx typing "
+                        "writes: `cell_type` (every cell 'Unassigned') and `hex_color`. Drop BOTH: "
+                        "napari-cosmx falls back to `hex_color` for any column lacking its own "
+                        "`<name>_color`, so a surviving one-value `hex_color` paints such a column "
+                        "a single colour.")
     p.add_argument("--merge-into", type=Path,
                    help="Directory of existing <slide>_metadata.csv to add our column(s) "
                         "to, rather than writing a fresh file. Keeps every existing column "
@@ -168,6 +175,15 @@ def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
         return len(out)
 
     existing = pd.read_csv(existing_path, dtype=str)
+    to_drop = [c.strip() for c in args.drop_columns.split(",") if c.strip()]
+    if CELL_ID_COLUMN in to_drop:
+        print(f"ERROR: --drop-columns cannot remove the join key '{CELL_ID_COLUMN}'.", file=sys.stderr)
+        sys.exit(1)
+    absent = [c for c in to_drop if c not in existing.columns]
+    if absent:
+        # Not fatal: re-running on a file that was already cleaned should still work.
+        print(f"    note: {existing_path.name} has no column(s) {absent} to drop", file=sys.stderr)
+    existing = existing.drop(columns=[c for c in to_drop if c in existing.columns])
     if CELL_ID_COLUMN not in existing.columns:
         print(f"ERROR: {existing_path} has no '{CELL_ID_COLUMN}' column to join on; "
               f"columns are {list(existing.columns)}", file=sys.stderr)
