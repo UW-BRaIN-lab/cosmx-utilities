@@ -92,6 +92,17 @@ def test_a_group_with_no_donors_left_is_blank_not_an_error():
     assert dl.loc["X", "q"] < 0.1 and dl.loc["X", "trend_rho"] > 0.5        # the other three groups still compare
 
 
+def test_collapse_merges_sink_leaves_and_leaves_others_alone(tmp_path=None):
+    import tempfile
+    mapping = Path(tempfile.mkdtemp()) / "collapse.csv"
+    pd.DataFrame({"leaf": ["X", "Y"], "collapsed_label": ["XY", "XY"]}).to_csv(mapping, index=False)
+    t = _table()
+    out = cg.collapse_labels(t["fine"], mapping)
+    print(out.value_counts())
+    assert set(out.unique()) == {"XY", "Z", "W"} and (out == "XY").sum() == t["fine"].isin(["X", "Y"]).sum()
+    assert cg.collapse_labels(t["fine"], None).equals(t["fine"])
+
+
 def test_named_letters_and_unknown_groups():
     names = Path("/tmp/_names_test.csv"); pd.DataFrame({"denovo_label": ["o"], "annotation": ["o - Oligodendrocyte"]}).to_csv(names, index=False)
     t = pd.DataFrame({"x": ["o", "Endothelial"]})
@@ -105,5 +116,6 @@ if __name__ == "__main__":
     test_crosswalk_follows_cells_and_reports_the_destination_result()
     test_workbook_and_figure_are_written_and_readable()
     test_a_group_with_no_donors_left_is_blank_not_an_error()
+    test_collapse_merges_sink_leaves_and_leaves_others_alone()
     test_named_letters_and_unknown_groups()
     print("OK")

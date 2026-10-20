@@ -103,10 +103,68 @@ def test_excitatory_branch_is_flat():
     assert isinstance(excitatory, list) and len(excitatory) == 8
 
 
+# ---- v4: the revision after Maddie's spatial review (drops the Brain_6k L6 reference, adds h, r, t, and sink leaves) ----
+V4_DROPPED_REFERENCE = ["L6 neuron"]
+V4_SINK_LEAVES = {f"Neuron_unresolved_{x}_denovo" for x in "djqfb"} | {"Low_signal_neuronal_denovo"}
+
+
+def v4_expected_columns():
+    named, _ = expected_columns()
+    named = [n for n in named if n not in V4_DROPPED_REFERENCE]
+    ann = pd.read_csv(REFERENCE_DIR / "denovo_annotations" / "stage4_k21_v4.csv", dtype=str, keep_default_na=False)
+    kept = ann[ann["keep"].str.strip().str.lower().isin(TRUTHY)]["new_name"].str.strip().tolist()
+    return named, kept
+
+
+def test_v4_leaves_match_profile_columns_and_the_built_matrix():
+    hierarchy = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v4.json"))
+    named, kept = v4_expected_columns()
+    got = leaves(hierarchy)
+    print("\n".join(render(hierarchy)))
+    print(f"{len(got)} leaves; {len(named)} named + {len(kept)} kept de novo")
+    assert sorted(got) == sorted(named + kept) and len(got) == len(set(got)) == 29
+    matrix = list(pd.read_csv(REFERENCE_DIR / "sorl1_insitutree_profiles_v4.csv", nrows=0).columns[1:])
+    assert sorted(matrix) == sorted(got), "the committed v4 profile matrix drifted from the hierarchy"
+
+
+def test_v4_structure_follows_the_review():
+    h = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v4.json"))
+    got = set(leaves(h))
+    assert "L6 neuron" not in got                                   # the L6 reference was a glia/shallow-cell attractor
+    assert len(h["Neuron"]["Excitatory_deep"]) == 6                 # c, m, r, h, p, g
+    assert {"Excitatory_CARTPT_GAP43_denovo", "Excitatory_SNCA_CD24_denovo"} <= set(h["Neuron"]["Excitatory_deep"])
+    assert "Astrocyte_NEAT1_HSPA1A_denovo" in h["Glia"]["Astrocyte"]
+    assert set(h["Neuron"]["Neuron_low_signal"]) == V4_SINK_LEAVES  # d, j, q, f, b + i
+    assert not any("OPC_denovo" in leaf or "OPC_low" in leaf for leaf in got)       # n stays out (v3 rejected it)
+
+
+def test_v4_collapse_map_covers_exactly_the_neuron_sink():
+    collapse = pd.read_csv(REFERENCE_DIR / "sorl1_hierarchy_v4_collapse.csv", dtype=str)
+    assert set(collapse["leaf"]) == V4_SINK_LEAVES and set(collapse["collapsed_label"]) == {"Neuron_low_signal"}
+
+
+def test_select_columns_drops_named_and_rejects_typos():
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import prep_insitutree_profiles as prep
+    assert prep.select_columns(["A", "L6 neuron", "B"], {"x": "X_denovo"}, ["L6 neuron"]) == ["A", "B", "x"]
+    assert prep.select_columns(["A", "B"], {}, []) == ["A", "B"]
+    try:
+        prep.select_columns(["A", "B"], {}, ["L6 neurn"])
+    except SystemExit as err:
+        assert "L6 neurn" in str(err)
+    else:
+        raise AssertionError("a typo in --drop-named must stop the build, not silently keep the type")
+
+
 if __name__ == "__main__":
     test_hierarchy_leaves_match_profile_columns_both_ways()
     test_only_distinct_de_novo_leaves_are_kept()
     test_kept_names_are_unique_and_collision_free()
     test_no_empty_branches_and_sink_is_top_level()
     test_excitatory_branch_is_flat()
+    test_v4_leaves_match_profile_columns_and_the_built_matrix()
+    test_v4_structure_follows_the_review()
+    test_v4_collapse_map_covers_exactly_the_neuron_sink()
+    test_select_columns_drops_named_and_rejects_typos()
     print("OK")

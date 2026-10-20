@@ -126,6 +126,16 @@ def apply_names(table: pd.DataFrame, label: str, names_csv: Path | None) -> pd.S
     return table[label].map(lambda x: reading.get(x, x))
 
 
+def collapse_labels(labels: pd.Series, collapse_csv: Path | None) -> pd.Series:
+    """Merge leaves into one label (csv: leaf, collapsed_label). The InSituTree v4 sink leaves exist so homeless cells
+    have somewhere to go; for every comparison they are one group, 'Neuron_low_signal', whose share by disease group
+    is itself a result (shallow carriers may land there more often)."""
+    if collapse_csv is None:
+        return labels
+    mapping = pd.read_csv(collapse_csv, dtype=str).set_index("leaf")["collapsed_label"].to_dict()
+    return labels.map(lambda x: mapping.get(x, x))
+
+
 def write_workbook(path: Path, results: dict, sheet_names: list[str], cw: pd.DataFrame | None, notes: list[str]) -> None:
     """One workbook: a README, then per labeling the three views, then the crosswalk."""
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
@@ -182,6 +192,8 @@ def main() -> None:
     p.add_argument("--title", action="append", default=[], help="Figure panel title per --label, in order.")
     p.add_argument("--xlsx", type=Path, default=None, help="Also write one workbook.")
     p.add_argument("--figure", type=Path, default=None, help="Also write the enrichment heatmap PNG.")
+    p.add_argument("--collapse-csv", type=Path, default=None,
+                   help="CSV (leaf, collapsed_label) merging leaves into one label, e.g. reference/sorl1_hierarchy_v4_collapse.csv.")
     p.add_argument("--exclude-slide-prefix", action="append", default=[],
                    help="Drop cells on slides whose id starts with this (repeatable), e.g. 20260708 to leave out the "
                         "July-run slides that hold every SORL1 donor. A group left with no donors becomes a blank column.")
@@ -201,7 +213,8 @@ def main() -> None:
 
     results = {}
     for label in args.label:
-        shown = table.assign(**{label: apply_names(table, label, args.names_csv if label == args.label[0] else None)})
+        named = apply_names(table, label, args.names_csv if label == args.label[0] else None)
+        shown = table.assign(**{label: collapse_labels(named, args.collapse_csv)})
         counts, pct, enrichment = pct_and_enrichment(shown, label, GROUPS)
         dl = donor_level(shown, label, GROUPS)
         results[label] = (shown, counts, pct, enrichment, dl)
