@@ -78,6 +78,7 @@ apptainer exec \
         --group-key "${GROUP_KEY:-leiden}" \
         --top-n "${TOP_N:-5}" \
         --min-group-n "${MIN_GROUP_N:-10}" \
+        ${REGION_KEY:+--region-key "$REGION_KEY"} \
         ${CLUSTERS:+--clusters "$CLUSTERS"}
 
 echo "Uploading marker-heatmap CSVs to Kopah..."

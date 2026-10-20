@@ -1,0 +1,48 @@
+{
+ "Neuron": {
+  "Excitatory neuron": [
+   "L2/3 neuron",
+   "L4 neuron",
+   "L6 neuron",
+   "Excitatory_RORB_L4_denovo",
+   "Neuron_SEMA3E_HS3ST4_denovo",
+   "Excitatory_PCP4_L5_denovo",
+   "Excitatory_BCL11B_deep_denovo",
+   "Neuron_NR4A2_SYNPR_denovo"
+  ],
+  "Inhibitory neuron": [
+   "Inhibitory neuron A",
+   "Inhibitory neuron B",
+   "Inhibitory neuron C",
+   "VIP_interneuron_denovo"
+  ],
+  "Neuron_low_signal": [
+   "Low_signal_neuronal_denovo"
+  ]
+ },
+ "Glia": {
+  "Astrocyte": [
+   "Astrocyte A",
+   "Astrocyte B"
+  ],
+  "Oligodendrocyte-like": {
+   "OPC": [
+    "Oligodendrocyte precursor cell"
+   ],
+   "Oligodendrocyte": [
+    "Oligodendrocyte",
+    "Oligodendrocyte_denovo"
+   ]
+  },
+  "Microglia": [
+   "Microglia A",
+   "Microglia B"
+  ]
+ },
+ "Vascular": [
+  "Endothelial"
+ ],
+ "Low_signal": [
+  "Low_signal_generic_denovo"
+ ]
+}

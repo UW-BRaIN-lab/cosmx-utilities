@@ -27,3 +27,14 @@ All on the 2.33M-cell min50 cohort, GBmap reference, non-preemptible gpu-l40s sl
 
 See memory `project_insitutype_letter_clusters` for the full run history and the
 rescale-vs-refit / Core-vs-Extended findings.
+
+## SORL1 3D cohort (Maddie), Brain_6k reference
+
+`stage4_k30.csv`: 30 de novo clusters (`a`-`z`, `aa`-`ad`) from the K=30 run
+(`update_reference=TRUE, rescale=TRUE, refit=FALSE`, 3,348-gene pruned panel, 793,380 cells), read from
+marker lists, the Leiden cross-tab, per-cluster donor spread and carrier enrichment. Letters are specific to
+that run. The 13 named Brain_6k types are unchanged. Confidence is in `quality`; several rows are
+donor-specific stress states or unresolved low-information clusters and should not be read as cell types.
+
+`stage4_k21.csv`: the 21 de novo clusters of the K=21 run (the recommended working resolution), same method.
+Marker lists for every type in a fit come from `python/top_markers_from_profiles.py`.
