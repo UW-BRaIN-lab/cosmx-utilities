@@ -112,6 +112,19 @@ def load_rename_map(annotations_path: Path, denovo_labels: list[str]) -> dict[st
     return rename
 
 
+def select_columns(named: list[str], rename: dict[str, str], drop_named: list[str]) -> list[str]:
+    """Columns to carry into the InSituTree matrix: the named reference types minus `drop_named`, then the kept de novo.
+
+    A reference type is dropped when its profile is not a usable leaf (SORL1: the Brain_6k L6 neuron profile is 0.986
+    cosine to L4 and absorbs shallow glia). Naming a type that is not in the run is an error, so a typo cannot
+    silently keep it.
+    """
+    unknown = sorted(set(drop_named) - set(named))
+    if unknown:
+        sys.exit(f"ERROR: --drop-named {unknown} are not named types in this run: {named}")
+    return [name for name in named if name not in drop_named] + list(rename)
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -122,6 +135,9 @@ def parse_args() -> argparse.Namespace:
                    help="De-novo annotation CSV for that run (denovo_label, annotation, ...).")
     p.add_argument("--output", type=Path, required=True,
                    help="Output InSituTree profile CSV (genes x cell types).")
+    p.add_argument("--drop-named", action="append", default=[], metavar="TYPE",
+                   help="A named reference type to leave out of the matrix (repeatable), e.g. 'L6 neuron'. "
+                        "Its leaf must then also be absent from the hierarchy JSON.")
     return p.parse_args()
 
 
@@ -147,7 +163,7 @@ def main() -> None:
     dropped = sorted(set(denovo) - set(rename))
     print(f"  dropping de-novo {dropped} (conserved types better covered by GBmap, or junk)")
 
-    kept = named + list(rename)
+    kept = select_columns(named, rename, args.drop_named)
     out = profiles[kept].rename(columns=rename)
 
     # Guards: renamed de-novo must not collide with any named type, and no dup columns.
@@ -158,7 +174,7 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.output)
     print(f"Wrote {args.output} ({out.shape[0]:,} genes x {out.shape[1]} cell types: "
-          f"{len(named)} named + {len(rename)} de-novo)")
+          f"{len(kept) - len(rename)} named + {len(rename)} de-novo)")
     print("REMINDER: add the kept new_names as leaves in insitutree_hierarchy.json (lockstep).")
 
 

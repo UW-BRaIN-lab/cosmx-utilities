@@ -239,6 +239,41 @@ The R job prints the tree (`printTree`) and stops if a leaf is missing from the 
 `prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
 across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
 
+## InSituTree v4 (after Maddie's spatial review, 2026-10) — built, NOT yet run
+
+Maddie read K=21 and tree v2 in Napari (sheet `SORL1_v3_cell_categories.xlsx`) and found `L6 neuron` cells in L2/3.
+The labels table explains it: the v2 `L6 neuron` leaf (14,461 cells) is 32% K=21 L6 cells but **31% `a` and 12% `o`**
+(glia, median 574 counts vs 2,006), so it is a shallow-glia attractor; the v2 `L2/3` leaf is only 10.7% K=21 L2/3
+(h 17.7, d 15.4, b 12, j 10.1, f 8.8, a 8, q 7.9%). The Brain_6k L6 profile is 0.986 cosine to L4 (0.54 to Oligodendrocyte).
+(Her sheet calls this "v3"; that name is taken by the rejected OPC_low_count run, so this is **v4**.)
+
+What v4 changes (files: `reference/sorl1_hierarchy_v4.json`, `denovo_annotations/stage4_k21_v4.csv`, `sorl1_insitutree_profiles_v4.csv`,
+`sorl1_hierarchy_v4_collapse.csv`; 29 leaves = 12 named + 17 de novo):
+- **Drop the reference `L6 neuron`** (`prep_insitutree_profiles.py --drop-named "L6 neuron"`). `p` and `g` were already leaves.
+- **Add `h`, `r`** to a new `Excitatory_deep` branch with c, m, p, g; `Excitatory_upper` = L2/3; `Excitatory_L4` = L4 + s.
+- **Add `t`** as `Astrocyte_NEAT1_HSPA1A_denovo` (neutral name: it differs from Astrocyte A/B by stress/blood genes).
+- **Sink leaves `d, j, q, f, b`** beside `i` in `Neuron_low_signal`, so homeless cells stop landing in L2/3/L4. They are not cell types; after
+  the run merge them with `sorl1_hierarchy_v4_collapse.csv`. A branch with ONE leaf labels cells by the branch name, so the L2/3 leaf
+  is reported as `Excitatory_upper`, and all six sink leaves keep their own names until collapsed.
+- `n` stays out (tested as v3); `a` stays out (Maddie: 0/20 enriched genes); `k`, `e` are flagged by their K=21 label, not by the tree.
+- v2 emitted no internal-node labels, so a deep cell does NOT stop at `Excitatory_deep`; do not expect it to.
+
+```bash
+# on Klone, after git pull (check .git/index.lock first if the last pull was interrupted)
+s5cmd cp pipeline/reference/sorl1_insitutree_profiles_v4.csv s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/sorl1_insitutree_profiles_v4.csv
+INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21_v4 REFERENCE_BASENAME=sorl1_insitutree_profiles_v4.csv \
+    HIERARCHY_BASENAME=sorl1_hierarchy_v4.json sbatch pipeline/slurm/85_insitutree.sh
+```
+
+Acceptance (all from the labels table; export with `54`, adding `tree_v4:stage4_insitutree_k21_v4:insitutree_result.h5` to RUNS):
+1. Cross-tab each excitatory leaf by K=21 source: the glia-derived share (a, o, n, t) of the deep and L2/3 leaves should be near zero.
+2. Where the K=21 L6 cluster, h, r and the sink clusters went (expect h, r to the deep branch).
+3. **Sink share by group** (Maddie): carriers are shallower and may land in the sink more often, which would shift every neuron comparison.
+   `celltype_by_group.py --label celltype_tree_v4 --collapse-csv pipeline/reference/sorl1_hierarchy_v4_collapse.csv`, then read the
+   `Neuron_low_signal` row; also report it within slide (July slides only) and against median counts per donor.
+4. Re-test t and h trends on Control / AD Pure / AD+LATE donors only (`--exclude-slide-prefix 20260708`).
+5. Cortical depth per leaf (pia to white matter) needs cell coordinates plus a boundary annotation; not available locally.
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
