@@ -93,9 +93,64 @@ def test_cli_writes_five_files_and_the_opc_file_has_only_opc_cells():
         assert pd.read_csv(tmp / "o" / "donor.csv")["label"].tolist() == ["UWA_741", "UWA_7181", "UWA_7796", "UWA_6803"]
 
 
+def _table_with_v4():
+    t = _table()
+    t["celltype_tree_v4"] = ["Neuron_unresolved_d_denovo", "L4 neuron", "Low_signal_neuronal_denovo", "OPC"]
+    return t
+
+
+def _collapse(tmp: Path, leaves=("Neuron_unresolved_d_denovo", "Low_signal_neuronal_denovo")) -> Path:
+    p = tmp / "collapse.csv"
+    pd.DataFrame({"leaf": list(leaves), "collapsed_label": "Neuron_low_signal"}).to_csv(p, index=False)
+    return p
+
+
+def test_extra_tree_run_and_collapsed_version():
+    with tempfile.TemporaryDirectory() as d:
+        frames = prep.extra_tree_frames(_table_with_v4(), ["tree_v4"], _collapse(Path(d)))
+    print({k: v.tolist() for k, v in frames.items()})
+    assert set(frames) == {"insitutree_tree_v4", "insitutree_tree_v4_collapsed"}
+    assert frames["insitutree_tree_v4"].tolist() == ["Neuron_unresolved_d_denovo", "L4 neuron", "Low_signal_neuronal_denovo", "OPC"]
+    assert frames["insitutree_tree_v4_collapsed"].tolist() == ["Neuron_low_signal", "L4 neuron", "Neuron_low_signal", "OPC"]
+    assert set(prep.extra_tree_frames(_table_with_v4(), ["tree_v4"], None)) == {"insitutree_tree_v4"}
+
+
+def test_extra_tree_run_refuses_a_missing_run_and_a_collapse_typo():
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            prep.extra_tree_frames(_table_with_v4(), ["tree_v9"], None)
+        except ValueError as exc:
+            assert "celltype_tree_v9" in str(exc) and "tree_v4" in str(exc)
+        else:
+            raise AssertionError("a run that is not in the table must be refused")
+        try:
+            prep.extra_tree_frames(_table_with_v4(), ["tree_v4"], _collapse(Path(d), ("Neuron_unresolved_d_denovo", "Neuron_unresolved_x_denovo")))
+        except ValueError as exc:
+            assert "Neuron_unresolved_x_denovo" in str(exc)
+        else:
+            raise AssertionError("a collapse leaf no cell carries must be refused")
+
+
+def test_cli_writes_the_v4_files_beside_the_original_five():
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d); _table_with_v4().to_csv(tmp / "labels.csv.gz", compression="gzip")
+        run = subprocess.run([sys.executable, str(SCRIPT), "--labels", str(tmp / "labels.csv.gz"),
+                              "--k21-annotations", str(_annotation(tmp)), "--out-dir", str(tmp / "o"),
+                              "--extra-tree-run", "tree_v4", "--collapse-csv", str(_collapse(tmp))],
+                             capture_output=True, text=True)
+        print(run.stdout, run.stderr[-300:])
+        assert run.returncode == 0
+        assert sorted(p.name for p in (tmp / "o").glob("*.csv")) == sorted(
+            list(prep.OUTPUTS.values()) + ["insitutree_tree_v4.csv", "insitutree_tree_v4_collapsed.csv"])
+        assert pd.read_csv(tmp / "o" / "insitutree.csv")["label"].tolist()[0] == "Oligodendrocyte_denovo"   # v2 column untouched
+
+
 if __name__ == "__main__":
     test_sorl1_status_is_variant_level_and_checked_against_case_group()
     test_k21_letters_become_their_reading_and_reference_names_stay()
     test_opc_confidence_covers_only_opc_calls_and_needs_the_flag_column()
     test_cli_writes_five_files_and_the_opc_file_has_only_opc_cells()
+    test_extra_tree_run_and_collapsed_version()
+    test_extra_tree_run_refuses_a_missing_run_and_a_collapse_typo()
+    test_cli_writes_the_v4_files_beside_the_original_five()
     print("OK")
