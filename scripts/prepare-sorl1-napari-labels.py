@@ -13,6 +13,8 @@ Columns written (file -> Napari column it is meant to become):
   insitutree.csv     InSituTree        the tree's own leaf / group label for the run given
   opc_confident.csv  OPC_confidence    only for cells the tree called OPC: "OPC (confident)" or
                                        "OPC (low confidence)"; every other cell is absent (blank in Napari)
+  insitutree_<run>.csv             one per --extra-tree-run (e.g. tree_v4 -> InSituTree_v4): that run's own leaf label
+  insitutree_<run>_collapsed.csv   with --collapse-csv: the same run with the sink leaves merged into one label
 
 The SORL1 status comes from `sorl1_mutation`, and is checked against `case_group`: a disagreement
 between the two columns stops the run, because a wrong carrier label on a slide is worse than none.
@@ -90,6 +92,30 @@ def opc_confidence(table: pd.DataFrame, run: str, opc_labels: list[str]) -> pd.S
     return out
 
 
+def extra_tree_frames(table: pd.DataFrame, runs: list[str], collapse_csv: Path | None) -> dict[str, pd.Series]:
+    """One label series per extra tree run, plus a collapsed version when a (leaf, collapsed_label) CSV is given.
+
+    The collapse map is checked against the labels it will be applied to: a leaf named in the CSV that no cell
+    carries is a typo or the wrong run, and silently leaving it unmerged would split the sink in the viewer.
+    """
+    mapping = None
+    if collapse_csv is not None:
+        mapping = pd.read_csv(collapse_csv, dtype=str).set_index("leaf")["collapsed_label"].to_dict()
+    frames = {}
+    for run in runs:
+        column = f"celltype_{run}"
+        if column not in table.columns:
+            raise ValueError(f"column {column!r} is missing from the labels table (runs available: "
+                             f"{sorted(c[len('celltype_'):] for c in table.columns if c.startswith('celltype_'))})")
+        frames[f"insitutree_{run}"] = table[column]
+        if mapping is not None:
+            absent = sorted(set(mapping) - set(table[column].dropna().unique()))
+            if absent:
+                raise ValueError(f"collapse leaves {absent} are not labels of {column}: wrong run or a typo")
+            frames[f"insitutree_{run}_collapsed"] = table[column].map(lambda x: mapping.get(x, x))
+    return frames
+
+
 def build_label_frames(table: pd.DataFrame, k21_annotation_csv: Path, tree_run: str,
                        opc_labels: list[str]) -> dict[str, pd.Series]:
     return {
@@ -108,6 +134,10 @@ def main() -> None:
     p.add_argument("--tree-run", default="tree_v2", help="InSituTree run name in the labels table.")
     p.add_argument("--opc-labels", default="OPC", help="Comma-separated tree labels that mean OPC.")
     p.add_argument("--out-dir", type=Path, required=True)
+    p.add_argument("--extra-tree-run", action="append", default=[], metavar="RUN",
+                   help="Another InSituTree run in the labels table to write as its own file (repeatable), e.g. tree_v4.")
+    p.add_argument("--collapse-csv", type=Path, default=None,
+                   help="(leaf, collapsed_label) CSV; also writes a collapsed file for each --extra-tree-run.")
     args = p.parse_args()
 
     table = pd.read_csv(args.labels, index_col="cell_id", dtype={"donor": str})
@@ -115,14 +145,16 @@ def main() -> None:
         sys.exit("ERROR: duplicated cell ids in the labels table.")
     try:
         frames = build_label_frames(table, args.k21_annotations, args.tree_run, args.opc_labels.split(","))
+        frames.update(extra_tree_frames(table, args.extra_tree_run, args.collapse_csv))
     except ValueError as exc:
         sys.exit(f"ERROR: {exc}")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     for key, series in frames.items():
+        name = OUTPUTS.get(key, f"{key}.csv")
         out = series.dropna().rename("label").rename_axis("cell_id").reset_index()
-        out.to_csv(args.out_dir / OUTPUTS[key], index=False)
-        print(f"{OUTPUTS[key]:20s} {len(out):8,d} cells, {out['label'].nunique():3d} labels")
+        out.to_csv(args.out_dir / name, index=False)
+        print(f"{name:34s} {len(out):8,d} cells, {out['label'].nunique():3d} labels")
     print(f"Wrote {len(frames)} label files to {args.out_dir}")
 
 
