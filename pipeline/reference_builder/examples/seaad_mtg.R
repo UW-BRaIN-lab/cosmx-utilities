@@ -15,7 +15,7 @@
 ################################################################################
 
 SEAAD_DIR <- Sys.getenv("SEAAD_DIR")
-LABEL_COL <- Sys.getenv("LABEL_COL", unset = "Supertype")
+LABEL_COL <- Sys.getenv("LABEL_COL", unset = "Subclass")
 if (!nzchar(SEAAD_DIR)) stop("set SEAAD_DIR to the directory holding the pseudobulk CSV.")
 
 sources <- list(
