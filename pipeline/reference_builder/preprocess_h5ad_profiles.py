@@ -52,7 +52,7 @@ from pathlib import Path
 import anndata
 import numpy as np
 import pandas as pd
-from scipy.sparse import issparse
+from scipy.sparse import csr_matrix, issparse
 
 DEFAULT_GENE_NAME_COL = "feature_name"
 DEFAULT_MIN_CELLS = 15
@@ -78,6 +78,10 @@ def parse_args() -> argparse.Namespace:
         "--label", action="append", dest="labels",
         help="Whole-file label; repeat once per --h5ad, in the same order.",
     )
+    p.add_argument("--obs-filter", action="append", default=[], metavar="COL=VALUE[,VALUE]",
+                   help="Keep only cells whose obs[COL] is one of the VALUEs. Repeatable "
+                        "(filters AND together). E.g. --obs-filter disease=normal to "
+                        "build a reference from healthy donors only.")
     p.add_argument("--gene-name-col", default=DEFAULT_GENE_NAME_COL,
                    help=f"var column with gene symbols (default {DEFAULT_GENE_NAME_COL}; "
                         "falls back to var_names).")
@@ -126,22 +130,23 @@ def raw_counts_slot(adata: anndata.AnnData) -> str:
     return "X"
 
 
-def read_chunk(adata: anndata.AnnData, sl: slice, slot: str) -> np.ndarray:
-    """Dense cells x genes chunk of raw counts from the chosen slot."""
+def read_chunk(adata: anndata.AnnData, sl: slice | np.ndarray, slot: str) -> csr_matrix:
+    """Sparse cells x genes chunk of raw counts from the chosen slot.
+
+    Kept sparse: a dense 50k-cell chunk of a 36k-gene atlas is ~14 GB.
+    """
     if slot in ("raw", "counts"):
         chunk = adata.layers[slot][sl]
     elif slot == "adata.raw":
         chunk = adata.raw.X[sl]
     else:
         chunk = adata.X[sl]
-    if issparse(chunk):
-        chunk = chunk.toarray()
-    return np.asarray(chunk, dtype=np.float64)
+    return csr_matrix(chunk, dtype=np.float64)
 
 
-def validate_counts(sample: np.ndarray, slot: str) -> None:
+def validate_counts(sample: csr_matrix, slot: str) -> None:
     """Abort if the chosen slot doesn't look like non-negative integer counts."""
-    nz = sample[sample != 0]
+    nz = sample.data[sample.data != 0]
     if nz.size == 0:
         return
     if np.any(nz < 0):
@@ -152,8 +157,35 @@ def validate_counts(sample: np.ndarray, slot: str) -> None:
                  f"counts. Point at a raw layer.")
 
 
+def parse_obs_filters(specs: list[str]) -> list[tuple[str, list[str]]]:
+    """'COL=a,b' -> ('COL', ['a', 'b']); exits on a malformed spec."""
+    filters = []
+    for spec in specs:
+        col, sep, values = spec.partition("=")
+        if not sep or not col or not values:
+            sys.exit(f"ERROR: --obs-filter '{spec}' must look like COL=VALUE[,VALUE]")
+        filters.append((col, values.split(",")))
+    return filters
+
+
+def cell_keep_mask(adata: anndata.AnnData, filters: list[tuple[str, list[str]]]) -> np.ndarray:
+    """Boolean mask of cells passing every obs filter (all True with no filters)."""
+    keep = np.ones(adata.n_obs, dtype=bool)
+    for col, values in filters:
+        if col not in adata.obs.columns:
+            sys.exit(f"ERROR: --obs-filter column '{col}' not in obs: {list(adata.obs.columns)}")
+        present = set(adata.obs[col].astype(str))
+        missing = [v for v in values if v not in present]
+        if missing:
+            sys.exit(f"ERROR: obs['{col}'] has no value(s) {missing}; found {sorted(present)[:30]}")
+        keep &= adata.obs[col].astype(str).isin(values).to_numpy()
+    print(f"  obs filters keep {int(keep.sum()):,}/{adata.n_obs:,} cells")
+    return keep
+
+
 def pseudobulk_one(h5ad: Path, cell_type_col: str | None, whole_file_label: str | None,
-                   gene_name_col: str, chunk_size: int) -> pd.DataFrame:
+                   gene_name_col: str, chunk_size: int,
+                   filters: list[tuple[str, list[str]]]) -> pd.DataFrame:
     """Sum raw counts per cell type for one H5AD. Returns genes x types (raw sums)."""
     print(f"Reading {h5ad} (backed)")
     adata = anndata.read_h5ad(h5ad, backed="r")
@@ -175,28 +207,34 @@ def pseudobulk_one(h5ad: Path, cell_type_col: str | None, whole_file_label: str 
     print(f"  raw counts from: {slot}")
     validate_counts(read_chunk(adata, slice(0, min(100, n_cells)), slot), slot)
 
-    types = sorted(set(labels))
-    sums = {ct: np.zeros(n_genes, dtype=np.float64) for ct in types}
-    n_per_type = {ct: 0 for ct in types}
+    keep = cell_keep_mask(adata, filters)
+    types = sorted(set(labels[keep]))
+    type_index = {ct: i for i, ct in enumerate(types)}
+    # Per-cell row in the type x cell indicator; -1 = filtered out / ignored.
+    codes = np.array([type_index.get(ct, -1) if k else -1
+                      for ct, k in zip(labels, keep)])
+    sums = np.zeros((len(types), n_genes), dtype=np.float64)
+    n_per_type = {ct: int((codes == i).sum()) for ct, i in type_index.items()}
     for start in range(0, n_cells, chunk_size):
         end = min(start + chunk_size, n_cells)
-        chunk = read_chunk(adata, slice(start, end), slot)
-        chunk_labels = labels[start:end]
-        for ct in types:
-            mask = chunk_labels == ct
-            if mask.any():
-                sums[ct] += chunk[mask].sum(axis=0)
-                n_per_type[ct] += int(mask.sum())
+        chunk_codes = codes[start:end]
+        used = np.flatnonzero(chunk_codes >= 0)
+        if used.size:
+            chunk = read_chunk(adata, slice(start, end), slot)[used]
+            indicator = csr_matrix(
+                (np.ones(used.size), (chunk_codes[used], np.arange(used.size))),
+                shape=(len(types), used.size))
+            sums += np.asarray((indicator @ chunk).todense())
+            del chunk
+            gc.collect()
         print(f"  {end:,}/{n_cells:,} cells", end="\r", flush=True)
-        del chunk
-        gc.collect()
     print()
 
     if hasattr(adata, "file") and adata.file is not None:
         adata.file.close()
 
     genes = gene_symbols(adata, gene_name_col)
-    profiles = pd.DataFrame(sums, index=pd.Index(genes, name="gene"))
+    profiles = pd.DataFrame(sums.T, index=pd.Index(genes, name="gene"), columns=types)
     # Collapse duplicate HUGO symbols (several Ensembl IDs -> one symbol).
     profiles = profiles.groupby(profiles.index).sum()
     profiles.attrs["n_per_type"] = n_per_type
@@ -206,12 +244,13 @@ def pseudobulk_one(h5ad: Path, cell_type_col: str | None, whole_file_label: str 
 def main() -> None:
     args = parse_args()
 
+    filters = parse_obs_filters(args.obs_filter)
     frames: list[pd.DataFrame] = []
     n_per_type: dict[str, int] = {}
     for i, h5ad in enumerate(args.h5ads):
         label = args.labels[i] if args.labels is not None else None
         df = pseudobulk_one(h5ad, args.cell_type_col, label,
-                            args.gene_name_col, args.chunk_size)
+                            args.gene_name_col, args.chunk_size, filters)
         n_per_type.update(df.attrs.get("n_per_type", {}))
         frames.append(df)
 
