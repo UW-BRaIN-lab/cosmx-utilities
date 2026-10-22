@@ -6,7 +6,7 @@
 # Submit:  sbatch pipeline/slurm/76_seaad_mtg_reference.sh
 # Override (env at submit time):
 #   SEAAD_DIR     work dir (default /gscratch/scrubbed/$USER/seaad_mtg; scrubbed = transient, 21-day purge)
-#   LABEL_COL     obs column with the cell-type labels (default Supertype; Subclass = coarser)
+#   LABEL_COL     obs column with the cell-type labels (default Subclass; Supertype = finer)
 #   OBS_FILTER    e.g. "disease=normal" to build from healthy donors only (default: all cells)
 # Output: ${SEAAD_DIR}/SEAAD_MTG_${LABEL_COL}_pseudobulk_profiles.csv  (genes x types, mean raw counts)
 # Then: pipeline/reference_builder/examples/seaad_mtg.R rescales it into the final InSituType profile.
@@ -28,7 +28,7 @@ set -euo pipefail
 SEAAD_H5AD_URL="https://datasets.cellxgene.cziscience.com/732b4aa7-e441-4196-b05e-127433425613.h5ad"
 SEAAD_H5AD_BYTES=50775398656
 SEAAD_DIR="${SEAAD_DIR:-/gscratch/scrubbed/${USER}/seaad_mtg}"
-LABEL_COL="${LABEL_COL:-Supertype}"
+LABEL_COL="${LABEL_COL:-Subclass}"
 OBS_FILTER="${OBS_FILTER:-}"
 
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
