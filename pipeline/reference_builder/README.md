@@ -91,6 +91,24 @@ Rscript pipeline/reference_builder/build_reference_profile.R my_config.R
 The output `genes × cell-types` CSV is ready for InSituType semi-supervised
 typing (optionally panel-restrict it first with `prep_insitutype_reference.py`).
 
+## Example: SEA-AD MTG (human middle temporal gyrus)
+
+`slurm/76_seaad_mtg_reference.sh` downloads the 51 GB "Whole Taxonomy - MTG" H5AD
+from CELLxGENE and runs the preprocessor on it (sparse chunks, so memory stays
+small). `--obs-filter COL=VALUE` restricts cells (e.g. `disease=normal`). Then
+`examples/seaad_mtg.R` rescales the CSV into the final profile:
+
+```bash
+sbatch pipeline/slurm/76_seaad_mtg_reference.sh
+# Klone has no system R: run it in the InSituType container (APPTAINER_INSITUTYPE from pipeline/.env)
+module load apptainer && set -a && source pipeline/.env && set +a
+SEAAD_DIR=/gscratch/scrubbed/$USER/seaad_mtg apptainer exec --bind /gscratch:/gscratch --bind "$PWD:$PWD" \
+    "$APPTAINER_INSITUTYPE" Rscript pipeline/reference_builder/build_reference_profile.R \
+    pipeline/reference_builder/examples/seaad_mtg.R
+```
+
+Tests: `uv run --with pandas --with numpy --with anndata --with scipy python pipeline/reference_builder/tests/test_preprocess_h5ad_profiles.py`
+
 ## References
 
 - InSituType hybrid reference workflow:
