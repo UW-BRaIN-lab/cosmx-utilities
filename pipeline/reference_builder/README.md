@@ -100,7 +100,11 @@ small). `--obs-filter COL=VALUE` restricts cells (e.g. `disease=normal`). Then
 
 ```bash
 sbatch pipeline/slurm/76_seaad_mtg_reference.sh
-SEAAD_DIR=/gscratch/scrubbed/$USER/seaad_mtg Rscript pipeline/reference_builder/build_reference_profile.R pipeline/reference_builder/examples/seaad_mtg.R
+# Klone has no system R: run it in the InSituType container (APPTAINER_INSITUTYPE from pipeline/.env)
+module load apptainer && set -a && source pipeline/.env && set +a
+SEAAD_DIR=/gscratch/scrubbed/$USER/seaad_mtg apptainer exec --bind /gscratch:/gscratch --bind "$PWD:$PWD" \
+    "$APPTAINER_INSITUTYPE" Rscript pipeline/reference_builder/build_reference_profile.R \
+    pipeline/reference_builder/examples/seaad_mtg.R
 ```
 
 Tests: `uv run --with pandas --with numpy --with anndata --with scipy python pipeline/reference_builder/tests/test_preprocess_h5ad_profiles.py`
