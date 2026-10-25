@@ -21,9 +21,18 @@ cosines, so prefer --reference-csv. Cosine is on raw profile values, the same qu
 quoted retina/Brain_6k figures; the centred_best_cosine column re-does it after subtracting the mean
 profile across all types, since raw cosines between expression profiles are high for any pair.
 
+Raw cosine is dominated by the few highest-expressed genes, so two profiles can score low when the
+gene weighting differs (single-nucleus vs CosMx) even where the expression pattern agrees. The
+spearman_best column is the Spearman correlation of log1p profiles with the best-cosine named type,
+and spearman_top / spearman_top_named give the best rank correlation over all named types. Both
+ignore gene weighting, so a high Spearman next to a low cosine points at scale, not at a different
+cell population. Near-zero genes add rank noise that lowers Spearman for every pair alike, so read it
+relative to a control run (e.g. Brain_6k) rather than against a fixed cut-off.
+
 Writes <output-dir>/denovo_vs_reference.csv (one row per de novo cluster) and
-<output-dir>/denovo_vs_reference_matrix.csv (de novo x named cosines), and prints a summary of how
-much of the cohort sits in known-like, ambiguous, flat and distinct de novo clusters.
+<output-dir>/denovo_vs_reference_matrix.csv (de novo x named cosines) and
+denovo_vs_reference_spearman_matrix.csv, and prints a summary of how much of the cohort sits in
+known-like, ambiguous, flat and distinct de novo clusters.
 
 Usage:
     denovo_vs_reference_cosine.py --result-h5 insitutype_result.h5 \\
@@ -63,6 +72,19 @@ def cosine_matrix(rows: pd.DataFrame, cols: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(a.T @ b, index=rows.columns, columns=cols.columns)
 
 
+def spearman_matrix(rows: pd.DataFrame, cols: pd.DataFrame) -> pd.DataFrame:
+    """Spearman correlation of log1p profiles between every column of `rows` and of `cols`.
+
+    Rank each profile across genes, centre the ranks, then take the cosine: that is Pearson on
+    ranks, i.e. Spearman. log1p is monotone so it does not change ranks; it is kept so the
+    definition reads the same as the log-scale comparison it stands for.
+    """
+    def centred_ranks(m: pd.DataFrame) -> pd.DataFrame:
+        ranks = np.log1p(m.clip(lower=0)).rank(axis=0, method="average")
+        return ranks - ranks.mean(axis=0)
+    return cosine_matrix(centred_ranks(rows), centred_ranks(cols))
+
+
 def named_reference(profiles: pd.DataFrame, named: list[str],
                     reference_csv: Path | None) -> pd.DataFrame:
     """Named profiles on the result's genes: the reference as built, else the fitted columns."""
@@ -90,7 +112,8 @@ def classify(best: float, margin: float, to_mean: float,
 
 
 def denovo_table(profiles: pd.DataFrame, calls: pd.DataFrame, reference_csv: Path | None,
-                 known_threshold: float, ambiguous_margin: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+                 known_threshold: float, ambiguous_margin: float
+                 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     named, denovo = split_named_denovo(list(profiles.columns))
     if not named or not denovo:
         sys.exit(f"ERROR: need named and de novo types; found {len(named)} named, "
@@ -99,6 +122,7 @@ def denovo_table(profiles: pd.DataFrame, calls: pd.DataFrame, reference_csv: Pat
     fitted = profiles.loc[reference.index, denovo]
 
     raw = cosine_matrix(fitted, reference)
+    rho = spearman_matrix(fitted, reference)
     # Gene-wise: shift every profile by the mean over all named+de novo types, then cosine again.
     centre = pd.concat([reference, fitted], axis=1).mean(axis=1)
     centred = cosine_matrix(fitted.sub(centre, axis=0), reference.sub(centre, axis=0))
@@ -120,10 +144,13 @@ def denovo_table(profiles: pd.DataFrame, calls: pd.DataFrame, reference_csv: Pat
             "second_cosine": round(second, 3), "margin": round(margin, 3),
             "centred_best_cosine": round(float(centred.loc[t, order.index[0]]), 3),
             "cosine_to_mean_named": round(float(to_mean[t]), 3),
+            "spearman_best": round(float(rho.loc[t, order.index[0]]), 3),
+            "spearman_top": round(float(rho.loc[t].max()), 3),
+            "spearman_top_named": rho.loc[t].idxmax(),
             "verdict": classify(best, margin, float(to_mean[t]), known_threshold, ambiguous_margin),
         })
     table = pd.DataFrame(rows).sort_values("n_cells", ascending=False).reset_index(drop=True)
-    return table, raw.round(3)
+    return table, raw.round(3), rho.round(3)
 
 
 def print_summary(table: pd.DataFrame, calls: pd.DataFrame) -> None:
@@ -134,7 +161,8 @@ def print_summary(table: pd.DataFrame, calls: pd.DataFrame) -> None:
     for verdict, grp in table.groupby("verdict"):
         print(f"  {verdict:<24} {len(grp):>3} clusters  {100 * grp['n_cells'].sum() / total:5.1f}% of cells")
     print("\n" + table[["cluster", "n_cells", "pct_cohort", "best_named", "best_cosine",
-                        "margin", "cosine_to_mean_named", "verdict"]].to_string(index=False))
+                        "margin", "cosine_to_mean_named", "spearman_best",
+                        "spearman_top", "spearman_top_named", "verdict"]].to_string(index=False))
 
 
 def main() -> None:
@@ -152,11 +180,12 @@ def main() -> None:
 
     profiles = read_profiles(args.result_h5)
     calls = read_cell_calls(args.result_h5)
-    table, matrix = denovo_table(profiles, calls, args.reference_csv,
+    table, matrix, rho = denovo_table(profiles, calls, args.reference_csv,
                                  args.known_threshold, args.ambiguous_margin)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     table.to_csv(args.output_dir / "denovo_vs_reference.csv", index=False)
     matrix.to_csv(args.output_dir / "denovo_vs_reference_matrix.csv")
+    rho.to_csv(args.output_dir / "denovo_vs_reference_spearman_matrix.csv")
     print_summary(table, calls)
     print(f"\nWrote {args.output_dir}/denovo_vs_reference.csv and denovo_vs_reference_matrix.csv")
 
