@@ -42,6 +42,6 @@ Marker lists for every type in a fit come from `python/top_markers_from_profiles
 `stage4_k21_seaad_markers.csv`: SEA-AD MTG marker evidence for the same K=21 run, one row per type (21 de novo +
 13 named Brain_6k controls), beside the current annotation. Built by `python/marker_overlap_annotation_table.py`
 from `marker_overlap_vs_reference.py`. Evidence to check in Napari, not a rename: it has no `keep`/`new_name`
-columns. `support` = strong (concordance >= 0.95 and overlap p < 1e-3) / partial (p < 0.05) / none. This copy was
-built from the top three matches per cluster printed by the marker-overlap run; regenerate from the full
-`marker_overlap.csv` for exact `also_close` and `top_overlap_*`.
+columns. `support` = strong (concordance >= 0.95 and overlap p < 1e-3) / partial (p < 0.05) / none.
+
+Built from the full `marker_overlap.csv` of the K=21 run (SEA-AD MTG reference).
