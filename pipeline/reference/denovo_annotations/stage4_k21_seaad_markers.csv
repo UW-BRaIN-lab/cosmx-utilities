@@ -1,0 +1,35 @@
+cluster,kind,n_cells,pct_cohort,support,proposed_seaad_name,best_concordance,best_overlap,best_overlap_p,also_close,top_overlap_type,top_overlap,top_overlap_p,current_annotation,current_new_name,current_keep
+i,de novo,118903,14.99,none,,0.72,0/20,1.0e+00,,SEAAD_L4 IT,0/20,1.0e+00,i - Unresolved: low-information (LTBP2/FOXJ1 set),Low_signal_neuronal_denovo,TRUE
+o,de novo,90454,11.4,strong,SEAAD_Oligodendrocyte,0.99,11/20,2.1e-21,,SEAAD_Oligodendrocyte,11/20,2.1e-21,o - Oligodendrocyte,Oligodendrocyte_denovo,TRUE
+t,de novo,78233,9.86,strong,SEAAD_Astrocyte,0.99,12/20,4.4e-24,,SEAAD_Astrocyte,12/20,4.4e-24,t - Astrocyte (reactive-leaning),,FALSE
+u,de novo,75061,9.46,none,,0.81,0/20,1.0e+00,,SEAAD_Microglia-PVM,0/20,1.0e+00,u - Unresolved: low-information (A1BG/SNRPA1 set),Low_signal_generic_denovo,TRUE
+n,de novo,37210,4.69,strong,SEAAD_OPC,0.99,13/20,6.6e-27,,SEAAD_OPC,13/20,6.6e-27,n - OPC,,FALSE
+a,de novo,31238,3.94,strong,SEAAD_Astrocyte,0.99,6/19,5.5e-10,,SEAAD_Astrocyte,6/19,5.5e-10,a - Astrocyte (homeostatic),,FALSE
+l,de novo,24511,3.09,strong,SEAAD_Sncg,0.96,8/20,4.3e-14,SEAAD_Pax6; SEAAD_Vip,SEAAD_Vip,12/20,4.4e-24,l - VIP/CALB2 interneuron,VIP_interneuron_denovo,TRUE
+q,de novo,21270,2.68,none,,0.79,0/20,1.0e+00,,SEAAD_L5 IT,0/20,1.0e+00,q - Excitatory neuron (CCK/SLC17A7),,FALSE
+b,de novo,17159,2.16,none,,0.64,1/20,1.1e-01,SEAAD_L2/3 IT,SEAAD_L2/3 IT,3/20,2.0e-04,b - Neuron (shares catch-all genes),,FALSE
+d,de novo,11657,1.47,none,,0.61,1/20,1.1e-01,,SEAAD_L2/3 IT,2/20,6.2e-03,"d - Excitatory neuron, L5-like (CARTPT)",,FALSE
+h,de novo,11375,1.43,none,,0.81,0/20,1.0e+00,,SEAAD_L5 IT,0/20,1.0e+00,h - Excitatory neuron (CARTPT/GAP43),,FALSE
+r,de novo,10319,1.3,partial,SEAAD_L5 IT,0.87,2/20,6.2e-03,,SEAAD_L5 IT,2/20,6.2e-03,r - Neuron (SNCA/CD24),,FALSE
+s,de novo,8542,1.08,partial,SEAAD_L5 IT,0.76,6/20,7.9e-10,,SEAAD_L5 IT,6/20,7.9e-10,"s - Excitatory neuron, L4-like (RORB)",Excitatory_RORB_L4_denovo,TRUE
+j,de novo,8481,1.07,partial,SEAAD_L2/3 IT,0.85,4/20,4.4e-06,SEAAD_L4 IT,SEAAD_L4 IT,5/20,6.9e-08,"j - Excitatory neuron, L4-like (RORB/TNNT2)",,FALSE
+f,de novo,5661,0.71,partial,SEAAD_L5 IT,0.92,4/20,4.4e-06,SEAAD_L6 IT,SEAAD_L5 IT,4/20,4.4e-06,f - Neuron (GPAM/FSTL4),,FALSE
+k,de novo,5086,0.64,none,,0.92,0/20,1.0e+00,,SEAAD_Endothelial,0/20,1.0e+00,k - Immediate-early-gene stress state,,FALSE
+e,de novo,4788,0.6,none,,0.73,0/20,1.0e+00,,SEAAD_Endothelial,0/20,1.0e+00,e - Heat-shock stress state,,FALSE
+g,de novo,4335,0.55,strong,SEAAD_L6 IT Car3,0.96,12/19,1.8e-24,,SEAAD_L6 IT Car3,12/19,1.8e-24,g - Neuron (NR4A2/SYNPR),Neuron_NR4A2_SYNPR_denovo,TRUE
+p,de novo,3061,0.39,strong,SEAAD_L6b,0.99,11/20,2.1e-21,SEAAD_L6 CT,SEAAD_L6 CT,12/20,4.4e-24,p - Neuron (SEMA3E/HS3ST4),Neuron_SEMA3E_HS3ST4_denovo,TRUE
+c,de novo,2324,0.29,strong,SEAAD_L5/6 NP,0.99,11/20,2.1e-21,,SEAAD_L5/6 NP,11/20,2.1e-21,"c - Excitatory neuron, L5-like (PCP4/FGFR1)",Excitatory_PCP4_L5_denovo,TRUE
+m,de novo,1280,0.16,strong,SEAAD_L5 ET,0.97,7/20,6.7e-12,,SEAAD_L5 ET,7/20,6.7e-12,m - Deep-layer excitatory neuron (BCL11B/RIT2),Excitatory_BCL11B_deep_denovo,TRUE
+Endothelial,named,88400,11.14,strong,SEAAD_Endothelial,0.95,9/20,2.1e-16,,SEAAD_Endothelial,9/20,2.1e-16,,,
+Microglia B,named,29650,3.74,strong,SEAAD_Microglia-PVM,0.99,6/18,3.8e-10,,SEAAD_Microglia-PVM,6/18,3.8e-10,,,
+Microglia A,named,29183,3.68,strong,SEAAD_Microglia-PVM,0.99,9/18,6.1e-17,,SEAAD_Microglia-PVM,9/18,6.1e-17,,,
+Astrocyte B,named,20553,2.59,strong,SEAAD_Astrocyte,0.99,9/19,1.2e-16,,SEAAD_Astrocyte,9/19,1.2e-16,,,
+Oligodendrocyte,named,11955,1.51,strong,SEAAD_Oligodendrocyte,0.99,13/20,6.6e-27,,SEAAD_Oligodendrocyte,13/20,6.6e-27,,,
+Inhibitory neuron A,named,9343,1.18,strong,SEAAD_Pvalb,0.99,10/20,7.7e-19,,SEAAD_Pvalb,10/20,7.7e-19,,,
+Oligodendrocyte precursor cell,named,6916,0.87,strong,SEAAD_OPC,0.99,12/20,4.4e-24,,SEAAD_OPC,12/20,4.4e-24,,,
+L6 neuron,named,5872,0.74,strong,SEAAD_Oligodendrocyte,0.99,13/20,6.6e-27,,SEAAD_Oligodendrocyte,13/20,6.6e-27,,,
+Astrocyte A,named,5536,0.7,strong,SEAAD_Astrocyte,0.98,6/19,5.5e-10,,SEAAD_Astrocyte,6/19,5.5e-10,,,
+Inhibitory neuron C,named,5260,0.66,partial,SEAAD_Sst,0.77,7/20,6.7e-12,SEAAD_Sst Chodl,SEAAD_Sst,7/20,6.7e-12,,,
+Inhibitory neuron B,named,3407,0.43,strong,SEAAD_Lamp5,0.99,11/20,2.1e-21,,SEAAD_Lamp5,11/20,2.1e-21,,,
+L4 neuron,named,3263,0.41,strong,SEAAD_L5 IT,0.99,9/20,2.1e-16,,SEAAD_L5 IT,9/20,2.1e-16,,,
+L2/3 neuron,named,3094,0.39,strong,SEAAD_L2/3 IT,0.98,9/20,2.1e-16,,SEAAD_L2/3 IT,9/20,2.1e-16,,,
