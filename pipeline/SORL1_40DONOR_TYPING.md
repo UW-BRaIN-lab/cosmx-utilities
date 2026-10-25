@@ -142,23 +142,26 @@ was), so do not over-invest in the sweep.
 
 ## Stage 4 + InSituTree decision
 
-**`UPDATE_REFERENCE=false` for this study.** `Brain_6k` is already CosMx-derived, so there is no
-scRNA-seq-to-CosMx platform shift to correct. InSituType's own documentation says
-`update_reference_profiles` is TRUE by default, "however, if the reference profiles are from the
-same platform as the study, then FALSE could be better". TRUE turns on anchor selection, and
-`rescale`/`refit` only apply under it; the package then overwrites the anchor cells' labels with
-the anchor assignments, ignoring the likelihoods (the "pinned cells" in CLAUDE.md). So run:
-`UPDATE_REFERENCE=false RESCALE=false REFIT=false`, and check the log line
-`insitutype: ... update_reference=FALSE rescale=FALSE refit=FALSE` before trusting a run.
-The first fits (K=21, K=10, `stage4_k21`/`stage4_k10`, `rescale=TRUE`) and the second pair
-(`*_norescale`, `rescale=FALSE` but still `update_reference=TRUE`) are superseded by
-`stage4_k21_asis` / `stage4_k10_asis`. The first two were run with the retina defaults without
-checking where the reference came from.
+**`UPDATE_REFERENCE=true RESCALE=true REFIT=false` for this study** (the "calibrated" setting;
+the K=21 run is `stage4_k21`). `Brain_6k` is CosMx-derived, so we first tried using its profiles
+as they are (`UPDATE_REFERENCE=false RESCALE=false REFIT=false`, `stage4_k21_asis` /
+`stage4_k10_asis`). That is what InSituType's documentation suggests when the reference is from
+the same platform as the study, but it failed here: about 1% of cells got a Brain_6k name at
+K=21 and nearly everything went to de novo clusters. Do not use `_asis` as the baseline.
+`UPDATE_REFERENCE=true` turns on anchor selection, so some cells are pinned to a reference type
+and their labels ignore the likelihoods (the "pinned cells" in CLAUDE.md). `rescale` and
+`refit` only apply under it, and `update=TRUE` with both `rescale` and `refit` FALSE is invalid
+(the package stops), which is why the `*_norescale` pair is not a usable run either. Check the
+log line `insitutype: ... update_reference=TRUE rescale=TRUE refit=FALSE` before trusting a run.
 
 ```bash
-UPDATE_REFERENCE=false RESCALE=false REFIT=false sbatch pipeline/slurm/80_insitutype.sh   # + N_CLUSTS=<K>, STAGE4_DIR, INPUT_DIR, KEEP_GENES
+UPDATE_REFERENCE=true RESCALE=true REFIT=false sbatch pipeline/slurm/80_insitutype.sh   # + N_CLUSTS=<K>, STAGE4_DIR, INPUT_DIR, KEEP_GENES
 sbatch pipeline/slurm/90_write_celltypes.sh      # then 85d (Leiden x type) and 51 (QC by type)
 ```
+
+InSituType fits are slow and do not checkpoint: submit `80` on `gpu-l40s`, not `ckpt`
+(`--account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1`), or preemption
+restarts it from zero.
 
 `81_diagnose_typing.sh` tests the call against `Region`, which is the donor id here, so its
 spatial-concordance test is uninformative for this study; use the 85d cross-tab instead.
