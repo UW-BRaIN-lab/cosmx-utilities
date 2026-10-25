@@ -109,6 +109,18 @@ SEAAD_DIR=/gscratch/scrubbed/$USER/seaad_mtg apptainer exec --bind /gscratch:/gs
 
 Tests: `uv run --with pandas --with numpy --with anndata --with scipy python pipeline/reference_builder/tests/test_preprocess_h5ad_profiles.py`
 
+### Result on Maddie's SORL1 cohort (2026-10-24): not usable as the main reference
+
+Built with this toolkit, the SEA-AD MTG reference named only 6.3% (K=12) and 2.1% (K=25) of 793,380 cells
+under the same `update_reference=TRUE rescale=TRUE refit=FALSE` setting that gives 28.0% with Brain_6k. The
+profiles also sit far from the fitted CosMx clusters (best cosine 0.25-0.42, Spearman 0.2-0.4, against
+0.75-0.9 for Brain_6k), which rank correlation rules out as a gene-weighting artifact; the likely cause is the
+single-nucleus vs CosMx platform gap (untested). The builder itself is correct; the reference it makes for this
+tissue is not a drop-in for InSituType. Marker-gene overlap (`pipeline/python/marker_overlap_vs_reference.py`) is
+platform-robust and does assign SEA-AD identities to about a third of the cells, so use the reference for naming
+evidence there, and compare any new reference to a CosMx-derived one with
+`pipeline/python/denovo_vs_reference_cosine.py` before running a full fit.
+
 ## References
 
 - InSituType hybrid reference workflow:
