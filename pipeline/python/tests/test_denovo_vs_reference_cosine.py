@@ -95,6 +95,15 @@ def main() -> None:
         assert t.loc["d", "verdict"] == "known-like, ambiguous", t.loc["d"]
         assert t.loc["d", "margin"] < 0.02, t.loc["d"]
         assert abs(t["pct_cohort"].sum() - 100 * 55 / 195) < 0.05, t["pct_cohort"].sum()
+        # Spearman: pin one pair against pandas' own implementation, and the expected ordering.
+        rho = pd.read_csv(out / "denovo_vs_reference_spearman_matrix.csv", index_col=0)
+        expect = np.log1p(denovo["a"]).corr(np.log1p(named["Pvalb"]), method="spearman")
+        assert abs(rho.loc["a", "Pvalb"] - expect) < 1e-3, (rho.loc["a", "Pvalb"], expect)
+        assert t.loc["a", "spearman_best"] == rho.loc["a", "Pvalb"] and t.loc["a", "spearman_top_named"] == "Pvalb"
+        # The synthetic profiles are mostly flat 0.05 background, whose ranks are noise, so Spearman for a
+        # near-copy is only ~0.7 (cosine 0.999): it must still beat the unrelated cluster by a wide gap.
+        assert t.loc["a", "spearman_top"] > t.loc["c", "spearman_top"] + 0.3, t[["spearman_top"]]
+        assert t.loc["d", "spearman_top"] > 0.99 and t.loc["d", "spearman_top_named"] in ("L4 IT", "L4 IT B")
         matrix = pd.read_csv(out / "denovo_vs_reference_matrix.csv", index_col=0)
         assert matrix.shape == (4, 4) and matrix.loc["a", "Pvalb"] == t.loc["a", "best_cosine"]
 
