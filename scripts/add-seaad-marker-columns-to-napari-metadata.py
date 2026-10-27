@@ -6,10 +6,15 @@ K=21 cluster's marker genes match, and how strongly. This writes that as two col
 column already in each file, so Maddie can toggle between "what the cluster was called" and "what its
 markers say" and judge whether the layer position fits:
 
-  SEAAD_markers_K21          the best-matching SEA-AD type ("Oligodendrocyte", "L6b", ...), or
-                             "No SEA-AD support"; coloured per SEA-AD type, so a de novo cluster and a
-                             named Brain_6k type that map to the same SEA-AD type share a colour.
-  SEAAD_markers_K21_support  strong / partial / none, the evidence table's `support` level.
+  SEAAD_markers_K21             the best-matching SEA-AD type with its support next to it, e.g.
+                                "L6b (strong)", "L5 IT (partial)", or "No SEA-AD support". When another SEA-AD
+                                type is nearly as good and also significant, all are listed and the value
+                                says so: "L2/3 IT or L4 IT (partial, ambiguous)". Coloured per value, so every
+                                cluster with the same SEA-AD call shares a colour: this is the column for "where
+                                are the L6b-like cells".
+  SEAAD_markers_K21_by_cluster  the same call prefixed with the cluster it belongs to: "p: L6b or L6 CT (strong,
+                                ambiguous)", "i: No SEA-AD support". One colour per cluster, so each cluster's
+                                own spatial spread is visible with its evidence beside it.
 
 This is evidence, not a rename: it is derived from marker genes, the Brain_6k named types are included
 as controls (Brain_6k `L6 neuron` maps to Oligodendrocyte, `L4 neuron` to L5 IT), and nothing in the
@@ -28,7 +33,8 @@ every layer.
 
 Expects `<slide>_metadata.csv` files in --metadata-dir (the stitched `_metadata.csv` of each slide
 directory, copied out under the slide name). Existing files are never modified; the result goes to
---out-dir, and a file that already has either new column is refused.
+--out-dir, and a file that already has either new column (or the first version's
+`SEAAD_markers_K21_support`) is refused: start from a file without them.
 
 Usage:
     uv run python scripts/add-seaad-marker-columns-to-napari-metadata.py \\
@@ -50,10 +56,14 @@ COLOR_SUFFIX = "_color"
 METADATA_SUFFIX = "_metadata.csv"
 DEFAULT_SOURCE_COLUMN = "InSituType_K21"
 NAME_COLUMN = "SEAAD_markers_K21"
-SUPPORT_COLUMN = "SEAAD_markers_K21_support"
+CLUSTER_COLUMN = "SEAAD_markers_K21_by_cluster"
+# The first version wrote this column; a file that still has it was already processed, so refuse it too.
+LEGACY_SUPPORT_COLUMN = "SEAAD_markers_K21_support"
 NO_SUPPORT_LABEL = "No SEA-AD support"
 REFERENCE_PREFIX = "SEAAD_"
-EVIDENCE_COLUMNS = {"cluster", "kind", "support", "proposed_seaad_name", "current_annotation"}
+EVIDENCE_COLUMNS = {"cluster", "kind", "support", "proposed_seaad_name", "also_close", "current_annotation"}
+AMBIGUOUS_NOTE = "ambiguous"
+ALTERNATIVE_SEPARATOR = " or "
 DE_NOVO, NAMED = "de novo", "named"
 
 
@@ -76,6 +86,21 @@ def deterministic_color(value: str) -> str:
                       params=[value]).fetchone()[0]
 
 
+def call_label(row: pd.Series) -> str:
+    """"L6b (strong)", "L2/3 IT or L4 IT (partial, ambiguous)", or "No SEA-AD support".
+
+    Near-ties come from the evidence table's `also_close` (other significant types within 0.06
+    concordance of the best): hiding them would let a coin-flip between two layers read as a call.
+    """
+    if row["support"] == "none" or row["proposed_seaad_name"] == "":
+        return NO_SUPPORT_LABEL
+    best = row["proposed_seaad_name"].removeprefix(REFERENCE_PREFIX)
+    others = [t.strip().removeprefix(REFERENCE_PREFIX) for t in row["also_close"].split(";") if t.strip()]
+    names = ALTERNATIVE_SEPARATOR.join([best, *others])
+    notes = [row["support"], AMBIGUOUS_NOTE] if others else [row["support"]]
+    return f"{names} ({', '.join(notes)})"
+
+
 def load_mapping(evidence_table: Path) -> pd.DataFrame:
     """source value -> (SEA-AD name, support), keyed the way the K=21 column spells its values."""
     table = pd.read_csv(evidence_table, dtype=str, keep_default_na=False)
@@ -89,10 +114,9 @@ def load_mapping(evidence_table: Path) -> pd.DataFrame:
     dup = table["source_value"][table["source_value"].duplicated()].tolist()
     if dup:
         sys.exit(f"ERROR: the evidence table maps these source values more than once: {dup}")
-    table[NAME_COLUMN] = (table["proposed_seaad_name"].str.removeprefix(REFERENCE_PREFIX)
-                          .where(table["proposed_seaad_name"] != "", NO_SUPPORT_LABEL))
-    table[SUPPORT_COLUMN] = table["support"]
-    return table.set_index("source_value")[[NAME_COLUMN, SUPPORT_COLUMN]]
+    table[NAME_COLUMN] = table.apply(call_label, axis=1)
+    table[CLUSTER_COLUMN] = table["cluster"] + ": " + table[NAME_COLUMN]
+    return table.set_index("source_value")[[NAME_COLUMN, CLUSTER_COLUMN]]
 
 
 def add_columns(meta: pd.DataFrame, source_column: str, mapping: pd.DataFrame, slide: str) -> pd.DataFrame:
@@ -102,7 +126,7 @@ def add_columns(meta: pd.DataFrame, source_column: str, mapping: pd.DataFrame, s
         sys.exit(f"ERROR: {slide}: {source_column} has value(s) the evidence table does not cover: "
                  f"{unknown}. The table and the metadata are from different runs.")
     out = meta.copy()
-    for column in (NAME_COLUMN, SUPPORT_COLUMN):
+    for column in (NAME_COLUMN, CLUSTER_COLUMN):
         out[column] = source.map(mapping[column]).fillna("").to_numpy()
         colors = {v: deterministic_color(v) for v in sorted(set(out[column])) if v}
         out[column + COLOR_SUFFIX] = out[column].map(colors).fillna("").to_numpy()
@@ -117,7 +141,7 @@ def main() -> None:
         sys.exit(f"ERROR: no *{METADATA_SUFFIX} files in {args.metadata_dir}")
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"{len(files)} slide file(s); adding {NAME_COLUMN} and {SUPPORT_COLUMN} from {args.source_column}\n")
+    print(f"{len(files)} slide file(s); adding {NAME_COLUMN} and {CLUSTER_COLUMN} from {args.source_column}\n")
     print(f"  {'slide':36s} {'cells':>9s} {'empty source':>13s}")
     for path in files:
         slide = path.name[: -len(METADATA_SUFFIX)]
@@ -126,7 +150,7 @@ def main() -> None:
         for required in (CELL_ID_COLUMN, args.source_column):
             if required not in meta.columns:
                 sys.exit(f"ERROR: {path} has no '{required}' column; columns are {list(meta.columns)}")
-        clash = [c for c in (NAME_COLUMN, SUPPORT_COLUMN) if c in meta.columns]
+        clash = [c for c in (NAME_COLUMN, CLUSTER_COLUMN, LEGACY_SUPPORT_COLUMN) if c in meta.columns]
         if clash:
             sys.exit(f"ERROR: {path.name} already has {clash}. Refusing to overwrite.")
         out = add_columns(meta, args.source_column, mapping, slide)
