@@ -242,7 +242,7 @@ The R job prints the tree (`printTree`) and stops if a leaf is missing from the 
 `prob` marks the cells InSituTree could not place within a branch. The `Low_signal` sink should be compared
 across carriers and non-carriers before interpreting it (the flat clusters are carrier-enriched).
 
-## InSituTree v4 (after Maddie's spatial review, 2026-10) — built, NOT yet run
+## InSituTree v4 (after Maddie's spatial review, 2026-10) — run on Klone (job 42090220); superseded by v5
 
 Maddie read K=21 and tree v2 in Napari (sheet `SORL1_v3_cell_categories.xlsx`) and found `L6 neuron` cells in L2/3.
 The labels table explains it: the v2 `L6 neuron` leaf (14,461 cells) is 32% K=21 L6 cells but **31% `a` and 12% `o`**
