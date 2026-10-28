@@ -305,7 +305,8 @@ K=21 fit; the 29 shared columns are identical to v4 apart from the renames), and
 
 **`Astrocyte_low_signal` is a sink, not a sub-state.** `a` had 0/20 enriched genes against Astrocyte A/B, and in v4's own
 notes its profile correlates more with neurons (0.87) than with astrocytes (0.78). It is a leaf so that its cells have
-somewhere to go; do not read it as a cell type. Check that it does not take cells from the neuron leaves (acceptance 1).
+somewhere to go; do not read it as a cell type. It only catches the cells that the tree routes to `Glia` first (see the
+measured result below).
 
 What v5 does NOT fix: `Excitatory_upper` still receives cells from the unresolved clusters (in v4, 38% of `h`, 24% of
 `j`, 23% of `f`, 22% of `d`, 12% of `q`). They look L2/3-like to the profiles (cosine ~0.96) and the sink leaves do not
@@ -325,14 +326,26 @@ INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21_v5 REFERENCE_BASENAME=sorl1_in
     sbatch --account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1 pipeline/slurm/85_insitutree.sh
 ```
 
-Acceptance (export the labels table with `54`, adding `tree_v5:stage4_insitutree_k21_v5:insitutree_result.h5` to RUNS):
+Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree_k21_v4:insitutree_result.h5` and
+`tree_v5:stage4_insitutree_k21_v5:insitutree_result.h5` to RUNS, with `OUT_SUBDIR=labels_v5` so `labels/` is not overwritten):
 1. **Composition of `Astrocyte_low_signal` by K=21 source:** mostly `a` plus the astrocyte clusters. If neuron clusters contribute
    a meaningful share, `a`'s neuron-like profile is pulling neurons and the leaf should be reconsidered.
-2. Where `a` goes now: the share landing in `Excitatory_upper` (13% in v4) should fall to about zero.
+2. Where `a` goes now: the share landing in `Excitatory_upper` (13% in v4).
 3. The renamed leaves (`p`, `g`, `c`, `m`) should be near their v4 sizes; only small shifts from the new leaf are expected.
 4. `Excitatory_upper`: the glia-derived share should fall; the leaks from `h`, `d`, `j`, `f` will remain (above).
 5. Re-run the disease comparisons at both levels with the two collapse maps, and within one run before calling anything biology
    (see the depth and run confounds above).
+
+**Measured (run 42538943, 793,380 cells):**
+- **Check 1 passes, but the leaf is mixed.** `Astrocyte_low_signal` is 25,144 cells; no named neuron cluster feeds it. 58% is `a`
+  (14,521); the rest is `i` (2,916, the low-signal neuronal sink), `t` (1,967, reactive astrocyte), `n` (1,903, OPC, which has no leaf),
+  `o` (922), `l` (544) and `k` (281). About 40% is other clusters landing there. Median posterior 1.000, 10.7% below 0.8.
+- **Check 2 failed: the leak did not fall.** Of `a`'s 31,238 cells, 46.5% reach `Astrocyte_low_signal` and 11.7% still land in
+  `Excitatory_upper` (13% in v4); the rest scatter (Low_signal 5.0%, OPC 3.8%, Microglia A 3.3%, Inhibitory C 3.3%, ...).
+- **Why:** the tree decides top-down. At the first level 37.4% of `a` cells go to `Neuron` (55.5% `Glia`, 5.0% `Low_signal`, 2.1%
+  `Vascular`), and a cell routed to `Neuron` cannot reach a leaf under `Glia`. So `a`'s hybrid, neuron-like profile (0.87 with
+  neurons vs 0.78 with astrocytes) is not fixed by giving it a leaf. `a` is 3.9% of cells; v5 keeps the leaf and reports it as a sink,
+  and any further change (for example moving `a` under `Low_signal`) is a new run with its own checks.
 
 ## Resolved items
 
