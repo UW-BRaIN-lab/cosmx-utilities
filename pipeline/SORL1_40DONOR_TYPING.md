@@ -403,8 +403,11 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   every excitatory leaf (for example `Excitatory_upper` 0.96% vs 2.6-5.7%). July only, the 8 types with q < 0.10 are mostly neuron
   types, which are correlated, and AD Pure is as low as SORL1 for some (`Excitatory_L5_6_NP_like` 0.64 / 0.11 / 0.25 / 0.10).
   A drop across every excitatory leaf looks like a sampling or run effect; it has not been tested.
-- **What cannot be concluded.** Any SORL1-versus-rest difference in OPC, excitatory neurons or the sink: all 6 SORL1 donors are on
-  the July run, which has only 2 Control donors. More Control donors processed on the same run as the SORL1 donors would settle it.
+- **What cannot be concluded.** Any SORL1-versus-rest difference in OPC, excitatory neurons or the sink from the between-run
+  comparison: all SORL1 donors are on the July run, which has only 2 Control donors, and the run cannot be repeated. The usable
+  contrast is within the run: each of the four July slides holds both SORL1 and non-SORL1 donors, so SORL1 can be compared with the
+  non-SORL1 AD donors (AD Pure and AD+LATE) on the same slide, with the slide as the block. With four slides this shows whether a
+  difference has the same sign on every slide; it cannot give a strong p-value.
 
 ## Resolved items
 
