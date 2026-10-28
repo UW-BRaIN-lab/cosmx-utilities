@@ -346,6 +346,12 @@ Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree
   `Vascular`), and a cell routed to `Neuron` cannot reach a leaf under `Glia`. So `a`'s hybrid, neuron-like profile (0.87 with
   neurons vs 0.78 with astrocytes) is not fixed by giving it a leaf. `a` is 3.9% of cells; v5 keeps the leaf and reports it as a sink,
   and any further change (for example moving `a` under `Low_signal`) is a new run with its own checks.
+- **Check 3 passes.** The renamed leaves kept 96-98% of their v4 cells: `p` 4,362 -> 4,215, `g` 4,688 -> 4,590, `c` 2,268 -> 2,190,
+  `m` 2,401 -> 2,362. The renames are label-only; the small losses are cells that went to `Astrocyte_low_signal`.
+- **Check 4: a small fall only.** The glia-derived share (`a`/`o`/`n`/`t`) of `Excitatory_upper` went 15.3% -> 13.8% (27,719 -> 26,976
+  cells), all of it from `a` (4,112 -> 3,664). The flat K=21 `L2/3 neuron` is only 2,867 cells (10.6%) of the leaf; the rest is unresolved
+  clusters (`h` 4,357, `i` 4,082, `a` 3,664, `d` 2,609, `q` 2,558, `j` 1,987, `f` 1,286). Report `Excitatory_upper` as a mixed excitatory
+  group, never as L2/3.
 
 ## Resolved items
 
