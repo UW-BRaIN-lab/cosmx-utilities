@@ -277,6 +277,63 @@ Acceptance (all from the labels table; export with `54`, adding `tree_v4:stage4_
 4. Re-test t and h trends on Control / AD Pure / AD+LATE donors only (`--exclude-slide-prefix 20260708`).
 5. Cortical depth per leaf (pia to white matter) needs cell coordinates plus a boundary annotation; not available locally.
 
+## InSituTree v5 (after the SEA-AD marker review and Maddie's spatial check)
+
+The SEA-AD MTG atlas did not work as the reference (2-6% of cells named vs 28% for Brain_6k; its profiles sit at cosine
+0.25-0.42 from the CosMx clusters). Its marker genes did: `marker_overlap_vs_reference.py` gives 9 K=21 clusters a strong
+SEA-AD identity (`denovo_annotations/stage4_k21_seaad_markers.csv`), and Maddie confirmed the layer position of the deep
+excitatory ones in Napari on 2026-10-27. v5 changes only what that review settled; the tree is otherwise v4.
+
+| change | why |
+|---|---|
+| `p` -> `Excitatory_L6b_like` | SEA-AD L6b (L6 CT nearly tied); Maddie: marks L6 well |
+| `g` -> `Excitatory_L6_IT_Car3_like` | SEA-AD L6 IT Car3; marks L6 well |
+| `c` -> `Excitatory_L5_6_NP_like` | SEA-AD L5/6 NP; marks L5/6 well |
+| `m` -> `Excitatory_L5_ET_like` | SEA-AD L5 ET; marks L5 well, sparse |
+| add `a` as leaf `Astrocyte_low_signal` | with no leaf its 31,238 cells scatter in v4: 21% Astrocyte B, 8% A, 11% OPC, **13% `Excitatory_upper`**, 7% Low_signal |
+
+Files: `denovo_annotations/stage4_k21_v5.csv` (v4 plus the five changes, each with a `v5_note`), `sorl1_hierarchy_v5.json`
+(30 leaves = 12 named + 18 de novo), `sorl1_insitutree_profiles_v5.csv` (built by `prep_insitutree_profiles.py` from the
+K=21 fit; the 29 shared columns are identical to v4 apart from the renames), and two report-level maps for
+`celltype_by_group.py --collapse-csv`:
+- `sorl1_hierarchy_v5_collapse.csv` (analysis level): the neuron sink leaves -> `Neuron_low_signal` (as v4), `L4 neuron` ->
+  `Excitatory_L4_5_IT_like`, `r` and `s` -> `Excitatory_L5_IT_like`. The L4 neuron's markers match L5 IT best (L4 IT second)
+  and it sits above L5/6 NP, hence "L4/5". `r` and `s` overlap spatially and share an SEA-AD call; `s` is absent from about
+  half the donors (19 of 40 have >= 20 cells), so they are reported together.
+- `sorl1_hierarchy_v5_parent.csv`: each leaf's parent branch (`Astrocyte`, `Microglia`, `Excitatory_deep`, ...), so a split
+  such as Astrocyte A vs B is reported at both levels. Both maps only relabel; they never move a cell.
+
+**`Astrocyte_low_signal` is a sink, not a sub-state.** `a` had 0/20 enriched genes against Astrocyte A/B, and in v4's own
+notes its profile correlates more with neurons (0.87) than with astrocytes (0.78). It is a leaf so that its cells have
+somewhere to go; do not read it as a cell type. Check that it does not take cells from the neuron leaves (acceptance 1).
+
+What v5 does NOT fix: `Excitatory_upper` still receives cells from the unresolved clusters (in v4, 38% of `h`, 24% of
+`j`, 23% of `f`, 22% of `d`, 12% of `q`). They look L2/3-like to the profiles (cosine ~0.96) and the sink leaves do not
+hold them. Report that leaf as a mixed excitatory group, not L2/3; for L2/3 use the flat K=21 `L2/3 neuron` call (3,094
+cells), which Maddie found spatially accurate. No cluster is a confirmed L4 population yet (`j` leans L4 but is diffuse).
+
+```bash
+# on Klone, from the Maddie checkout
+git fetch origin && git checkout sorl1-insitutree-v5 && git pull
+# .env beats submit-time values: an earlier SEA-AD test left REFERENCE_BASENAME=seaad_mtg_panel.csv in it, which would
+# silently replace the v5 profiles with the SEA-AD file
+sed -i '/^REFERENCE_BASENAME=/d' pipeline/.env
+set -a && source pipeline/.env && set +a
+s5cmd cp pipeline/reference/sorl1_insitutree_profiles_v5.csv s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/sorl1_insitutree_profiles_v5.csv
+INPUT_DIR=stage4 STAGE4_DIR=stage4_insitutree_k21_v5 REFERENCE_BASENAME=sorl1_insitutree_profiles_v5.csv \
+    HIERARCHY_BASENAME=sorl1_hierarchy_v5.json \
+    sbatch --account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1 pipeline/slurm/85_insitutree.sh
+```
+
+Acceptance (export the labels table with `54`, adding `tree_v5:stage4_insitutree_k21_v5:insitutree_result.h5` to RUNS):
+1. **Composition of `Astrocyte_low_signal` by K=21 source:** mostly `a` plus the astrocyte clusters. If neuron clusters contribute
+   a meaningful share, `a`'s neuron-like profile is pulling neurons and the leaf should be reconsidered.
+2. Where `a` goes now: the share landing in `Excitatory_upper` (13% in v4) should fall to about zero.
+3. The renamed leaves (`p`, `g`, `c`, `m`) should be near their v4 sizes; only small shifts from the new leaf are expected.
+4. `Excitatory_upper`: the glia-derived share should fall; the leaks from `h`, `d`, `j`, `f` will remain (above).
+5. Re-run the disease comparisons at both levels with the two collapse maps, and within one run before calling anything biology
+   (see the depth and run confounds above).
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
