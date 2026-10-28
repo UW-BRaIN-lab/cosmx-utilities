@@ -334,7 +334,7 @@ Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree
 3. The renamed leaves (`p`, `g`, `c`, `m`) should be near their v4 sizes; only small shifts from the new leaf are expected.
 4. `Excitatory_upper`: the glia-derived share should fall; the leaks from `h`, `d`, `j`, `f` will remain (above).
 5. Re-run the disease comparisons at both levels with the two collapse maps, and within one run before calling anything biology
-   (see the depth and run confounds above).
+   (see the depth and run confounds above). Done: see "Disease comparisons on v5" below.
 
 **Measured (run 42538943, 793,380 cells):**
 - **Check 1 passes, but the leaf is mixed.** `Astrocyte_low_signal` is 25,144 cells; no named neuron cluster feeds it. 58% is `a`
@@ -352,6 +352,59 @@ Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree
   cells), all of it from `a` (4,112 -> 3,664). The flat K=21 `L2/3 neuron` is only 2,867 cells (10.6%) of the leaf; the rest is unresolved
   clusters (`h` 4,357, `i` 4,082, `a` 3,664, `d` 2,609, `q` 2,558, `j` 1,987, `f` 1,286). Report `Excitatory_upper` as a mixed excitatory
   group, never as L2/3.
+
+**v4 -> v5: where the Vascular and Low_signal cells went.** Vascular fell 111,411 -> 108,734 (3,257 left, 580 joined) and Low_signal
+138,518 -> 133,416 (6,008 left, 906 joined). The new leaf is not the main destination: 13% of the Vascular leavers and 11% of the
+Low_signal leavers went to `Astrocyte_low_signal`; the rest went to OPC (Vascular 1,030, Low_signal 2,228) and microglia (1,531, 1,254).
+Only 316 of the 3,257 Vascular leavers (9.7%) are K=21 Endothelial; the sources are `i` (1,004), `n` (524), Microglia A (348), `o` (284)
+and `a` (277). No donor dominates (largest 10.3%). The leavers were borderline in v4: median v4 posterior 0.635 (Vascular) and 0.751
+(Low_signal) against 1.000 for the cells that stayed (lower quartile 0.51-0.59 vs 1.0). So the drops are reassignments of
+low-confidence cells at the edges. Why adding `a` moved them is a hypothesis (an internal node's profile is the mean of its leaves, so
+the Astrocyte and Glia profiles changed); it has not been tested. The Vascular disease result did not change (q 0.40).
+
+### Disease comparisons on v5 (check 5)
+
+`celltype_by_group.py --label celltype_tree_v5`, per-donor % of cells averaged by group, Kruskal-Wallis across groups with BH q within
+each run, exploratory. Three designs because every SORL1 donor is on the July-run slides (`20260708`): all donors (12 Control / 11 AD Pure
+/ 11 AD+LATE / 6 SORL1), without the July slides (10 / 7 / 7 / 0), and July slides only (2 / 4 / 4 / 6). The July-only run keeps the
+run constant but has 2 Control donors.
+
+| Type | Design | Control | AD Pure | AD+LATE | SORL1 | q | trend q |
+|---|---|---|---|---|---|---|---|
+| Microglia B | all donors | 1.86 | 3.17 | 3.73 | 6.69 | 0.0145 | 0.199 |
+| | no July | 1.93 | 2.77 | 4.29 | n/a | 0.81 | 0.087 |
+| | July only | 1.52 | 3.88 | 2.75 | 6.69 | 0.086 | 0.97 |
+| OPC | all donors | 5.23 | 6.81 | 7.11 | 14.8 | 0.030 | 0.426 |
+| | no July | 4.46 | 5.36 | 5.26 | n/a | 0.81 | 0.65 |
+| | July only | 9.11 | 9.34 | 10.3 | 14.8 | 0.27 | 0.97 |
+| Neuron_low_signal (sink) | all donors | 9.6 | 10.4 | 10.6 | 9.4 | 0.987 | 0.859 |
+| | no July | 7.23 | 6.55 | 5.38 | n/a | 0.81 | 0.66 |
+| | July only | 21.4 | 17.2 | 19.8 | 9.4 | 0.092 | 0.97 |
+| Astrocyte A | all donors | 1.32 | 2.25 | 2.72 | 0.51 | 0.118 | 0.426 |
+| | no July | 1.52 | 3.25 | 3.73 | n/a | 0.39 | 0.087 |
+| | July only | 0.35 | 0.50 | 0.94 | 0.51 | 0.42 | 0.97 |
+
+At the parent level (all donors): Microglia q 0.0006 (6.04 / 8.68 / 8.42 / 14.9; trend q 0.066), OPC q 0.014, Excitatory_deep q 0.083,
+Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_signal q 0.89.
+
+- **Microglia B is the one result that holds in every design.** It rises Control -> AD Pure -> AD+LATE (trend q 0.087 without the July
+  slides; Microglia as a branch, trend q 0.066 with all donors) and is highest in SORL1, 6.69% against 1.5-3.9% on the same run.
+  Exploratory: small groups, and BH treats correlated tests as independent.
+- **Astrocytes shift state, not amount.** The branch total is flat; within it A and the stress-state leaf rise and B falls (no July: A
+  1.52 -> 3.73, B 6.05 -> 2.19). Only A reaches trend q < 0.10, and only without the July slides. The A/B split depends on the tree
+  version: `t` took about half of the old A and B in v4.
+- **The SORL1 OPC elevation is mostly the run.** Non-SORL1 donors on the July slides have 9.1-10.3% OPC against 4.5-5.4% elsewhere;
+  within the run SORL1 is about 1.5-fold higher and not significant (q 0.27). Microglia A shows the same run shift (6.3-6.7% on July
+  slides vs 3.7-5.1%). OPC calls on shallow cells are unreliable (see above), so redo OPC with `opc_confident` before using it.
+- **The sink depends on the run.** Non-SORL1 donors have 17-21% in `Neuron_low_signal` on the July slides and 5-7% on the others
+  (about 3-fold). The flat group means in the all-donors run (q 0.99) come from averaging the two runs; SORL1 is 9.4%. Do not read
+  "no difference by group" as "no depth or run effect".
+- **Excitatory and inhibitory neurons are lower in SORL1, but not clearly SORL1-specific.** All donors: SORL1 about 5-fold lower in
+  every excitatory leaf (for example `Excitatory_upper` 0.96% vs 2.6-5.7%). July only, the 8 types with q < 0.10 are mostly neuron
+  types, which are correlated, and AD Pure is as low as SORL1 for some (`Excitatory_L5_6_NP_like` 0.64 / 0.11 / 0.25 / 0.10).
+  A drop across every excitatory leaf looks like a sampling or run effect; it has not been tested.
+- **What cannot be concluded.** Any SORL1-versus-rest difference in OPC, excitatory neurons or the sink: all 6 SORL1 donors are on
+  the July run, which has only 2 Control donors. More Control donors processed on the same run as the SORL1 donors would settle it.
 
 ## Resolved items
 
