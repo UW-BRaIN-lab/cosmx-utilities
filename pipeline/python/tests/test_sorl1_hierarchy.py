@@ -157,6 +157,82 @@ def test_select_columns_drops_named_and_rejects_typos():
         raise AssertionError("a typo in --drop-named must stop the build, not silently keep the type")
 
 
+# ---- v5: the revision after the SEA-AD marker review (adds the Astrocyte_low_signal leaf, renames p, g, c, m) ----
+V5_RENAMES = {"Neuron_SEMA3E_HS3ST4_denovo": "Excitatory_L6b_like",
+              "Neuron_NR4A2_SYNPR_denovo": "Excitatory_L6_IT_Car3_like",
+              "Excitatory_PCP4_L5_denovo": "Excitatory_L5_6_NP_like",
+              "Excitatory_BCL11B_deep_denovo": "Excitatory_L5_ET_like"}
+V5_ADDED = {"Astrocyte_low_signal"}
+V5_COLLAPSE = {**{leaf: "Neuron_low_signal" for leaf in V4_SINK_LEAVES},
+               "L4 neuron": "Excitatory_L4_5_IT_like",
+               "Excitatory_RORB_L4_denovo": "Excitatory_L5_IT_like",
+               "Excitatory_SNCA_CD24_denovo": "Excitatory_L5_IT_like"}
+
+
+def v5_expected_columns():
+    named, _ = expected_columns()
+    named = [n for n in named if n not in V4_DROPPED_REFERENCE]
+    ann = pd.read_csv(REFERENCE_DIR / "denovo_annotations" / "stage4_k21_v5.csv", dtype=str, keep_default_na=False)
+    kept = ann[ann["keep"].str.strip().str.lower().isin(TRUTHY)]["new_name"].str.strip().tolist()
+    return named, kept
+
+
+def test_v5_leaves_match_profile_columns_and_the_built_matrix():
+    hierarchy = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v5.json"))
+    named, kept = v5_expected_columns()
+    got = leaves(hierarchy)
+    assert sorted(got) == sorted(named + kept) and len(got) == len(set(got)) == 30
+    matrix = list(pd.read_csv(REFERENCE_DIR / "sorl1_insitutree_profiles_v5.csv", nrows=0).columns[1:])
+    assert sorted(matrix) == sorted(got), "the committed v5 profile matrix drifted from the hierarchy"
+
+
+def test_v5_differs_from_v4_by_exactly_the_agreed_changes():
+    v4 = set(leaves(json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v4.json"))))
+    v5 = set(leaves(json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v5.json"))))
+    assert v5 - v4 == set(V5_RENAMES.values()) | V5_ADDED
+    assert v4 - v5 == set(V5_RENAMES)
+    h5 = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v5.json"))
+    assert "Astrocyte_low_signal" in h5["Glia"]["Astrocyte"]         # a leaf, not dropped: dropping scatters its cells
+    h4 = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v4.json"))
+    assert list(h5.keys()) == list(h4.keys()) and set(h5["Neuron"]) == set(h4["Neuron"])   # no branch moved
+    ann4 = pd.read_csv(REFERENCE_DIR / "denovo_annotations" / "stage4_k21_v4.csv", dtype=str, keep_default_na=False).set_index("denovo_label")
+    ann5 = pd.read_csv(REFERENCE_DIR / "denovo_annotations" / "stage4_k21_v5.csv", dtype=str, keep_default_na=False).set_index("denovo_label")
+    changed = {i for i in ann5.index if (ann5.loc[i, ["keep", "new_name"]] != ann4.loc[i, ["keep", "new_name"]]).any()}
+    assert changed == {"a", "p", "g", "c", "m"}, changed
+    assert ann5.loc["a", "keep"] == "TRUE" and ann5.loc["a", "new_name"] == "Astrocyte_low_signal"
+
+
+def test_v5_matrix_equals_v4_matrix_apart_from_the_renames_and_the_new_column():
+    v4 = pd.read_csv(REFERENCE_DIR / "sorl1_insitutree_profiles_v4.csv", index_col=0).rename(columns=V5_RENAMES)
+    v5 = pd.read_csv(REFERENCE_DIR / "sorl1_insitutree_profiles_v5.csv", index_col=0)
+    assert list(v4.index) == list(v5.index)
+    assert set(v5.columns) - set(v4.columns) == V5_ADDED and set(v4.columns) <= set(v5.columns)
+    assert (v4.values == v5[list(v4.columns)].values).all(), "a shared profile column changed value"
+
+
+def test_v5_collapse_and_parent_maps():
+    collapse = pd.read_csv(REFERENCE_DIR / "sorl1_hierarchy_v5_collapse.csv", dtype=str)
+    assert dict(zip(collapse["leaf"], collapse["collapsed_label"])) == V5_COLLAPSE
+    assert set(collapse["leaf"]) <= set(leaves(json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v5.json"))))
+    parent = pd.read_csv(REFERENCE_DIR / "sorl1_hierarchy_v5_parent.csv", dtype=str)
+    hierarchy = json.load(open(REFERENCE_DIR / "sorl1_hierarchy_v5.json"))
+
+    def direct_parent(node, leaf):
+        for key, child in node.items():
+            if isinstance(child, list):
+                if leaf in child:
+                    return key
+            else:
+                found = direct_parent(child, leaf)
+                if found:
+                    return found
+    assert sorted(parent["leaf"]) == sorted(leaves(hierarchy)), "every leaf needs a parent label"
+    assert all(direct_parent(hierarchy, leaf) == label for leaf, label in zip(parent["leaf"], parent["collapsed_label"]))
+    by_parent = parent.groupby("collapsed_label")["leaf"].apply(set).to_dict()
+    assert {"Astrocyte A", "Astrocyte B", "Astrocyte_NEAT1_HSPA1A_denovo", "Astrocyte_low_signal"} == by_parent["Astrocyte"]
+    assert {"Microglia A", "Microglia B"} == by_parent["Microglia"]
+
+
 if __name__ == "__main__":
     test_hierarchy_leaves_match_profile_columns_both_ways()
     test_only_distinct_de_novo_leaves_are_kept()
@@ -167,4 +243,8 @@ if __name__ == "__main__":
     test_v4_structure_follows_the_review()
     test_v4_collapse_map_covers_exactly_the_neuron_sink()
     test_select_columns_drops_named_and_rejects_typos()
+    test_v5_leaves_match_profile_columns_and_the_built_matrix()
+    test_v5_differs_from_v4_by_exactly_the_agreed_changes()
+    test_v5_matrix_equals_v4_matrix_apart_from_the_renames_and_the_new_column()
+    test_v5_collapse_and_parent_maps()
     print("OK")
