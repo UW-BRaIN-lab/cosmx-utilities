@@ -411,10 +411,23 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   (0.96 vs 2.73), `Excitatory_L4_5_IT_like` (0.50 vs 1.50), the inhibitory leaves, VIP and `Excitatory_CARTPT_GAP43_denovo`. OPC is
   higher on 3 of 4 slides (14.8% vs 9.8%, median +4.9 points; the exception is -1.4). Net: SORL1 donors have roughly 15 points fewer
   neuron-lineage cells and correspondingly more Low_signal, microglia and OPC than the AD donors processed beside them.
-- **What cannot be concluded.** Per-type p-values: with four slides the smallest possible two-sided sign-test p is 0.125, and the
-  agreeing types are correlated (a lower neuron share is a higher non-neuron share), so 14 types with 4/4 agreement are not 14
-  findings. The contrast removes the run and slide, not donor-level factors, so it cannot tell a SORL1 effect from tissue sampling or
-  RNA quality that differs by donor. Depth (median counts per donor) is the next check. OPC still needs the `opc_confident` flag.
+- **Depth and donor quality (July slides).** Median counts per cell: five of the six SORL1 donors sit at 191-313 (599 191, 6589 224,
+  7068 297, 7796 303, 7181 313; 7137 is 739), against 389-806 for the AD comparators on the same slides (exception: AD Pure 6745 at 140).
+  Group medians: SORL1 289, AD Pure 458, AD+LATE 614, Control 654. Restricted to cells with >= 600 counts (104,770 July cells), the
+  within-slide pattern persists for Low_signal (31.9% vs 14.2%, slide differences +11 to +25, 4/4), `Neuron_low_signal` (20.1% vs
+  32.2%, 4/4), `Excitatory_upper` (1.07 vs 3.28), `Excitatory_L4_5_IT_like` (1.56 vs 3.76) and the inhibitory leaves. Composition alone
+  (Low_signal +17.7 points) would take `Excitatory_upper` from 3.28 to about 2.6, so the neuron drop is more than proportional. The
+  microglia result shrinks: Microglia B 4.66% vs 1.97% is the same sign on 4/4 slides but only +0.66 and +0.17 on two of them (donors
+  599 and 7068 carry it), and Microglia A's median difference is 0.00. OPC falls to 7.5% vs 5.0% (14.8 vs 9.8 with all cells).
+- **The pattern is not uniform across SORL1 donors.** Among the >= 600-count cells, Low_signal is 37-48% in four SORL1 donors (599,
+  7068, 7796, 6589) and 20.7% and 1.5% in the other two (7137, 7181), which resemble their AD neighbours (6966 13.0%, 7665 5.9%). The four
+  high-Low_signal donors are among the shallowest, but depth alone does not predict it: 7181 (median 313) does not follow, and AD Pure
+  657 has 29.9% at median 565.
+- **What cannot be concluded.** A SORL1 effect on neuron or Low_signal shares. Per-type p-values are not possible (with four slides the
+  smallest two-sided sign-test p is 0.125, and the agreeing types are correlated), and the contrast cannot separate SORL1 from donor
+  RNA quality: the effect sits in four low-depth donors and is absent in two. Next: tissue-quality metadata (post-mortem interval, RNA
+  integrity) for 599, 7068, 7796 and 6589, and a donor-level sensitivity analysis that drops donors by a pre-set quality threshold.
+  OPC still needs the `opc_confident` flag. Microglia B is the result that holds in every design, but it is carried by two donors here.
 
 ## Resolved items
 
