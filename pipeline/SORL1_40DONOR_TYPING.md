@@ -402,12 +402,19 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
 - **Excitatory and inhibitory neurons are lower in SORL1, but not clearly SORL1-specific.** All donors: SORL1 about 5-fold lower in
   every excitatory leaf (for example `Excitatory_upper` 0.96% vs 2.6-5.7%). July only, the 8 types with q < 0.10 are mostly neuron
   types, which are correlated, and AD Pure is as low as SORL1 for some (`Excitatory_L5_6_NP_like` 0.64 / 0.11 / 0.25 / 0.10).
-  A drop across every excitatory leaf looks like a sampling or run effect; it has not been tested.
-- **What cannot be concluded.** Any SORL1-versus-rest difference in OPC, excitatory neurons or the sink from the between-run
-  comparison: all SORL1 donors are on the July run, which has only 2 Control donors, and the run cannot be repeated. The usable
-  contrast is within the run: each of the four July slides holds both SORL1 and non-SORL1 donors, so SORL1 can be compared with the
-  non-SORL1 AD donors (AD Pure and AD+LATE) on the same slide, with the slide as the block. With four slides this shows whether a
-  difference has the same sign on every slide; it cannot give a strong p-value.
+  The within-slide contrast below shows the neuron deficit is not a run effect.
+- **Within-slide contrast (SORL1 vs non-SORL1 AD donors on the same July slide).** The run cannot be repeated, but each of the four
+  July slides holds both kinds of donor, so the slide is the block (`within_slide.py`: per slide, mean per-donor % in SORL1 donors
+  minus the AD Pure and AD+LATE donors on that slide; 1-2 SORL1 and 1-3 comparator donors per slide). Same sign on all four slides,
+  SORL1 against comparator: `Neuron_low_signal` 9.4% vs 18.5% (-6 to -14 points on every slide), Low_signal 18.1% vs 11.4% (+2.8 to
+  +17), Microglia B 6.69% vs 3.31% (+2.3 to +7.0), Microglia A 8.19% vs 6.28% (+0.7 to +2.7), and lower in `Excitatory_upper`
+  (0.96 vs 2.73), `Excitatory_L4_5_IT_like` (0.50 vs 1.50), the inhibitory leaves, VIP and `Excitatory_CARTPT_GAP43_denovo`. OPC is
+  higher on 3 of 4 slides (14.8% vs 9.8%, median +4.9 points; the exception is -1.4). Net: SORL1 donors have roughly 15 points fewer
+  neuron-lineage cells and correspondingly more Low_signal, microglia and OPC than the AD donors processed beside them.
+- **What cannot be concluded.** Per-type p-values: with four slides the smallest possible two-sided sign-test p is 0.125, and the
+  agreeing types are correlated (a lower neuron share is a higher non-neuron share), so 14 types with 4/4 agreement are not 14
+  findings. The contrast removes the run and slide, not donor-level factors, so it cannot tell a SORL1 effect from tissue sampling or
+  RNA quality that differs by donor. Depth (median counts per donor) is the next check. OPC still needs the `opc_confident` flag.
 
 ## Resolved items
 
