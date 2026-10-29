@@ -442,6 +442,43 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   integrity) for 599, 7068, 7796 and 6589, and a donor-level sensitivity analysis that drops donors by a pre-set quality threshold.
   OPC still needs the `opc_confident` flag. Microglia B is the result that holds in every design, but it is carried by two donors here.
 
+### Napari: the v5 columns (not run)
+
+Adds two dropdown columns to the live `_metadata.csv` of the 10 stitched slides, next to the existing ones (`InSituType_K21`, `InSituTree_v4`,
+`SEAAD_markers_K21`, ...): `InSituTree_v5` (30 leaves; the L2/3 branch shows as `Excitatory_upper`) and `InSituTree_v5_collapsed`
+(`sorl1_hierarchy_v5_collapse.csv`: sink leaves merged, `L4 neuron` -> `Excitatory_L4_5_IT_like`, `r`+`s` -> `Excitatory_L5_IT_like`). It uses the Napari
+scripts from PR 92 (`maddie-napari-metadata`: `prepare-sorl1-napari-labels.py`, `validate-napari-label-columns.py`), which are not on this branch, plus
+`labels-csv-to-typing-h5.py` and `celltypes-to-napari-metadata.py` from `main`. Do not re-stitch a slide afterwards: the stitcher wipes its output folder,
+backups included.
+
+```bash
+# 1. on Klone: a labels table with the runs the prepare script needs (tree_v2 is the base InSituTree column and carries the OPC flag)
+RUNS="k21:stage4_k21 tree_v2:stage4_insitutree_k21_v2:insitutree_result.h5 tree_v4:stage4_insitutree_k21_v4:insitutree_result.h5 tree_v5:stage4_insitutree_k21_v5:insitutree_result.h5" \
+    OPC_FLAG="tree_v2=OPC" OUT_SUBDIR=labels_napari_v5 sbatch pipeline/slurm/54_export_cell_labels.sh
+# then, from a Mac terminal (one Duo): scp it down as cell_labels_napari_v5.csv.gz
+
+# 2. on the Mac, in a checkout that has PR 92's scripts: one (cell_id, label) CSV per column
+uv run python scripts/prepare-sorl1-napari-labels.py --labels cell_labels_napari_v5.csv.gz \
+    --k21-annotations pipeline/reference/denovo_annotations/stage4_k21.csv --tree-run tree_v2 \
+    --extra-tree-run tree_v5 --collapse-csv pipeline/reference/sorl1_hierarchy_v5_collapse.csv --out-dir napari_labels_v5
+# only insitutree_tree_v5.csv and insitutree_tree_v5_collapsed.csv are used below; the others rebuild the existing columns
+
+# 3. one h5 per new column, then chain the join onto the CURRENT live files (live/<slide>_metadata.csv, downloaded first;
+#    flat/<slide>_metadata_file.csv.gz are the export's flat files)
+uv run python scripts/labels-csv-to-typing-h5.py --csv napari_labels_v5/insitutree_tree_v5.csv --label-column label --output v5.h5
+uv run python scripts/labels-csv-to-typing-h5.py --csv napari_labels_v5/insitutree_tree_v5_collapsed.csv --label-column label --output v5_collapsed.h5
+uv run python scripts/celltypes-to-napari-metadata.py --typing-h5 v5.h5 --flatfiles flat --column InSituTree_v5 --merge-into live --out-dir step1
+uv run python scripts/celltypes-to-napari-metadata.py --typing-h5 v5_collapsed.h5 --flatfiles flat --column InSituTree_v5_collapsed --merge-into step1 --out-dir step2
+
+# 4. independent check: must report 0 disagreements before anything is uploaded
+uv run python scripts/validate-napari-label-columns.py --merged-dir step2 --original-dir live --labels-dir napari_labels_v5 \
+    --column InSituTree_v5=insitutree_tree_v5.csv --column InSituTree_v5_collapsed=insitutree_tree_v5_collapsed.csv
+```
+
+Then, per slide: copy the live `_metadata.csv` server-side to `_metadata.csv.pre-v5.bak` (check it does not exist first; leave the four existing backups alone),
+upload the merged file, download it back and compare md5 of the local files (files over 8 MiB have multipart ETags, so do not compare ETags).
+Rollback: copy `_metadata.csv.pre-v5.bak` over `_metadata.csv`. Each upload overwrites a live file that Maddie may have open, so confirm before running it.
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
