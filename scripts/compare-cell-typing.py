@@ -1,34 +1,50 @@
 #!/usr/bin/env python3
-"""Compare two cell-type columns in stitched _metadata.csv files.
+"""Compare two cell-type columns in per-slide metadata files.
 
-Reads the multi-column _metadata.csv files produced by generate-slide-metadata.py
-(each cell has several annotation columns, e.g. celltype_refit / celltype_norefit,
-each paired with a <column>_color) and, for every run (study) under an S3
-experiment prefix, compares two of those columns per cell:
+Reads per-slide metadata CSVs from S3 and, for each group of slides, compares two
+of their columns per cell:
 
   - a grouped abundance bar chart (proportion of cells per type, column A vs B)
   - a Sankey tracing each cell from its column-A type to its column-B type
 
-Slides are grouped by their run folder (the directory just above each slide), so
-e.g. an Initial-segmentation run and a Resegmentation run are summarised
-separately rather than pooled (use --pool-all to pool everything into one group).
+Two metadata layouts are supported (pick with --metadata-suffix):
+
+  - stitched `_metadata.csv` from generate-slide-metadata.py — friendly column
+    names (celltype_refit / celltype_norefit) each paired with a <column>_color;
+    laid out as `.../<run>/<slide>/_metadata.csv` (the default).
+  - raw AtoMx flatFiles `<slide>_metadata_file.csv.gz` — the original AtoMx column
+    names (e.g. RNA_RNA_Cell.Typing.InSituType.1_1_clusters) and no color sidecars
+    (colors fall back to a stable per-label hash); gzipped and laid out as
+    `.../flatFiles/<slide>/<slide>_metadata_file.csv.gz`.
+
+Slides are grouped by their run folder (the directory just above each slide) by
+default; --per-slide compares each slide on its own (the right granularity when the
+columns are de-novo cluster labels, which InSituType assigns independently per
+slide), and --pool-all pools everything into one comparison.
 
 Usage:
-    uv run --with plotly --with kaleido python scripts/compare-cell-typing.py \
+    # Stitched metadata, per-run (default), Refit=TRUE vs Refit=FALSE:
+    uv run --with boto3 --with matplotlib --with plotly --with kaleido \
+        python scripts/compare-cell-typing.py \
         --bucket keene-cosmx-data \
-        --prefix napari-stitched/CosMx-retina/CosMx-retina-brain-segmentation-test-4.1.26 \
+        --prefix napari-stitched/CosMx-Victoria/<experiment> \
         --output-dir compare_out
 
-    # Different columns / labels, and draw every flow (no pooling of small ones):
-    uv run --with plotly --with kaleido python scripts/compare-cell-typing.py \
-        --bucket keene-cosmx-data --prefix napari-stitched/CosMx-Victoria/<run> \
-        --column-a celltype_refit --label-a "Refit=TRUE" \
-        --column-b celltype_norefit --label-b "Refit=FALSE" \
-        --min-flow-fraction 0 --output-dir compare_out
+    # Raw AtoMx flatFiles, per-slide, with the original InSituType column names:
+    uv run --with boto3 --with matplotlib --with plotly --with kaleido \
+        python scripts/compare-cell-typing.py \
+        --bucket keene-cosmx-data \
+        --prefix CosMx-Victoria/<experiment>/flatFiles/<inner>/flatFiles \
+        --metadata-suffix _metadata_file.csv.gz --per-slide \
+        --column-a RNA_RNA_Cell.Typing.InSituType.1_1_clusters \
+        --column-b RNA_RNA_Cell.Typing.InSituType.No.Refit_1_clusters \
+        --label-a "Refit=TRUE" --label-b "Refit=FALSE" \
+        --output-dir compare_out
 """
 
 import argparse
 import csv
+import gzip
 import hashlib
 import io
 import os
@@ -58,25 +74,52 @@ def short_run_name(run: str) -> str:
     return stripped or run
 
 
-def discover_slides(s3, bucket: str, prefix: str) -> dict:
-    """Find every slide _metadata.csv under the prefix, grouped by run folder.
+def safe_name(name: str) -> str:
+    """Filesystem-safe token for an output basename."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("_") or "group"
 
-    Returns {run_name: [(slide_name, key), ...]}. The run is the directory
-    immediately above the slide (`.../<run>/<slide>/_metadata.csv`); slides
-    sitting directly under the prefix are grouped under the prefix's last part.
+
+def discover_slides(s3, bucket: str, prefix: str, suffix: str) -> list:
+    """Find every per-slide metadata file under the prefix.
+
+    Matches keys ending in `suffix` (e.g. `_metadata.csv` for stitched output, or
+    `_metadata_file.csv.gz` for raw AtoMx flatFiles). Returns a list of
+    (run, slide, key): the slide is the directory holding the file and the run is
+    the directory immediately above it; files sitting directly under the prefix are
+    grouped under the prefix's last path part.
     """
-    groups = defaultdict(list)
+    records = []
     paginator = s3.get_paginator("list_objects_v2")
     base = prefix.rstrip("/")
     for page in paginator.paginate(Bucket=bucket, Prefix=base + "/"):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            if not key.endswith("/_metadata.csv"):
+            if not key.endswith(suffix):
                 continue
             parts = key.split("/")
-            slide = parts[-2]
+            slide = parts[-2] if len(parts) >= 2 else base.rsplit("/", 1)[-1]
             run = parts[-3] if len(parts) >= 3 else base.rsplit("/", 1)[-1]
-            groups[run].append((slide, key))
+            records.append((run, slide, key))
+    return records
+
+
+def group_records(records: list, mode: str) -> dict:
+    """Bucket (run, slide, key) records into named comparison groups.
+
+    mode="run"   -> one group per run folder (readable run label)
+    mode="slide" -> one group per slide (raw slide name; de-novo labels are
+                    per-slide, so pooling slides would mix unrelated label spaces)
+    mode="all"   -> a single pooled group
+    """
+    groups = defaultdict(list)
+    for run, slide, key in records:
+        if mode == "all":
+            name = "all"
+        elif mode == "slide":
+            name = slide
+        else:
+            name = short_run_name(run)
+        groups[name].append((slide, key))
     return groups
 
 
@@ -91,8 +134,10 @@ class Comparison:
         self.n_cells = 0
 
     def add_slide(self, s3, bucket: str, key: str) -> None:
-        body = s3.get_object(Bucket=bucket, Key=key)["Body"].read().decode("utf-8")
-        reader = csv.DictReader(io.StringIO(body))
+        raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        if key.endswith(".gz"):
+            raw = gzip.decompress(raw)
+        reader = csv.DictReader(io.StringIO(raw.decode("utf-8")))
         if self.col_a not in (reader.fieldnames or []) or \
            self.col_b not in (reader.fieldnames or []):
             print(f"  WARNING: {key} lacks {self.col_a}/{self.col_b} — skipped",
@@ -170,9 +215,13 @@ def sankey(cmp: Comparison, label_a, label_b, title, out_png, out_html,
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Compare two cell-type columns per run.")
+    p = argparse.ArgumentParser(description="Compare two cell-type columns per run/slide.")
     p.add_argument("--bucket", required=True)
     p.add_argument("--prefix", required=True, help="S3 experiment prefix (contains run/slide dirs)")
+    p.add_argument("--metadata-suffix", default="_metadata.csv",
+                   help="Match metadata objects ending in this suffix. Use "
+                        "_metadata_file.csv.gz for raw AtoMx flatFiles. "
+                        "Gzipped (.gz) files are decompressed automatically.")
     p.add_argument("--column-a", default="celltype_refit")
     p.add_argument("--column-b", default="celltype_norefit")
     p.add_argument("--label-a", default="Refit=TRUE")
@@ -180,43 +229,45 @@ def main() -> None:
     p.add_argument("--min-flow-fraction", type=float, default=0.005,
                    help="Sankey flows below this fraction of cells are pooled into "
                         "(minor). Set 0 to draw every flow.")
-    p.add_argument("--pool-all", action="store_true",
-                   help="Pool all runs into a single comparison instead of per-run.")
+    grouping = p.add_mutually_exclusive_group()
+    grouping.add_argument("--per-slide", action="store_true",
+                          help="Compare each slide on its own (right granularity when "
+                               "the columns are de-novo cluster labels).")
+    grouping.add_argument("--pool-all", action="store_true",
+                          help="Pool all slides into a single comparison.")
     p.add_argument("--output-dir", default="compare_out")
     args = p.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     s3 = boto3.client("s3")
-    groups = discover_slides(s3, args.bucket, args.prefix)
-    if not groups:
-        print(f"ERROR: no _metadata.csv found under s3://{args.bucket}/{args.prefix}",
-              file=sys.stderr)
+    records = discover_slides(s3, args.bucket, args.prefix, args.metadata_suffix)
+    if not records:
+        print(f"ERROR: no *{args.metadata_suffix} found under "
+              f"s3://{args.bucket}/{args.prefix}", file=sys.stderr)
         sys.exit(1)
 
-    if args.pool_all:
-        merged = [(s, k) for slides in groups.values() for (s, k) in slides]
-        groups = {"all": merged}
+    mode = "slide" if args.per_slide else "all" if args.pool_all else "run"
+    groups = group_records(records, mode)
 
-    for run, slides in groups.items():
+    for group, slides in sorted(groups.items()):
         cmp = Comparison(args.column_a, args.column_b)
         for slide, key in sorted(slides):
             cmp.add_slide(s3, args.bucket, key)
         if cmp.n_cells == 0:
-            print(f"[{run}] no comparable cells — skipped")
+            print(f"[{group}] no comparable cells — skipped")
             continue
-        name = short_run_name(run)
-        print(f"[{name}] {len(slides)} slides, {cmp.n_cells:,} cells | "
+        print(f"[{group}] {len(slides)} slide(s), {cmp.n_cells:,} cells | "
               f"A types={len(cmp.a_counts)} B types={len(cmp.b_counts)} | "
               f"identical-label agreement={cmp.agreement():.1f}%")
-        base = os.path.join(args.output_dir, name)
+        base = os.path.join(args.output_dir, safe_name(group))
         abundance_chart(
             cmp, args.label_a, args.label_b,
-            f"{name}: cell-type abundance — {args.label_a} vs {args.label_b}\n"
-            f"({len(slides)} slides, n={cmp.n_cells:,} cells)",
+            f"{group}: cell-type abundance — {args.label_a} vs {args.label_b}\n"
+            f"({len(slides)} slide(s), n={cmp.n_cells:,} cells)",
             f"{base}_abundance.png")
         suffix = "" if args.min_flow_fraction > 0 else "_allflows"
         sankey(
-            cmp, args.label_a, args.label_b, f"{name}",
+            cmp, args.label_a, args.label_b, f"{group}",
             f"{base}_sankey{suffix}.png", f"{base}_sankey{suffix}.html",
             args.min_flow_fraction)
         print(f"  wrote {base}_abundance.png, {base}_sankey{suffix}.png/.html")
