@@ -423,6 +423,19 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   7068, 7796, 6589) and 20.7% and 1.5% in the other two (7137, 7181), which resemble their AD neighbours (6966 13.0%, 7665 5.9%). The four
   high-Low_signal donors are among the shallowest, but depth alone does not predict it: 7181 (median 313) does not follow, and AD Pure
   657 has 29.9% at median 565.
+- **Sensitivity: K=21 `a` as its own group (`a_mixed`); a neuron-side leaf (v6) is not pursued.** `a` (31,238 cells) shows astrocyte and
+  neuron markers together. The Neuron-routed half (11,693 cells, median 526 counts) has 63-90% of the K=21 neuron level of SNAP25, SYT1
+  and STMN2 and 14-20% of the K=21 astrocyte level of SLC1A2, AQP4 and GLUL; the Glia-routed half (17,338 cells, median 327) has 30-49%
+  of the neuron level and 30-38% of the astrocyte level. Every marker shifts by about the same factor between the halves, so the first
+  split cuts a graded mixture; a leaf under Neuron would name cells that still carry astrocyte signal, and its profile would sit outside
+  the K=21 fit. Relabelling `a` as its own group leaves the disease results unchanged: all donors, the same four types have q < 0.10
+  (Microglia B 0.0152, OPC 0.0228, `Astrocyte_NEAT1_HSPA1A_denovo` 0.058, Microglia A 0.058; Microglia B group means identical); without
+  July, Microglia B and Astrocyte A trend q 0.091 (0.087 before); within-slide, every sign and slide-agreement count is unchanged
+  (`Neuron_low_signal` 9.28% vs 18.24%, Low_signal 18.07% vs 11.37%, Microglia B 6.69% vs 3.31%). `a_mixed` is not a SORL1 feature:
+  0.81% of cells in SORL1 donors against 3.4-5.2% in the other groups (q 0.14), lower in SORL1 on all four July slides. Whether the
+  neuron-like `a` cells are a real hybrid state, two populations merged, or ambient/segmentation mixing is not settled; cell
+  coordinates (are they among neurons?) would help. For analyses that need a clean group, report K=21 `a` as "mixed low-signal glia and
+  neuron".
 - **What cannot be concluded.** A SORL1 effect on neuron or Low_signal shares. Per-type p-values are not possible (with four slides the
   smallest two-sided sign-test p is 0.125, and the agreeing types are correlated), and the contrast cannot separate SORL1 from donor
   RNA quality: the effect sits in four low-depth donors and is absent in two. Next: tissue-quality metadata (post-mortem interval, RNA
