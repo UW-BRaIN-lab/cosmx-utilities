@@ -72,8 +72,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 import boto3
-import duckdb
 from botocore.exceptions import ClientError
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the shared colour rule sits beside the scripts
+from napari_colors import deterministic_color  # noqa: E402
 
 CELL_ID_COLUMN = "cell_ID"
 SEG_ID_COLUMN = "cellSegmentationSetId"
@@ -149,15 +151,6 @@ def s3_download(s3, bucket: str, key: str, local_path: str) -> bool:
         return True
     except ClientError:
         return False
-
-
-def deterministic_color(value: str) -> str:
-    """Generate a deterministic hex color from a string using DuckDB's hash()."""
-    result = duckdb.sql(
-        f"SELECT printf('#%06X', abs(hash($1)) % 16777216)",
-        params=[value],
-    ).fetchone()
-    return result[0]
 
 
 def read_gz_header(s3, bucket: str, key: str) -> list[str]:

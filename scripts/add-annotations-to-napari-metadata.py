@@ -44,8 +44,10 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the shared colour rule sits beside the scripts
+from napari_colors import deterministic_color  # noqa: E402
 
 CELL_ID_COLUMN = "cell_ID"
 COLOR_SUFFIX = "_color"
@@ -76,16 +78,6 @@ def parse_args() -> argparse.Namespace:
                         "Applied after the annotation columns are added; cell_ID cannot be "
                         "dropped. A named column a file does not have is reported, not ignored.")
     return p.parse_args()
-
-
-def deterministic_color(value: str) -> str:
-    """Deterministic hex colour -- identical to generate-slide-metadata.py.
-
-    Sharing the implementation matters: a label must keep the same colour whichever script
-    wrote the column, or the same category changes colour between layers.
-    """
-    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
-                      params=[value]).fetchone()[0]
 
 
 def load_fov_table(annotations: Path, crosswalk: Path, columns: list[str]) -> pd.DataFrame:

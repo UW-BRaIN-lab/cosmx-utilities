@@ -26,18 +26,15 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the shared colour rule sits beside the scripts
+from napari_colors import deterministic_color  # noqa: E402
 
 CELL_ID_COLUMN = "cell_ID"
 COLOR_SUFFIX = "_color"
 NAPARI_ID_RE = re.compile(r"^c_(?P<slide>\d+)_(?P<fov>\d+)_(?P<cell>\d+)$")
 PLACEHOLDERS = ("cell_type", "hex_color")
-
-
-def deterministic_color(value: str) -> str:
-    """Same hash as generate-slide-metadata.py / celltypes-to-napari-metadata.py."""
-    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)", params=[value]).fetchone()[0]
 
 
 def pipeline_index(napari_ids: pd.Series, slide: str) -> pd.Series:

@@ -48,8 +48,10 @@ import argparse
 import sys
 from pathlib import Path
 
-import duckdb
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the shared colour rule sits beside the scripts
+from napari_colors import deterministic_color  # noqa: E402
 
 CELL_ID_COLUMN = "cell_ID"
 COLOR_SUFFIX = "_color"
@@ -78,12 +80,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--source-column", default=DEFAULT_SOURCE_COLUMN,
                    help=f"Column holding the K=21 call (default {DEFAULT_SOURCE_COLUMN}).")
     return p.parse_args()
-
-
-def deterministic_color(value: str) -> str:
-    """Deterministic hex colour -- identical to generate-slide-metadata.py."""
-    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
-                      params=[value]).fetchone()[0]
 
 
 def call_label(row: pd.Series) -> str:
