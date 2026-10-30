@@ -490,6 +490,8 @@ it are unchanged. `scripts/recolor-napari-metadata.py` applies the rule to exist
 in all columns; labels and other columns untouched; idempotent) and lists each change. Columns written before this change still hold the old
 hash colours in their studies until they are re-coloured the same way.
 
+**Renamed in Napari (2026-10-30).** `InSituTree_v5` and `InSituTree_v5_collapsed` now say `Excitatory_L2_3_mixed` (26,976 cells) instead of `Excitatory_upper`, with that label's colour from the shared rule, via `scripts/rename-napari-label.py`. The v4 columns keep the old name. Backups: `_metadata.csv.pre-rename.bak` (the file before the rename, with the recoloured colours) next to `.pre-recolor.bak` and `.pre-v5.bak`. The runbook below predates the rename and the colour rule: a rebuild from it gives `Excitatory_upper` until the rename step is run again.
+
 ### Napari: the v5 columns (uploaded to all 10 slides; this is the runbook)
 
 Adds two dropdown columns to the live `_metadata.csv` of the 10 stitched slides, next to the existing ones (`InSituType_K21`, `InSituTree_v4`,
