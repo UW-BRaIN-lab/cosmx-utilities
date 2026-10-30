@@ -12,6 +12,9 @@
 #   TYPED_BASENAME  default cosmx_typed.h5ad.
 #   STAGE4_DIR      Kopah sub-dir holding anchor/anchor_typing.h5 (default stage4_anchor_pruned, the
 #                   k=27 fit on the pruned gene panel; stage4_anchor is the earlier full-panel fit).
+#   SKIP_PINNED     set to 1 to skip splitting the named-type panels into pinned / unpinned cells.
+#                   Otherwise 75o's pinned_cells.csv must exist at
+#                   ${STAGE4_DIR}/supervised_gbmap/pinned_cells.csv (run 75o_anchor_pinning.sh).
 #   OUT_DIR         where the PNGs are left on Klone (default $HOME/anchor_umap).
 
 #SBATCH --job-name=cosmx-anchor-umap
@@ -66,6 +69,14 @@ echo "Staging the typed AnnData and the anchor cohort's typing..."
 s5cmd cp "${BASE}/${TYPED}/${TYPED_BASENAME}" "$WORK/typed.h5ad"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
 
+PINNED_ARGS=()
+if [[ "${SKIP_PINNED:-0}" != "1" ]]; then
+    # No silent fallback: a named-type figure that quietly lost the split would mislead.
+    s5cmd cp "${BASE}/${STAGE4}/supervised_gbmap/pinned_cells.csv" "$WORK/pinned_cells.csv" \
+        || { echo "ERROR: pinned_cells.csv missing; run 75o_anchor_pinning.sh or set SKIP_PINNED=1" >&2; exit 1; }
+    PINNED_ARGS=(--pinned-csv "$WORK/pinned_cells.csv")
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -74,6 +85,7 @@ apptainer exec \
         --typed-h5ad "$WORK/typed.h5ad" \
         --anchor-typing-h5 "$WORK/anchor_typing.h5" \
         --label-colors-csv "${PIPELINE_DIR}/reference/anchor_label_colors.csv" \
+        ${PINNED_ARGS[@]+"${PINNED_ARGS[@]}"} \
         --output-stem "$WORK/umap_anchor_cohort"
 
 cp "$WORK"/umap_anchor_cohort_*.png "$OUT_DIR/"
