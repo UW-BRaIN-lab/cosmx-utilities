@@ -73,6 +73,13 @@ def test_shipped_colour_table_covers_every_anchor_label():
     assert len(table) == 81 and len(set(table.values())) == 81
 
 
+def test_select_panels_keeps_big_letters_and_reports_skipped():
+    labels = pd.Series(["b"] * 5 + ["z"] * 3 + ["h"] * 1 + ["OPC-like"] * 9)
+    panels, skipped = pacu.select_panels(labels, min_cells=3)
+    assert panels == ["b", "z"]
+    assert skipped == ["h"]
+
+
 def test_end_to_end_render():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -86,9 +93,9 @@ def test_end_to_end_render():
             handle["cell_type"] = np.array(list(COHORT_LABELS.values()), dtype=h5py.string_dtype())
         sys.argv = ["x", "--typed-h5ad", str(tmp / "typed.h5ad"),
                     "--anchor-typing-h5", str(tmp / "anchor_typing.h5"),
-                    "--output-stem", str(tmp / "out")]
+                    "--output-stem", str(tmp / "out"), "--min-panel-cells", "1"]
         pacu.main()
-        for suffix in ("all_labels", "denovo_letters"):
+        for suffix in ("all_labels", "denovo_letters", "small_multiples"):
             assert (tmp / f"out_{suffix}.png").stat().st_size > 0
 
 
