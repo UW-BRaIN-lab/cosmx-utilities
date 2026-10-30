@@ -10,6 +10,11 @@
 #   STAGE3_DIR=stage4 GROUP_KEY=cell_type CLUSTERED_BASENAME=cosmx_typed.h5ad \
 #       sbatch pipeline/slurm/50_marker_heatmap.sh
 #
+# Optional env, for a typed AnnData that can be handed to someone else (see write_celltypes.py):
+#   LABEL_MAPS   space-separated NAME=repo-relative-CSV; adds obs cell_type_<NAME> (e.g. v5=...rename.csv)
+#   ANNOTATIONS  repo-relative FOV table; adds case_broad, case_group, sorl1_mutation to obs
+#   OPC_LABELS   comma-separated OPC label(s); adds obs opc_confident
+#
 # Required env (from pipeline/.env):
 #   KOPAH_ENDPOINT_URL, KOPAH_BUCKET, KOPAH_PREFIX,
 #   KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY,
@@ -59,6 +64,14 @@ RESULT_BASENAME="${RESULT_BASENAME:-insitutype_result.h5}"
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
+REPO_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
+EXTRA_ARGS=()
+for spec in ${LABEL_MAPS:-}; do
+    EXTRA_ARGS+=(--label-map "${spec%%=*}=${REPO_DIR}/${spec#*=}")
+done
+[[ -n "${ANNOTATIONS:-}" ]] && EXTRA_ARGS+=(--annotations "${REPO_DIR}/${ANNOTATIONS}")
+[[ -n "${OPC_LABELS:-}" ]] && EXTRA_ARGS+=(--opc-labels "${OPC_LABELS}")
+
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_write_celltypes_${SLURM_JOB_ID:-local}"
 mkdir -p "$WORK/qc_plots"
 trap 'rm -rf "$WORK"' EXIT
@@ -81,9 +94,10 @@ apptainer exec \
         --clustered-h5ad "$WORK/cosmx_clustered.h5ad" \
         --insitutype-h5 "$WORK/typing_result.h5" \
         --output "$WORK/cosmx_typed.h5ad" \
-        --qc-plots-dir "$WORK/qc_plots"
+        --qc-plots-dir "$WORK/qc_plots" \
+        "${EXTRA_ARGS[@]}"
 
-echo "Uploading typed AnnData + QC plot to Kopah..."
+echo "Uploading typed AnnData + QC plot to s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/ ..."
 s5cmd cp "$WORK/cosmx_typed.h5ad" \
     "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/cosmx_typed.h5ad"
 s5cmd cp "$WORK/qc_plots/*" \
