@@ -78,6 +78,10 @@ def test_select_panels_keeps_big_letters_and_reports_skipped():
     panels, skipped = pacu.select_panels(labels, min_cells=3)
     assert panels == ["b", "z"]
     assert skipped == ["h"]
+    named, named_skipped = pacu.select_panels(labels, min_cells=10, denovo=False)
+    assert named == [] and named_skipped == ["OPC-like"]
+    named, _ = pacu.select_panels(labels, min_cells=3, denovo=False)
+    assert named == ["OPC-like"]
 
 
 def test_end_to_end_render():
@@ -95,7 +99,7 @@ def test_end_to_end_render():
                     "--anchor-typing-h5", str(tmp / "anchor_typing.h5"),
                     "--output-stem", str(tmp / "out"), "--min-panel-cells", "1"]
         pacu.main()
-        for suffix in ("all_labels", "denovo_letters", "small_multiples"):
+        for suffix in ("all_labels", "denovo_letters", "small_multiples", "small_multiples_named"):
             assert (tmp / f"out_{suffix}.png").stat().st_size > 0
 
 

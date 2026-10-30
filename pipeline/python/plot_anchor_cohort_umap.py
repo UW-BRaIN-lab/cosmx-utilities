@@ -11,6 +11,7 @@ Two figures are written:
                               neutral, so the letters being worked out stand out
   * <stem>_small_multiples.png one panel per de novo letter (plus one for the named types):
                               that group highlighted over a grey density of every cell
+  * <stem>_small_multiples_named.png the same, one panel per named GBmap type
 
 Only obsm['X_umap'] and the obs index are read from the typed AnnData (backed mode, no
 matrix), but the 7.5M-point scatter is memory heavy: run it in a Slurm job
@@ -146,14 +147,21 @@ def draw(xy_all, in_cohort, cohort_labels, colors, title, path, denovo_only):
     print(f"Wrote {path}")
 
 
-def select_panels(cohort_labels: pd.Series, min_cells: int) -> tuple[list[str], list[str]]:
-    """De novo letters with at least `min_cells` cells (most cells first), and those skipped."""
-    counts = cohort_labels[cohort_labels.map(is_denovo_letter)].value_counts()
+def select_panels(cohort_labels: pd.Series, min_cells: int,
+                  denovo: bool = True) -> tuple[list[str], list[str]]:
+    """Labels of one kind (de novo letters, or named reference types) with at least `min_cells`
+    cells (most cells first), and those skipped."""
+    is_wanted = cohort_labels.map(is_denovo_letter) == denovo
+    counts = cohort_labels[is_wanted].value_counts()
     return list(counts[counts >= min_cells].index), list(counts[counts < min_cells].index)
 
 
-def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path):
-    """One panel per letter: its cells over a grey density of EVERY cell (anchor cohort or not)."""
+def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path,
+                         lump_group=None):
+    """One panel per label: its cells over a grey density of EVERY cell (anchor cohort or not).
+
+    `lump_group` ("named" or "denovo") adds a final panel for every cell of that kind.
+    """
     import matplotlib.pyplot as plt
 
     xlim, ylim, _, _ = umap_view_limits(xy_all)
@@ -165,7 +173,7 @@ def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path)
     backdrop_vmax = backdrop.max() / BACKDROP_MAX_ALPHA_FRACTION
 
     cohort_xy = xy_all[in_cohort]
-    groups = panels + [NAMED_TYPES_LABEL]
+    groups = panels + ([NAMED_TYPES_LABEL] if lump_group == "named" else [])
     rows = -(-len(groups) // PANEL_COLUMNS)
     fig, axes = plt.subplots(rows, PANEL_COLUMNS, squeeze=False,
                              figsize=(PANEL_COLUMNS * PANEL_SIZE_IN, rows * PANEL_SIZE_IN))
@@ -235,7 +243,15 @@ def main() -> None:
           f"{', '.join(f'{l} ({(cohort_labels == l).sum()})' for l in skipped) or 'none'}")
     draw_small_multiples(xy_all, in_cohort, cohort_labels,
                          label_colors(labels, True, fixed_colors), panels,
-                         Path(f"{args.output_stem}_small_multiples.png"))
+                         Path(f"{args.output_stem}_small_multiples.png"), lump_group="named")
+
+    named_panels, named_skipped = select_panels(cohort_labels, args.min_panel_cells, denovo=False)
+    print(f"Named-type small multiples: {len(named_panels)} panels; skipped "
+          f"(< {args.min_panel_cells} cells): {len(named_skipped)} types, "
+          f"{int(cohort_labels.isin(named_skipped).sum()):,} cells")
+    draw_small_multiples(xy_all, in_cohort, cohort_labels,
+                         label_colors(labels, False, fixed_colors), named_panels,
+                         Path(f"{args.output_stem}_small_multiples_named.png"))
 
 
 if __name__ == "__main__":
