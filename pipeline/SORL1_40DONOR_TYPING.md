@@ -538,7 +538,7 @@ Output: `s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage4_insitutree_k21_v5/cosmx_typed.h
 
 | column | what it is |
 |---|---|
-| `cell_type_v5` | the 30 v5 leaves with `Excitatory_upper` renamed `Excitatory_L2_3_mixed` |
+| `cell_type_v5` | the 30 labels the tree emits (29 leaves plus the `Excitatory_L2_3_mixed` node, renamed from `Excitatory_upper`); the `L2/3 neuron` leaf is never reached |
 | `cell_type_v5_collapsed` | analysis level: the six neuron sink leaves -> `Neuron_low_signal`, `L4 neuron` -> `Excitatory_L4_5_IT_like`, `r` and `s` -> `Excitatory_L5_IT_like` |
 | `cell_type_v5_parent` | branch level (`Astrocyte`, `Microglia`, `Excitatory_deep`, ...) |
 | `case_broad`, `case_group`, `sorl1_mutation` | donor groups from the FOV sheet, joined on `Region` (the donor id) |

@@ -21,8 +21,8 @@ adata = ad.read_h5ad("cosmx_typed.h5ad")                 # everything (several G
 
 ## What is in it
 
-- **`X`**: sparse counts, QC-passed cells by all probes. It is the stage-3a counts matrix; check `adata.X.max()` and that the values are
-  integers before assuming raw counts.
+- **`X`**: sparse integer counts (raw, not normalized; checked on the first 2,000 cells), QC-passed cells by all probes. It is the
+  stage-3a counts matrix.
 - **`var["probe_type"]`**: `gene` or `negprobe`. Subset to `gene` for expression analysis; the negative probes are kept because
   InSituType needs them.
 - **`obsm`**: `X_pearson_pca` (the batch-aware PCA the clusters were built on) and `X_umap`.
@@ -35,7 +35,7 @@ adata = ad.read_h5ad("cosmx_typed.h5ad")                 # everything (several G
 | `case_group`, `case_broad`, `sorl1_mutation` | donor groups from the curated FOV sheet |
 | `leiden` | cohort-wide Leiden cluster from stage 3c |
 | `total_counts`, `qc_genes_detected`, `qc_area` | depth, genes detected and cell area |
-| **`cell_type_v5`** | **the 30 InSituTree v5 leaves with the final names. Use this for cell-level work** |
+| **`cell_type_v5`** | **the 30 labels the v5 tree emits (29 leaves plus the `Excitatory_L2_3_mixed` node), final names. Use this for cell-level work** |
 | **`cell_type_v5_collapsed`** | analysis level: the six neuron sink leaves are `Neuron_low_signal`; `L4 neuron` is `Excitatory_L4_5_IT_like`; `r` and `s` are `Excitatory_L5_IT_like` |
 | `cell_type_v5_parent` | branch level (`Astrocyte`, `Microglia`, `Excitatory_deep`, `Vascular`, `OPC`, ...) |
 | **`opc_confident`** | called OPC **and** (in Leiden 0 or `total_counts` >= 600). Use it for any OPC result |
@@ -55,8 +55,10 @@ These cause most wrong conclusions in this dataset.
 4. **OPC calls on shallow cells are unreliable.** The posterior is near 1 for them. Use `opc_confident`. The OPC elevation in SORL1 is
    largely a run effect.
 5. **Some labels are mixed groups, not cell types.**
-   - `Excitatory_L2_3_mixed` (about 27k cells): only about 11% is the flat K=21 `L2/3 neuron` call; the rest comes from unresolved clusters. For
-     pure L2/3 use the `L2/3 neuron` leaf. Renamed from `Excitatory_upper`.
+   - `Excitatory_L2_3_mixed` (26,976 cells): only about 11% is the flat K=21 `L2/3 neuron` call; the rest comes from unresolved clusters.
+     No cell is labelled `L2/3 neuron` in `cell_type_v5`: the tree stops at this node, so the `L2/3 neuron` leaf is never reached. Pure L2/3
+     is the flat K=21 call (3,094 cells), which is **not in this file**: it is the `celltype_k21` column of the cell-labels table (step 54),
+     joined on cell id. Renamed from `Excitatory_upper`.
    - `Astrocyte_low_signal` (about 25k cells) is a sink for cluster `a`, a graded astrocyte/neuron hybrid, not an astrocyte state.
    - The `*_unresolved_*_denovo` leaves and `Low_signal*` are unresolved cells with no biological identity.
    - `L4 neuron` marks layer 5 spatially (Maddie's review), so `Excitatory_L4_5_IT_like` overstates L4. No cluster is a confirmed L4 population.
