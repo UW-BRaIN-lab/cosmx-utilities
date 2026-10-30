@@ -362,6 +362,41 @@ and `a` (277). No donor dominates (largest 10.3%). The leavers were borderline i
 low-confidence cells at the edges. Why adding `a` moved them is a hypothesis (an internal node's profile is the mean of its leaves, so
 the Astrocyte and Glia profiles changed); it has not been tested. The Vascular disease result did not change (q 0.40).
 
+### Maddie's spatial review of the SEA-AD marker names (2026-10)
+
+Maddie viewed the K=21 clusters in Napari grouped by their SEA-AD marker identity (`SEAAD_markers_K21`, from
+`denovo_annotations/stage4_k21_seaad_markers.csv`) and noted the spatial pattern of each group. This reviews the **K=21 cluster
+identities**, not the v5 tree output (`Excitatory_upper`, `Astrocyte_low_signal` and the other tree-level leaves were not part of it).
+Her groups pool clusters that share a SEA-AD name, so the clusters in each row are read from the marker table, not from her sheet.
+
+| SEA-AD group (support) | Clusters in it | Maddie's note | Reading |
+|---|---|---|---|
+| L2/3 IT (strong) | `L2/3 neuron` | accurately marks L2/3 | confirmed; use this for L2/3 |
+| L5 IT (strong) | `L4 neuron` | marks L5 well, abundant | spatially L5, not L4 (see below) |
+| L5 IT (partial) | `r`, `s` | marks L5 well, possibly a bit of L6 | consistent with the `Excitatory_L5_IT_like` collapse |
+| L5 IT or L6 IT (partial, ambiguous) | `f` | marks L5 and L6 loosely, spread out and sparse | weak identity; no leaf warranted |
+| L2/3 IT or L4 IT (partial, ambiguous) | `j` | not layer-specific: mostly L4 but seen in most layers and L2/3 | no confirmed L4 population |
+| L5 ET (strong) | `m` | marks L5 well, sparse | confirmed (v5 `Excitatory_L5_ET_like`) |
+| L5/6 NP (strong) | `c` | marks L5/6 well | confirmed |
+| L6 IT Car3 (strong) | `g` | marks L6 well | confirmed |
+| L6b or L6 CT (strong, ambiguous) | `p` | marks L6 well | confirmed; she describes the order L5/6 NP, then L6 IT Car3, then L6b/L6 CT with depth |
+| Lamp5, Pvalb, Sncg/Pax6/Vip, Sst | Inhibitory B, A, `l`, Inhibitory C | throughout cortex, as expected (Sst perhaps slightly more in L2/3) | as expected |
+| Astrocyte, Endothelial, Microglia-PVM, OPC, Oligodendrocyte (strong) | the named and de novo clusters with these calls (Astrocyte pools `a`, `t`, Astrocyte A and B; Microglia pools A and B; Oligodendrocyte pools `o` and `L6 neuron`) | distributed equally across tissue, no disease specificity | as expected for glia and vascular |
+| no SEA-AD support | `i`, `u`, `q`, `b`, `d`, `h`, `k`, `e` | throughout tissue, no disease specificity | no spatial structure: consistent with RNA-quality sinks, not a tissue population |
+
+What this changes:
+- **No v6 tree change follows from it.** No cluster is placed in the wrong layer, and the v5 renames (`p`, `g`, `c`, `m`) are confirmed.
+- **`L4 neuron` marks L5, not L4.** Its name and the `Excitatory_L4_5_IT_like` collapse label overstate L4. This is the one label to
+  reconsider: calling it L5 IT would put it in the same group as `r` and `s`, pooling a strong and a partial identity. Not changed here.
+- **L4 remains unconfirmed.** `j` is the only L4-leaning cluster and is diffuse.
+- **Where the notes cannot speak.** Astrocyte is pooled, so `a` cannot be isolated; whether `a` is a real hybrid state, two merged
+  populations or contamination still needs cell coordinates. Microglia is pooled, so a flat pattern for A and B together does not
+  test Microglia B alone, which rises with disease on v5 but is carried by donors 599 and 7068. "No disease specificity" is a visual
+  impression of position, not a test of proportions, so it neither supports nor contradicts the donor-level results. It does fit the
+  reading that the OPC elevation is mostly a run effect.
+- **`L6 neuron` is an oligodendrocyte call** (SEA-AD Oligodendrocyte, 13/20), so it sits inside her Oligodendrocyte group and was not
+  reviewed as a neuron.
+
 ### Disease comparisons on v5 (check 5)
 
 `celltype_by_group.py --label celltype_tree_v5`, per-donor % of cells averaged by group, Kruskal-Wallis across groups with BH q within
@@ -442,7 +477,7 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   integrity) for 599, 7068, 7796 and 6589, and a donor-level sensitivity analysis that drops donors by a pre-set quality threshold.
   OPC still needs the `opc_confident` flag. Microglia B is the result that holds in every design, but it is carried by two donors here.
 
-### Napari: the v5 columns (not run)
+### Napari: the v5 columns (uploaded to all 10 slides; this is the runbook)
 
 Adds two dropdown columns to the live `_metadata.csv` of the 10 stitched slides, next to the existing ones (`InSituType_K21`, `InSituTree_v4`,
 `SEAAD_markers_K21`, ...): `InSituTree_v5` (30 leaves; the L2/3 branch shows as `Excitatory_upper`) and `InSituTree_v5_collapsed`
