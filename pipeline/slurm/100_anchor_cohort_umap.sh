@@ -10,7 +10,8 @@
 # Env knobs (KOPAH_*, APPTAINER_RSC from pipeline/.env):
 #   TYPED_DIR       Kopah sub-dir with the typed AnnData (default stage4_insitutree).
 #   TYPED_BASENAME  default cosmx_typed.h5ad.
-#   STAGE4_DIR      Kopah sub-dir holding anchor/anchor_typing.h5 (default stage4_anchor).
+#   STAGE4_DIR      Kopah sub-dir holding anchor/anchor_typing.h5 (default stage4_anchor_pruned, the
+#                   k=27 fit on the pruned gene panel; stage4_anchor is the earlier full-panel fit).
 #   OUT_DIR         where the PNGs are left on Klone (default $HOME/anchor_umap).
 
 #SBATCH --job-name=cosmx-anchor-umap
@@ -47,7 +48,7 @@ set +a
 
 TYPED="${TYPED_DIR:-stage4_insitutree}"
 TYPED_BASENAME="${TYPED_BASENAME:-cosmx_typed.h5ad}"
-STAGE4="${STAGE4_DIR:-stage4_anchor}"
+STAGE4="${STAGE4_DIR:-stage4_anchor_pruned}"
 OUT_DIR="${OUT_DIR:-$HOME/anchor_umap}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
