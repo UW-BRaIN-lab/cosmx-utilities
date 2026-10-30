@@ -104,6 +104,8 @@ cosmx-utilities/
 │   ├── process-slide.py     # Single slide: detect segmentation version, download, stitch, upload
 │   ├── process-slides.py    # Discover all slides in S3 and launch Fargate tasks
 │   ├── generate-slide-metadata.py  # Generate _metadata.csv with cell metadata and deterministic colors
+│   ├── napari_colors.py            # The one colour rule: hash colour, lightened if too dark for Napari's black background
+│   ├── recolor-napari-metadata.py  # Apply that rule to existing _metadata.csv files
 │   ├── compare-cell-typing.py  # Compare two cell-type columns per run: abundance bars + Sankey
 │   └── diagnose-cell-typing.py  # Characterize de-novo/low-signal clusters + gene-pruning + marker heatmap
 ├── fargate/                 # Fargate task definitions and IAM configuration

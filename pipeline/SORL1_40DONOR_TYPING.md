@@ -483,6 +483,13 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   integrity) for 599, 7068, 7796 and 6589, and a donor-level sensitivity analysis that drops donors by a pre-set quality threshold.
   OPC still needs the `opc_confident` flag. Microglia B is the result that holds in every design, but it is carried by two donors here.
 
+**Colours on the black background (2026-10-30).** A label's colour is a hash of its name, and some hashes are near-black
+(`Excitatory_L4_5_IT_like` was `#0A0404`). `scripts/napari_colors.py` is now the one colour rule for every writer and validator: the hash
+colour, lightened with its hue kept if its contrast against black is under 3:1 (WCAG's minimum for graphical objects); colours already above
+it are unchanged. `scripts/recolor-napari-metadata.py` applies the rule to existing files (every `*_color` column, so a label keeps one colour
+in all columns; labels and other columns untouched; idempotent) and lists each change. Columns written before this change still hold the old
+hash colours in their studies until they are re-coloured the same way.
+
 ### Napari: the v5 columns (uploaded to all 10 slides; this is the runbook)
 
 Adds two dropdown columns to the live `_metadata.csv` of the 10 stitched slides, next to the existing ones (`InSituType_K21`, `InSituTree_v4`,

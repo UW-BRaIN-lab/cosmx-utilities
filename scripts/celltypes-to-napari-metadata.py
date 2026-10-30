@@ -45,10 +45,12 @@ import re
 import sys
 from pathlib import Path
 
-import duckdb
 import h5py
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the shared colour rule sits beside the scripts
+from napari_colors import deterministic_color  # noqa: E402
 
 # Stage 1 builds the obs index as "<slide_id>_F<fov>_C<cell_ID>"; both fields are needed to
 # get back to the flat file's own cell_id. slide_id itself may contain underscores.
@@ -126,16 +128,6 @@ def load_typing(path: Path) -> pd.DataFrame:
     df["fov"] = parts["fov"].astype(int)
     df["cell_ID"] = parts["cell"].astype(str)
     return df
-
-
-def deterministic_color(value: str) -> str:
-    """Deterministic hex colour for a label — identical to generate-slide-metadata.py.
-
-    Sharing the implementation matters: a label must keep the same colour whichever script
-    wrote the column, or the same cell type changes colour between layers.
-    """
-    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
-                      params=[value]).fetchone()[0]
 
 
 def napari_frame(args, cell_ids: pd.Series, calls: pd.Series,
