@@ -1,5 +1,5 @@
 leaf,collapsed_label
-L2/3 neuron,Excitatory_upper
+L2/3 neuron,Excitatory_L2_3_mixed
 L4 neuron,Excitatory_L4
 Excitatory_RORB_L4_denovo,Excitatory_L4
 Excitatory_L5_6_NP_like,Excitatory_deep
@@ -29,3 +29,4 @@ Microglia A,Microglia
 Microglia B,Microglia
 Endothelial,Vascular
 Low_signal_generic_denovo,Low_signal
+Excitatory_upper,Excitatory_L2_3_mixed

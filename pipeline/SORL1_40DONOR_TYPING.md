@@ -290,7 +290,7 @@ excitatory ones in Napari on 2026-10-27. v5 changes only what that review settle
 | `g` -> `Excitatory_L6_IT_Car3_like` | SEA-AD L6 IT Car3; marks L6 well |
 | `c` -> `Excitatory_L5_6_NP_like` | SEA-AD L5/6 NP; marks L5/6 well |
 | `m` -> `Excitatory_L5_ET_like` | SEA-AD L5 ET; marks L5 well, sparse |
-| add `a` as leaf `Astrocyte_low_signal` | with no leaf its 31,238 cells scatter in v4: 21% Astrocyte B, 8% A, 11% OPC, **13% `Excitatory_upper`**, 7% Low_signal |
+| add `a` as leaf `Astrocyte_low_signal` | with no leaf its 31,238 cells scatter in v4: 21% Astrocyte B, 8% A, 11% OPC, **13% `Excitatory_L2_3_mixed`**, 7% Low_signal |
 
 Files: `denovo_annotations/stage4_k21_v5.csv` (v4 plus the five changes, each with a `v5_note`), `sorl1_hierarchy_v5.json`
 (30 leaves = 12 named + 18 de novo), `sorl1_insitutree_profiles_v5.csv` (built by `prep_insitutree_profiles.py` from the
@@ -308,10 +308,16 @@ notes its profile correlates more with neurons (0.87) than with astrocytes (0.78
 somewhere to go; do not read it as a cell type. It only catches the cells that the tree routes to `Glia` first (see the
 measured result below).
 
-What v5 does NOT fix: `Excitatory_upper` still receives cells from the unresolved clusters (in v4, 38% of `h`, 24% of
+What v5 does NOT fix: `Excitatory_L2_3_mixed` still receives cells from the unresolved clusters (in v4, 38% of `h`, 24% of
 `j`, 23% of `f`, 22% of `d`, 12% of `q`). They look L2/3-like to the profiles (cosine ~0.96) and the sink leaves do not
-hold them. Report that leaf as a mixed excitatory group, not L2/3; for L2/3 use the flat K=21 `L2/3 neuron` call (3,094
+hold them. Report that leaf as a mixed excitatory group, not pure L2/3; for L2/3 use the flat K=21 `L2/3 neuron` call (3,094
 cells), which Maddie found spatially accurate. No cluster is a confirmed L4 population yet (`j` leans L4 but is diffuse).
+
+**Renamed `Excitatory_upper` -> `Excitatory_L2_3_mixed` (Maddie, 2026-10-29).** It is a report-level rename: `sorl1_hierarchy_v5_collapse.csv`
+and `sorl1_hierarchy_v5_parent.csv` map `Excitatory_upper` to the new name, so `celltype_by_group.py --collapse-csv` reports it. The hierarchy
+file `sorl1_hierarchy_v5.json` keeps the key `Excitatory_upper` because it is the input of the run that produced the labels; the raw
+`celltype_tree_v5` labels and the live Napari `InSituTree_v5` column still say `Excitatory_upper`, and a re-run from the JSON would too.
+The v4 section keeps the old name. The new name says the group is mixed, which it is (only 10.6% is the flat K=21 `L2/3 neuron` call).
 
 ```bash
 # on Klone, from the Maddie checkout
@@ -330,9 +336,9 @@ Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree
 `tree_v5:stage4_insitutree_k21_v5:insitutree_result.h5` to RUNS, with `OUT_SUBDIR=labels_v5` so `labels/` is not overwritten):
 1. **Composition of `Astrocyte_low_signal` by K=21 source:** mostly `a` plus the astrocyte clusters. If neuron clusters contribute
    a meaningful share, `a`'s neuron-like profile is pulling neurons and the leaf should be reconsidered.
-2. Where `a` goes now: the share landing in `Excitatory_upper` (13% in v4).
+2. Where `a` goes now: the share landing in `Excitatory_L2_3_mixed` (13% in v4).
 3. The renamed leaves (`p`, `g`, `c`, `m`) should be near their v4 sizes; only small shifts from the new leaf are expected.
-4. `Excitatory_upper`: the glia-derived share should fall; the leaks from `h`, `d`, `j`, `f` will remain (above).
+4. `Excitatory_L2_3_mixed`: the glia-derived share should fall; the leaks from `h`, `d`, `j`, `f` will remain (above).
 5. Re-run the disease comparisons at both levels with the two collapse maps, and within one run before calling anything biology
    (see the depth and run confounds above). Done: see "Disease comparisons on v5" below.
 
@@ -341,16 +347,16 @@ Acceptance (export the labels table with `54`, adding `tree_v4:stage4_insitutree
   (14,521); the rest is `i` (2,916, the low-signal neuronal sink), `t` (1,967, reactive astrocyte), `n` (1,903, OPC, which has no leaf),
   `o` (922), `l` (544) and `k` (281). About 40% is other clusters landing there. Median posterior 1.000, 10.7% below 0.8.
 - **Check 2 failed: the leak did not fall.** Of `a`'s 31,238 cells, 46.5% reach `Astrocyte_low_signal` and 11.7% still land in
-  `Excitatory_upper` (13% in v4); the rest scatter (Low_signal 5.0%, OPC 3.8%, Microglia A 3.3%, Inhibitory C 3.3%, ...).
+  `Excitatory_L2_3_mixed` (13% in v4); the rest scatter (Low_signal 5.0%, OPC 3.8%, Microglia A 3.3%, Inhibitory C 3.3%, ...).
 - **Why:** the tree decides top-down. At the first level 37.4% of `a` cells go to `Neuron` (55.5% `Glia`, 5.0% `Low_signal`, 2.1%
   `Vascular`), and a cell routed to `Neuron` cannot reach a leaf under `Glia`. So `a`'s hybrid, neuron-like profile (0.87 with
   neurons vs 0.78 with astrocytes) is not fixed by giving it a leaf. `a` is 3.9% of cells; v5 keeps the leaf and reports it as a sink,
   and any further change (for example moving `a` under `Low_signal`) is a new run with its own checks.
 - **Check 3 passes.** The renamed leaves kept 96-98% of their v4 cells: `p` 4,362 -> 4,215, `g` 4,688 -> 4,590, `c` 2,268 -> 2,190,
   `m` 2,401 -> 2,362. The renames are label-only; the small losses are cells that went to `Astrocyte_low_signal`.
-- **Check 4: a small fall only.** The glia-derived share (`a`/`o`/`n`/`t`) of `Excitatory_upper` went 15.3% -> 13.8% (27,719 -> 26,976
+- **Check 4: a small fall only.** The glia-derived share (`a`/`o`/`n`/`t`) of `Excitatory_L2_3_mixed` went 15.3% -> 13.8% (27,719 -> 26,976
   cells), all of it from `a` (4,112 -> 3,664). The flat K=21 `L2/3 neuron` is only 2,867 cells (10.6%) of the leaf; the rest is unresolved
-  clusters (`h` 4,357, `i` 4,082, `a` 3,664, `d` 2,609, `q` 2,558, `j` 1,987, `f` 1,286). Report `Excitatory_upper` as a mixed excitatory
+  clusters (`h` 4,357, `i` 4,082, `a` 3,664, `d` 2,609, `q` 2,558, `j` 1,987, `f` 1,286). Report `Excitatory_L2_3_mixed` as a mixed excitatory
   group, never as L2/3.
 
 **v4 -> v5: where the Vascular and Low_signal cells went.** Vascular fell 111,411 -> 108,734 (3,257 left, 580 joined) and Low_signal
@@ -366,7 +372,7 @@ the Astrocyte and Glia profiles changed); it has not been tested. The Vascular d
 
 Maddie viewed the K=21 clusters in Napari grouped by their SEA-AD marker identity (`SEAAD_markers_K21`, from
 `denovo_annotations/stage4_k21_seaad_markers.csv`) and noted the spatial pattern of each group. This reviews the **K=21 cluster
-identities**, not the v5 tree output (`Excitatory_upper`, `Astrocyte_low_signal` and the other tree-level leaves were not part of it).
+identities**, not the v5 tree output (`Excitatory_L2_3_mixed`, `Astrocyte_low_signal` and the other tree-level leaves were not part of it).
 Her groups pool clusters that share a SEA-AD name, so the clusters in each row are read from the marker table, not from her sheet.
 
 | SEA-AD group (support) | Clusters in it | Maddie's note | Reading |
@@ -435,14 +441,14 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   (about 3-fold). The flat group means in the all-donors run (q 0.99) come from averaging the two runs; SORL1 is 9.4%. Do not read
   "no difference by group" as "no depth or run effect".
 - **Excitatory and inhibitory neurons are lower in SORL1, but not clearly SORL1-specific.** All donors: SORL1 about 5-fold lower in
-  every excitatory leaf (for example `Excitatory_upper` 0.96% vs 2.6-5.7%). July only, the 8 types with q < 0.10 are mostly neuron
+  every excitatory leaf (for example `Excitatory_L2_3_mixed` 0.96% vs 2.6-5.7%). July only, the 8 types with q < 0.10 are mostly neuron
   types, which are correlated, and AD Pure is as low as SORL1 for some (`Excitatory_L5_6_NP_like` 0.64 / 0.11 / 0.25 / 0.10).
   The within-slide contrast below shows the neuron deficit is not a run effect.
 - **Within-slide contrast (SORL1 vs non-SORL1 AD donors on the same July slide).** The run cannot be repeated, but each of the four
   July slides holds both kinds of donor, so the slide is the block (`within_slide.py`: per slide, mean per-donor % in SORL1 donors
   minus the AD Pure and AD+LATE donors on that slide; 1-2 SORL1 and 1-3 comparator donors per slide). Same sign on all four slides,
   SORL1 against comparator: `Neuron_low_signal` 9.4% vs 18.5% (-6 to -14 points on every slide), Low_signal 18.1% vs 11.4% (+2.8 to
-  +17), Microglia B 6.69% vs 3.31% (+2.3 to +7.0), Microglia A 8.19% vs 6.28% (+0.7 to +2.7), and lower in `Excitatory_upper`
+  +17), Microglia B 6.69% vs 3.31% (+2.3 to +7.0), Microglia A 8.19% vs 6.28% (+0.7 to +2.7), and lower in `Excitatory_L2_3_mixed`
   (0.96 vs 2.73), `Excitatory_L4_5_IT_like` (0.50 vs 1.50), the inhibitory leaves, VIP and `Excitatory_CARTPT_GAP43_denovo`. OPC is
   higher on 3 of 4 slides (14.8% vs 9.8%, median +4.9 points; the exception is -1.4). Net: SORL1 donors have roughly 15 points fewer
   neuron-lineage cells and correspondingly more Low_signal, microglia and OPC than the AD donors processed beside them.
@@ -450,8 +456,8 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
   7068 297, 7796 303, 7181 313; 7137 is 739), against 389-806 for the AD comparators on the same slides (exception: AD Pure 6745 at 140).
   Group medians: SORL1 289, AD Pure 458, AD+LATE 614, Control 654. Restricted to cells with >= 600 counts (104,770 July cells), the
   within-slide pattern persists for Low_signal (31.9% vs 14.2%, slide differences +11 to +25, 4/4), `Neuron_low_signal` (20.1% vs
-  32.2%, 4/4), `Excitatory_upper` (1.07 vs 3.28), `Excitatory_L4_5_IT_like` (1.56 vs 3.76) and the inhibitory leaves. Composition alone
-  (Low_signal +17.7 points) would take `Excitatory_upper` from 3.28 to about 2.6, so the neuron drop is more than proportional. The
+  32.2%, 4/4), `Excitatory_L2_3_mixed` (1.07 vs 3.28), `Excitatory_L4_5_IT_like` (1.56 vs 3.76) and the inhibitory leaves. Composition alone
+  (Low_signal +17.7 points) would take `Excitatory_L2_3_mixed` from 3.28 to about 2.6, so the neuron drop is more than proportional. The
   microglia result shrinks: Microglia B 4.66% vs 1.97% is the same sign on 4/4 slides but only +0.66 and +0.17 on two of them (donors
   599 and 7068 carry it), and Microglia A's median difference is 0.00. OPC falls to 7.5% vs 5.0% (14.8 vs 9.8 with all cells).
 - **The pattern is not uniform across SORL1 donors.** Among the >= 600-count cells, Low_signal is 37-48% in four SORL1 donors (599,
@@ -480,7 +486,7 @@ Astrocyte q 0.36 (14.8 / 15.9 / 15.8 / 12.5), Neuron_low_signal q 0.99, Low_sign
 ### Napari: the v5 columns (uploaded to all 10 slides; this is the runbook)
 
 Adds two dropdown columns to the live `_metadata.csv` of the 10 stitched slides, next to the existing ones (`InSituType_K21`, `InSituTree_v4`,
-`SEAAD_markers_K21`, ...): `InSituTree_v5` (30 leaves; the L2/3 branch shows as `Excitatory_upper`) and `InSituTree_v5_collapsed`
+`SEAAD_markers_K21`, ...): `InSituTree_v5` (30 leaves; the L2/3 branch shows as `Excitatory_L2_3_mixed`) and `InSituTree_v5_collapsed`
 (`sorl1_hierarchy_v5_collapse.csv`: sink leaves merged, `L4 neuron` -> `Excitatory_L4_5_IT_like`, `r`+`s` -> `Excitatory_L5_IT_like`). It uses the Napari
 scripts from PR 92 (`maddie-napari-metadata`: `prepare-sorl1-napari-labels.py`, `validate-napari-label-columns.py`), which are not on this branch, plus
 `labels-csv-to-typing-h5.py` and `celltypes-to-napari-metadata.py` from `main`. Do not re-stitch a slide afterwards: the stitcher wipes its output folder,
