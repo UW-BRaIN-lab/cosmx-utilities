@@ -11,7 +11,9 @@ Two figures are written:
                               neutral, so the letters being worked out stand out
   * <stem>_small_multiples.png one panel per de novo letter (plus one for the named types):
                               that group highlighted over a grey density of every cell
-  * <stem>_small_multiples_named.png the same, one panel per named GBmap type
+  * <stem>_small_multiples_named.png the same, one panel per named GBmap type; with --pinned-csv
+                              each panel shows unpinned cells coloured and InSituType's pinned
+                              cells black
 
 Only obsm['X_umap'] and the obs index are read from the typed AnnData (backed mode, no
 matrix), but the 7.5M-point scatter is memory heavy: run it in a Slurm job
@@ -51,6 +53,8 @@ PANEL_COLUMNS = 6
 PANEL_SIZE_IN = 4.0
 DENSITY_BINS = 700
 HIGHLIGHT_POINT_SIZE = 0.4
+PINNED_COLOR = "#000000"
+PINNED_COLUMNS = ("cell_id", "pinned_type", "label")
 BACKDROP_GREYS = "Greys"
 BACKDROP_MAX_ALPHA_FRACTION = 0.55
 
@@ -147,6 +151,26 @@ def draw(xy_all, in_cohort, cohort_labels, colors, title, path, denovo_only):
     print(f"Wrote {path}")
 
 
+def build_pinned_mask(cohort_labels: pd.Series, pinned_csv: Path) -> np.ndarray:
+    """Boolean mask (cohort order) of InSituType's pinned cells, from 75o's pinned_cells.csv.
+
+    Fails if the file lacks the expected columns or names cells outside the anchor cohort, and
+    reports pinned cells whose label differs from the fit's label (the two should agree).
+    """
+    pinned = pd.read_csv(pinned_csv, dtype=str)
+    missing_columns = [c for c in PINNED_COLUMNS if c not in pinned.columns]
+    if missing_columns:
+        raise KeyError(f"{pinned_csv} lacks columns {missing_columns}; has {list(pinned.columns)}")
+    outside = pinned.cell_id[~pinned.cell_id.isin(cohort_labels.index)]
+    if len(outside):
+        raise KeyError(f"{len(outside):,} pinned cells are not in the anchor cohort "
+                       f"(first: {list(outside[:3])})")
+    disagree = int((pinned.set_index("cell_id").label != cohort_labels.reindex(pinned.cell_id).to_numpy()).sum())
+    print(f"{len(pinned):,} pinned cells ({100 * len(pinned) / len(cohort_labels):.2f}% of the anchor "
+          f"cohort); {disagree:,} carry a label different from anchor_typing.h5")
+    return cohort_labels.index.isin(pinned.cell_id)
+
+
 def select_panels(cohort_labels: pd.Series, min_cells: int,
                   denovo: bool = True) -> tuple[list[str], list[str]]:
     """Labels of one kind (de novo letters, or named reference types) with at least `min_cells`
@@ -157,10 +181,12 @@ def select_panels(cohort_labels: pd.Series, min_cells: int,
 
 
 def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path,
-                         lump_group=None):
+                         lump_group=None, pinned_mask=None):
     """One panel per label: its cells over a grey density of EVERY cell (anchor cohort or not).
 
     `lump_group` ("named" or "denovo") adds a final panel for every cell of that kind.
+    `pinned_mask` (cohort order) splits each panel: unpinned cells in the label colour, InSituType's
+    pinned cells in black on top, and the title carries both counts.
     """
     import matplotlib.pyplot as plt
 
@@ -186,11 +212,19 @@ def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path,
         else:
             selected = (cohort_labels == group).to_numpy()
             color = colors[group]
-        ax.scatter(cohort_xy[selected, 0], cohort_xy[selected, 1], c=[color],
-                   s=HIGHLIGHT_POINT_SIZE, linewidths=0, rasterized=True)
+        if pinned_mask is None:
+            shown_sets = [(selected, color)]
+            title = f"{group}  ({int(selected.sum()):,})"
+        else:
+            unpinned, pinned = selected & ~pinned_mask, selected & pinned_mask
+            shown_sets = [(unpinned, color), (pinned, PINNED_COLOR)]
+            title = f"{group}\n{int(unpinned.sum()):,} unpinned | {int(pinned.sum()):,} pinned"
+        for mask, point_color in shown_sets:
+            ax.scatter(cohort_xy[mask, 0], cohort_xy[mask, 1], c=[point_color],
+                       s=HIGHLIGHT_POINT_SIZE, linewidths=0, rasterized=True)
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)
-        ax.set_title(f"{group}  ({int(selected.sum()):,})", fontsize=13)
+        ax.set_title(title, fontsize=12 if pinned_mask is not None else 13)
         ax.set_xticks([])
         ax.set_yticks([])
     for ax in list(axes.flat)[len(groups):]:
@@ -212,6 +246,9 @@ def main() -> None:
                              "UMAP matches the Napari colours; default is a generic tab20 palette.")
     parser.add_argument("--min-panel-cells", type=int, default=MIN_PANEL_CELLS,
                         help="letters with fewer anchor-cohort cells get no small-multiples panel.")
+    parser.add_argument("--pinned-csv", type=Path, default=None,
+                        help="75o's pinned_cells.csv (cell_id,pinned_type,label): splits the named-type "
+                             "small multiples into unpinned (coloured) and pinned (black) cells.")
     parser.add_argument("--umap-key", default="X_umap")
     args = parser.parse_args()
 
@@ -249,9 +286,11 @@ def main() -> None:
     print(f"Named-type small multiples: {len(named_panels)} panels; skipped "
           f"(< {args.min_panel_cells} cells): {len(named_skipped)} types, "
           f"{int(cohort_labels.isin(named_skipped).sum()):,} cells")
+    pinned_mask = build_pinned_mask(cohort_labels, args.pinned_csv) if args.pinned_csv else None
     draw_small_multiples(xy_all, in_cohort, cohort_labels,
                          label_colors(labels, False, fixed_colors), named_panels,
-                         Path(f"{args.output_stem}_small_multiples_named.png"))
+                         Path(f"{args.output_stem}_small_multiples_named.png"),
+                         pinned_mask=pinned_mask)
 
 
 if __name__ == "__main__":

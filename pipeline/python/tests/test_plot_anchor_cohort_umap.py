@@ -84,6 +84,32 @@ def test_select_panels_keeps_big_letters_and_reports_skipped():
     assert named == ["OPC-like"]
 
 
+def test_pinned_mask_marks_listed_cells_and_rejects_outsiders():
+    labels = pd.Series(COHORT_LABELS)
+    with tempfile.TemporaryDirectory() as tmp:
+        good = Path(tmp) / "pinned.csv"
+        pd.DataFrame({"cell_id": ["slide_F1_C9"], "pinned_type": ["OPC-like"],
+                      "label": ["OPC-like"]}).to_csv(good, index=False)
+        mask = pacu.build_pinned_mask(labels, good)
+        assert list(mask) == [False, False, False, True]
+        bad = Path(tmp) / "bad.csv"
+        pd.DataFrame({"cell_id": ["nope_F1_C1"], "pinned_type": ["x"], "label": ["x"]}).to_csv(bad, index=False)
+        try:
+            pacu.build_pinned_mask(labels, bad)
+        except KeyError as error:
+            assert "not in the anchor cohort" in str(error)
+        else:
+            raise AssertionError("pinned cells outside the cohort must raise")
+        short = Path(tmp) / "short.csv"
+        pd.DataFrame({"cell_id": ["slide_F1_C9"]}).to_csv(short, index=False)
+        try:
+            pacu.build_pinned_mask(labels, short)
+        except KeyError as error:
+            assert "lacks columns" in str(error)
+        else:
+            raise AssertionError("a pinned csv without the expected columns must raise")
+
+
 def test_end_to_end_render():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -95,7 +121,9 @@ def test_end_to_end_render():
         with h5py.File(tmp / "anchor_typing.h5", "w") as handle:
             handle["cell_id"] = np.array(list(COHORT_LABELS), dtype=h5py.string_dtype())
             handle["cell_type"] = np.array(list(COHORT_LABELS.values()), dtype=h5py.string_dtype())
-        sys.argv = ["x", "--typed-h5ad", str(tmp / "typed.h5ad"),
+        pd.DataFrame({"cell_id": ["slide_F1_C9"], "pinned_type": ["OPC-like"],
+                      "label": ["OPC-like"]}).to_csv(tmp / "pinned.csv", index=False)
+        sys.argv = ["x", "--pinned-csv", str(tmp / "pinned.csv"), "--typed-h5ad", str(tmp / "typed.h5ad"),
                     "--anchor-typing-h5", str(tmp / "anchor_typing.h5"),
                     "--output-stem", str(tmp / "out"), "--min-panel-cells", "1"]
         pacu.main()
