@@ -12,6 +12,15 @@ and leiden retained. Downstream marker/compare tooling then re-renders by cell t
 the existing one-flag flip (marker_pseudobulk.py --group-key cell_type). A UMAP coloured
 by cell_type is emitted for review via the shared plot_qc.make_qc_plots.
 
+Optional, for a typed AnnData that can be handed to someone else:
+
+  --label-map NAME=CSV   add obs cell_type_<NAME> by mapping cell_type through a (leaf, collapsed_label)
+                         CSV (the same maps celltype_by_group.py takes). Repeatable. cell_type itself is
+                         left as the run wrote it.
+  --annotations CSV      add the donor columns (case_broad, case_group, sorl1_mutation) from the FOV table,
+                         joined on obs[Region] (the donor id)
+  --opc-labels A,B       add obs opc_confident: called one of these labels AND (Leiden 0 OR total_counts >= 600)
+
 Usage:
     uv run python pipeline/python/write_celltypes.py \\
         --clustered-h5ad cosmx_clustered.h5ad \\
@@ -31,7 +40,12 @@ import h5py
 import numpy as np
 import pandas as pd
 
+from celltype_by_group import collapse_labels
+from export_cell_labels import DONOR_COLUMNS, opc_confident
 from plot_qc import make_qc_plots
+
+DONOR_OBS_KEY = "Region"
+OPC_RUN_NAME = "typed"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,7 +59,35 @@ def parse_args() -> argparse.Namespace:
                    help="Output cosmx_typed.h5ad.")
     p.add_argument("--qc-plots-dir", type=Path, default=None,
                    help="If set, write a UMAP-by-cell_type PNG here.")
+    p.add_argument("--label-map", action="append", default=[], metavar="NAME=CSV",
+                   help="Add obs cell_type_<NAME> from a (leaf, collapsed_label) CSV. Repeatable.")
+    p.add_argument("--annotations", type=Path, default=None,
+                   help="FOV table (donor, case_broad, case_group, sorl1_mutation) joined on obs[Region].")
+    p.add_argument("--opc-labels", default=None, metavar="LABEL[,LABEL]",
+                   help="Add obs opc_confident for these OPC labels.")
     return p.parse_args()
+
+
+def add_label_maps(obs: pd.DataFrame, label_maps: dict[str, Path]) -> None:
+    """cell_type_<name> = cell_type through each map; unmapped labels and NA are kept."""
+    for name, path in label_maps.items():
+        obs[f"cell_type_{name}"] = collapse_labels(obs["cell_type"].astype(object), path).astype("category")
+
+
+def add_donor_annotations(obs: pd.DataFrame, annotations: pd.DataFrame) -> None:
+    donors = annotations.astype({"donor": str}).drop_duplicates("donor").set_index("donor")
+    joined = donors[DONOR_COLUMNS].reindex(obs[DONOR_OBS_KEY].astype(str))
+    for column in DONOR_COLUMNS:
+        obs[column] = pd.Categorical(joined[column].to_numpy())
+    absent = sorted(set(obs[DONOR_OBS_KEY].astype(str)) - set(donors.index))
+    if absent:
+        print(f"WARN: donors with no annotation row (left NA): {absent}", file=sys.stderr)
+
+
+def add_opc_confident(obs: pd.DataFrame, labels: list[str]) -> None:
+    frame = pd.DataFrame({f"celltype_{OPC_RUN_NAME}": obs["cell_type"].astype(object),
+                          "leiden": obs["leiden"], "total_counts": obs["total_counts"]})
+    obs["opc_confident"] = opc_confident(frame, OPC_RUN_NAME, labels).to_numpy()
 
 
 def _decode(arr) -> np.ndarray:
@@ -83,6 +125,18 @@ def main() -> None:
 
     adata.obs["cell_type"] = aligned["cell_type"].astype("category")
     adata.obs["insitutype_prob"] = aligned["insitutype_prob"].astype(np.float32)
+
+    label_maps = {}
+    for spec in args.label_map:
+        name, _, path = spec.partition("=")
+        if not name or not path:
+            sys.exit(f"--label-map needs NAME=CSV, got {spec!r}")
+        label_maps[name] = Path(path)
+    add_label_maps(adata.obs, label_maps)
+    if args.annotations is not None:
+        add_donor_annotations(adata.obs, pd.read_csv(args.annotations, dtype=str))
+    if args.opc_labels:
+        add_opc_confident(adata.obs, args.opc_labels.split(","))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     print(f"Writing {args.output}")

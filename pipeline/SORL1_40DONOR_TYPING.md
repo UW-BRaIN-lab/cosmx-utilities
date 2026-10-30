@@ -520,6 +520,35 @@ Then, per slide: copy the live `_metadata.csv` server-side to `_metadata.csv.pre
 upload the merged file, download it back and compare md5 of the local files (files over 8 MiB have multipart ETags, so do not compare ETags).
 Rollback: copy `_metadata.csv.pre-v5.bak` over `_metadata.csv`. Each upload overwrites a live file that Maddie may have open, so confirm before running it.
 
+## The typed AnnData for further analysis (v5)
+
+The AnnData the pipeline works from is `stage3/cosmx_clustered.h5ad` (QC'd cells, expression, Leiden, UMAP). It has **no cell types**: the
+typing lives in `stage4_insitutree_k21_v5/insitutree_result.h5`, and `54` exports it as a table. `90_write_celltypes.sh` joins the two into
+`cosmx_typed.h5ad`; with the three optional env knobs it also writes the final label names, the donor groups and the OPC flag:
+
+```bash
+# on Klone, from a checkout that has this change
+LABEL_MAPS="v5=pipeline/reference/sorl1_hierarchy_v5_rename.csv v5_collapsed=pipeline/reference/sorl1_hierarchy_v5_collapse.csv v5_parent=pipeline/reference/sorl1_hierarchy_v5_parent.csv" \
+ANNOTATIONS=pipeline/reference/fov_annotations_sorl1.csv OPC_LABELS="Oligodendrocyte precursor cell" \
+STAGE4_DIR=stage4_insitutree_k21_v5 RESULT_BASENAME=insitutree_result.h5 \
+    sbatch pipeline/slurm/90_write_celltypes.sh
+```
+
+Output: `s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage4_insitutree_k21_v5/cosmx_typed.h5ad`. Obs columns to use:
+
+| column | what it is |
+|---|---|
+| `cell_type_v5` | the 30 v5 leaves with `Excitatory_upper` renamed `Excitatory_L2_3_mixed` |
+| `cell_type_v5_collapsed` | analysis level: the six neuron sink leaves -> `Neuron_low_signal`, `L4 neuron` -> `Excitatory_L4_5_IT_like`, `r` and `s` -> `Excitatory_L5_IT_like` |
+| `cell_type_v5_parent` | branch level (`Astrocyte`, `Microglia`, `Excitatory_deep`, ...) |
+| `case_broad`, `case_group`, `sorl1_mutation` | donor groups from the FOV sheet, joined on `Region` (the donor id) |
+| `opc_confident` | called OPC AND (Leiden 0 OR total_counts >= 600); use it for any OPC result |
+| `cell_type`, `insitutype_prob` | the run's own label (still `Excitatory_upper`) and its posterior; prefer the columns above |
+
+Read the caveats in "InSituTree v5" and "Disease comparisons on v5" before comparing groups: the sink share differs by run and by donor depth,
+and `Excitatory_L2_3_mixed` and `Astrocyte_low_signal` are mixed groups.
+`sorl1_hierarchy_v5_rename.csv` holds only the rename, so `cell_type_v5` is the leaf level with the final name.
+
 ## Resolved items
 
 - Slide names `6562 A7 576 …` and `…6802 A6` carry a typo made when the slides were
