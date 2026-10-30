@@ -7,8 +7,10 @@ are drawn on top, coloured by the label in anchor_typing.h5 (the k=27 Stage-4 fi
 
 Two figures are written:
   * <stem>_all_labels.png     every label its own colour
-  * <stem>_denovo_letters.png de novo letters coloured, named reference types in one pale
+  * <stem>_denovo_letters.png de novo letters coloured, named reference types in one dark
                               neutral, so the letters being worked out stand out
+  * <stem>_small_multiples.png one panel per de novo letter (plus one for the named types):
+                              that group highlighted over a grey density of every cell
 
 Only obsm['X_umap'] and the obs index are read from the typed AnnData (backed mode, no
 matrix), but the 7.5M-point scatter is memory heavy: run it in a Slurm job
@@ -37,12 +39,19 @@ from plot_qc import umap_view_limits
 OFF_COHORT_LABEL = "not in anchor cohort"
 NAMED_TYPES_LABEL = "named reference types"
 OFF_COHORT_COLOR = "#d9d9d9"
-NAMED_TYPES_COLOR = "#b5b5b5"
+NAMED_TYPES_COLOR = "#6b6b6b"
 OFF_COHORT_POINT_SIZE = 0.2
 SHUFFLE_SEED = 0
 PNG_DPI = 150
 LEGEND_ROWS_PER_COLUMN = 36
 COLORMAPS = ("tab20", "tab20b", "tab20c")
+MIN_PANEL_CELLS = 1000
+PANEL_COLUMNS = 6
+PANEL_SIZE_IN = 4.0
+DENSITY_BINS = 700
+HIGHLIGHT_POINT_SIZE = 0.4
+BACKDROP_GREYS = "Greys"
+BACKDROP_MAX_ALPHA_FRACTION = 0.55
 
 
 def is_denovo_letter(label: str) -> bool:
@@ -137,6 +146,53 @@ def draw(xy_all, in_cohort, cohort_labels, colors, title, path, denovo_only):
     print(f"Wrote {path}")
 
 
+def select_panels(cohort_labels: pd.Series, min_cells: int) -> tuple[list[str], list[str]]:
+    """De novo letters with at least `min_cells` cells (most cells first), and those skipped."""
+    counts = cohort_labels[cohort_labels.map(is_denovo_letter)].value_counts()
+    return list(counts[counts >= min_cells].index), list(counts[counts < min_cells].index)
+
+
+def draw_small_multiples(xy_all, in_cohort, cohort_labels, colors, panels, path):
+    """One panel per letter: its cells over a grey density of EVERY cell (anchor cohort or not)."""
+    import matplotlib.pyplot as plt
+
+    xlim, ylim, _, _ = umap_view_limits(xy_all)
+    xlim = xlim or (xy_all[:, 0].min(), xy_all[:, 0].max())
+    ylim = ylim or (xy_all[:, 1].min(), xy_all[:, 1].max())
+    density, _, _ = np.histogram2d(xy_all[:, 0], xy_all[:, 1], bins=DENSITY_BINS,
+                                   range=[xlim, ylim])
+    backdrop = np.log1p(density.T)
+    backdrop_vmax = backdrop.max() / BACKDROP_MAX_ALPHA_FRACTION
+
+    cohort_xy = xy_all[in_cohort]
+    groups = panels + [NAMED_TYPES_LABEL]
+    rows = -(-len(groups) // PANEL_COLUMNS)
+    fig, axes = plt.subplots(rows, PANEL_COLUMNS, squeeze=False,
+                             figsize=(PANEL_COLUMNS * PANEL_SIZE_IN, rows * PANEL_SIZE_IN))
+    for ax, group in zip(axes.flat, groups):
+        ax.imshow(backdrop, origin="lower", extent=(*xlim, *ylim), aspect="auto",
+                  cmap=BACKDROP_GREYS, vmin=0, vmax=backdrop_vmax, interpolation="nearest")
+        if group == NAMED_TYPES_LABEL:
+            selected = ~cohort_labels.map(is_denovo_letter).to_numpy()
+            color = NAMED_TYPES_COLOR
+        else:
+            selected = (cohort_labels == group).to_numpy()
+            color = colors[group]
+        ax.scatter(cohort_xy[selected, 0], cohort_xy[selected, 1], c=[color],
+                   s=HIGHLIGHT_POINT_SIZE, linewidths=0, rasterized=True)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        ax.set_title(f"{group}  ({int(selected.sum()):,})", fontsize=13)
+        ax.set_xticks([])
+        ax.set_yticks([])
+    for ax in list(axes.flat)[len(groups):]:
+        ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(path, dpi=PNG_DPI)
+    plt.close(fig)
+    print(f"Wrote {path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -146,6 +202,8 @@ def main() -> None:
     parser.add_argument("--label-colors-csv", type=Path, default=None,
                         help="label,hex_color table (pipeline/reference/anchor_label_colors.csv) so the "
                              "UMAP matches the Napari colours; default is a generic tab20 palette.")
+    parser.add_argument("--min-panel-cells", type=int, default=MIN_PANEL_CELLS,
+                        help="letters with fewer anchor-cohort cells get no small-multiples panel.")
     parser.add_argument("--umap-key", default="X_umap")
     args = parser.parse_args()
 
@@ -171,6 +229,13 @@ def main() -> None:
         draw(xy_all, in_cohort, cohort_labels, label_colors(labels, denovo_only, fixed_colors),
              f"Anchor cohort by InSituType call (k=27) - {suffix.replace('_', ' ')}",
              Path(f"{args.output_stem}_{suffix}.png"), denovo_only)
+
+    panels, skipped = select_panels(cohort_labels, args.min_panel_cells)
+    print(f"Small multiples: {len(panels)} letter panels; skipped (< {args.min_panel_cells} cells): "
+          f"{', '.join(f'{l} ({(cohort_labels == l).sum()})' for l in skipped) or 'none'}")
+    draw_small_multiples(xy_all, in_cohort, cohort_labels,
+                         label_colors(labels, True, fixed_colors), panels,
+                         Path(f"{args.output_stem}_small_multiples.png"))
 
 
 if __name__ == "__main__":
