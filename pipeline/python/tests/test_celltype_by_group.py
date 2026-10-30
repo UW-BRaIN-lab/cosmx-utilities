@@ -103,6 +103,23 @@ def test_collapse_merges_sink_leaves_and_leaves_others_alone(tmp_path=None):
     assert cg.collapse_labels(t["fine"], None).equals(t["fine"])
 
 
+V5_REFERENCE_DIR = Path(__file__).resolve().parents[2] / "reference"
+V5_RENAMED_LABEL = "Excitatory_L2_3_mixed"
+
+
+def test_v5_maps_rename_excitatory_upper_at_both_levels():
+    for map_name in ["sorl1_hierarchy_v5_collapse.csv", "sorl1_hierarchy_v5_parent.csv"]:
+        labels = pd.Series(["Excitatory_upper", "L2/3 neuron", "Endothelial"])
+        out = cg.collapse_labels(labels, V5_REFERENCE_DIR / map_name)
+        print(map_name, out.tolist())
+        assert out[0] == V5_RENAMED_LABEL
+        assert "Excitatory_upper" not in out.tolist()
+    parent = cg.collapse_labels(pd.Series(["L2/3 neuron"]), V5_REFERENCE_DIR / "sorl1_hierarchy_v5_parent.csv")
+    assert parent.tolist() == [V5_RENAMED_LABEL]
+    unchanged = cg.collapse_labels(pd.Series(["L2/3 neuron"]), V5_REFERENCE_DIR / "sorl1_hierarchy_v5_collapse.csv")
+    assert unchanged.tolist() == ["L2/3 neuron"]
+
+
 def test_named_letters_and_unknown_groups():
     names = Path("/tmp/_names_test.csv"); pd.DataFrame({"denovo_label": ["o"], "annotation": ["o - Oligodendrocyte"]}).to_csv(names, index=False)
     t = pd.DataFrame({"x": ["o", "Endothelial"]})
@@ -117,5 +134,6 @@ if __name__ == "__main__":
     test_workbook_and_figure_are_written_and_readable()
     test_a_group_with_no_donors_left_is_blank_not_an_error()
     test_collapse_merges_sink_leaves_and_leaves_others_alone()
+    test_v5_maps_rename_excitatory_upper_at_both_levels()
     test_named_letters_and_unknown_groups()
     print("OK")
