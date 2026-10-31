@@ -45,3 +45,16 @@ from `marker_overlap_vs_reference.py`. Evidence to check in Napari, not a rename
 columns. `support` = strong (concordance >= 0.95 and overlap p < 1e-3) / partial (p < 0.05) / none.
 
 Built from the full `marker_overlap.csv` of the K=21 run (SEA-AD MTG reference).
+
+## Full cohort, k=27 anchor-cohort fit (GBmap Core-L4)
+
+`fullcohort_pruned_k27.csv`: the 27 de novo clusters (`a`-`z`, `aa`) of the anchor-cohort fit
+(`stage4_anchor_pruned/anchor/anchor_typing.h5`). `pi_annotation` is the PI's call from her H&E review
+(2026-10-30); `keep`/`new_name` follow it. `b` is the Low_signal sink, which she did not annotate. Five letters are
+dropped because a GBmap type covers them (`aa` oligodendrocyte, `l` endothelial, `u` TAM) or they are junk (`h`, `r`).
+All four neuron letters are kept so excitatory and inhibitory neurons can be told apart.
+
+This table feeds `python/prep_insitutree_profiles.py` -> `../insitutree_profiles_k27.csv`, whose columns are the leaves
+of `../insitutree_hierarchy_k27.json`; `python/tests/test_k27_hierarchy.py` keeps the three in lockstep.
+`../insitutree_hierarchy_k27_neuron_ei.csv` is the `LABEL_MAPS` file that collapses the neuron leaves to
+Excitatory_neuron / Inhibitory_neuron.
