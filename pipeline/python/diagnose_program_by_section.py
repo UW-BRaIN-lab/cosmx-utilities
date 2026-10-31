@@ -85,7 +85,11 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from anchor_profiles import decode, read_cell_calls
+from anchor_profiles import read_cell_calls
+from matched_null import (DEFAULT_NULL_NEIGHBOURS, MEAN_COUNT_EPS, background_affinity,
+                          draw_null_sets, draw_spanning_sets, empirical_p,
+                          fit_and_predict, gene_statistics, load_counts,
+                          matched_pools, read_neg, resolve_genes, score_gene_set)
 from pseudobulk_core import DEFAULT_SCALE_FACTOR
 
 # The programme 75d surfaced as separating `t` from every natively-called class.
@@ -100,9 +104,6 @@ COMPARE_ALL = "__all_other_cells__"
 # Row label for the whole comparison group in the matched-null table, kept distinct from any
 # real cell type name.
 POOLED_KEY = "__pooled__"
-# Guards log10 of a gene that is never detected in the cohort.
-MEAN_COUNT_EPS = 1e-6
-DEFAULT_NULL_NEIGHBOURS = 100
 # A gap larger than this in a slide's FOV numbering starts a new tissue piece. The observed
 # runs are far apart (1-135 then 181-205), so this is not a delicate threshold.
 DEFAULT_FOV_GAP = 10
@@ -159,128 +160,56 @@ def parse_args() -> argparse.Namespace:
                         f"genes across sets; too small and the null stops being a distribution.")
     p.add_argument("--null-seed", type=int, default=0,
                    help="Seed for the null draw, so a reported p is reproducible.")
+    p.add_argument("--spanning-sets", type=int, default=0,
+                   help="Run the BACKGROUND-DILUTION correction with this many spanning null "
+                        "sets (0 = off). 75q found CDK4/MDM2/OS9 in the panel's bottom 0.25% for "
+                        "how their expression tracks the per-cell negprobe load; genes down "
+                        "there deflate when background inflates a library, so a "
+                        "background-heavier population shows a deficit in them with no copy "
+                        "number involved. The matched null cannot control it (too few genes are "
+                        "that extreme to match against), so this instead lays null sets ACROSS "
+                        "the affinity range, fits gap ~ affinity + abundance, and reads the "
+                        "prediction at the programme's own values. The residual is what dilution "
+                        "does not explain. Needs /neg in the counts h5. 300 is plenty.")
+    p.add_argument("--affinity-strata", type=int, default=10,
+                   help="Depth strata the background affinity is computed within (default 10).")
+    p.add_argument("--null-per-unit-csv", type=Path,
+                   help="With --null-sets, also write the MEAN per-unit gap across the null "
+                        "sets, in the same long format as --per-unit-csv. This is the properly "
+                        "matched per-unit CONTROL for program_gap_by_group.py, which subtracts "
+                        "control from amplicon unit by unit to get the donor-level excess. The "
+                        "older workflow used a hand-picked 30-gene control matched to the "
+                        "COMBINED six-gene set, which is the wrong control once the loci are "
+                        "split -- a one-gene EGFR run in particular. This is matched per run.")
     return p.parse_args()
 
 
-def load_counts(counts_h5: Path) -> tuple[sp.csc_matrix, np.ndarray, np.ndarray, np.ndarray]:
-    """Load the genes x cells CSC once, with per-cell library sizes.
-
-    The matched-null control scores hundreds of gene sets against the same matrix, so the file is
-    read once here instead of once per set.
-    """
-    with h5py.File(counts_h5, "r") as f:
-        n_genes, n_cells = (int(x) for x in f["counts/shape"][()])
-        mat = sp.csc_matrix(
-            (np.asarray(f["counts/data"][()], dtype=np.float64),
-             np.asarray(f["counts/indices"][()], dtype=np.int64),
-             np.asarray(f["counts/indptr"][()], dtype=np.int64)),
-            shape=(n_genes, n_cells))
-        genes = np.asarray(decode(f["genes"][()]))
-        cell_id = np.asarray(decode(f["cell_id"][()]))
-    totals = np.asarray(mat.sum(axis=0)).ravel()
-    return mat, genes, cell_id, totals
-
-
-def resolve_genes(genes: np.ndarray, program: list[str]) -> np.ndarray:
-    """Panel positions of the programme genes, failing loudly on anything off-panel."""
-    missing = [g for g in program if g not in set(genes)]
-    if missing:
-        sys.exit(f"ERROR: programme gene(s) not on the panel: {missing}")
-    return pd.Index(genes).get_indexer(program)
-
-
-def score_gene_set(mat: sp.csc_matrix, totals: np.ndarray, idx: np.ndarray,
-                   scale_factor: float) -> np.ndarray:
-    """Mean log-norm expression of the genes at `idx`, one value per cell, in column order.
-
-    Only those rows are ever materialised, so this stays light at cohort scale and is cheap
-    enough to call once per null set.
-    """
-    sub = np.asarray(mat[idx, :].todense())
-    with np.errstate(divide="ignore", invalid="ignore"):
-        norm = np.log1p(np.divide(sub * scale_factor, totals,
-                                  out=np.zeros_like(sub), where=totals > 0))
-    return norm.mean(axis=0)
-
-
-def gene_statistics(mat: sp.csc_matrix) -> tuple[np.ndarray, np.ndarray]:
-    """Per-gene mean raw count and detection rate, read off the CSC's nonzeros alone.
-
-    `mat` is genes x cells and column-compressed, so `indices` already holds the GENE of every
-    nonzero: one bincount gives the detected-cell count and a weighted one gives the total, with
-    no transpose and nothing densified.
-    """
-    n_genes, n_cells = mat.shape
-    detected = np.bincount(mat.indices, minlength=n_genes).astype(np.float64)
-    summed = np.bincount(mat.indices, weights=mat.data, minlength=n_genes)
-    return summed / n_cells, detected / n_cells
-
-
-def matched_pools(mean_counts: np.ndarray, detection: np.ndarray, program_idx: np.ndarray,
-                  n_neighbours: int) -> list[np.ndarray]:
-    """For each programme gene, the `n_neighbours` genes most like it in abundance + detection.
-
-    DEPTH is the confound this exists for. A population sequenced shallower drops a lightly
-    expressed gene to zero more often, and a zero contributes 0 to the mean score — so ANY such
-    gene shows a deficit in that population whatever its biology. Matching the null on detection
-    rate as well as abundance is what lets a null set reproduce that artefact: if it does, the
-    programme's own deficit is a statement about depth, not about the programme.
-    """
-    axes = np.vstack([np.log10(mean_counts + MEAN_COUNT_EPS), detection])
-    axes = (axes - axes.mean(axis=1, keepdims=True)) / axes.std(axis=1, keepdims=True)
-    pools = []
-    for gene in program_idx:
-        distance = np.linalg.norm(axes - axes[:, [gene]], axis=0)
-        distance[program_idx] = np.inf          # a programme gene can never stand in for another
-        pools.append(np.argsort(distance)[:n_neighbours])
-    return pools
-
-
-def draw_null_sets(pools: list[np.ndarray], n_sets: int,
-                   rng: np.random.Generator) -> list[list[int]]:
-    """One matched stand-in per programme gene per set, never the same gene twice in a set."""
-    sets = []
-    for _ in range(n_sets):
-        chosen: list[int] = []
-        for pool in pools:
-            free = [g for g in pool if g not in chosen]
-            if not free:
-                sys.exit("ERROR: a matched pool was exhausted; raise --null-neighbours.")
-            chosen.append(int(rng.choice(free)))
-        sets.append(chosen)
-    return sets
-
-
-def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
-                min_cells: int) -> dict[str, float]:
-    """Median within-unit gap for the pooled comparison and for each comparator separately.
+def unit_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
+              min_cells: int) -> dict[str, pd.Series]:
+    """Per-unit gap for the pooled comparison and for each comparator separately.
 
     Same `section_table` the observed verdict goes through, so an observed gap and its null are
-    computed by one code path and stay comparable.
+    computed by one code path and stay comparable. Returning the units rather than their median
+    is what lets a null set stand in as a properly matched per-unit CONTROL for
+    program_gap_by_group.py, which subtracts control from amplicon unit by unit.
     """
-    out: dict[str, float] = {}
+    out: dict[str, pd.Series] = {}
     pool = df if pooled_only else df[df["is_letter"] | df["cell_type"].isin(comparators)]
     _, usable = section_table(pool, min_cells)
-    out[POOLED_KEY] = float(usable["gap"].median()) if not usable.empty else float("nan")
+    out[POOLED_KEY] = usable["gap"]
     if len(comparators) > 1:
         for cell_type in comparators:
             pair = df[df["is_letter"] | (df["cell_type"] == cell_type)]
             _, pair_usable = section_table(pair, min_cells)
-            out[cell_type] = (float(pair_usable["gap"].median())
-                              if not pair_usable.empty else float("nan"))
+            out[cell_type] = pair_usable["gap"]
     return out
 
 
-def empirical_p(observed: float, null: np.ndarray) -> float:
-    """One-sided p that a deficit this large comes from matched genes alone.
-
-    (hits + 1) / (n + 1): the observed set is itself one draw from the null hypothesis, so a p of
-    exactly 0 is not available however many sets are drawn.
-    """
-    null = null[~np.isnan(null)]
-    if not len(null) or np.isnan(observed):
-        return float("nan")
-    return float((np.sum(null <= observed) + 1) / (len(null) + 1))
+def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
+                min_cells: int) -> dict[str, float]:
+    """The median of `unit_gaps`, which is what the verdict and the null distribution use."""
+    return {k: (float(v.median()) if len(v) else float("nan"))
+            for k, v in unit_gaps(df, comparators, pooled_only, min_cells).items()}
 
 
 def parse_cell_ids(cell_ids: pd.Index) -> pd.DataFrame:
@@ -443,6 +372,9 @@ def main() -> None:
     if df.empty:
         sys.exit("ERROR: no cells left after joining labels and slides — check the ids.")
     df["is_letter"] = df["cell_type"] == args.letter
+    # Positions of the kept cells in the matrix's column order, needed both by the null loop and
+    # by the background-affinity axis.
+    keep_all = pd.Index(cell_id).get_indexer(df.index)
     if not df["is_letter"].any():
         sys.exit(f"ERROR: no cells labelled {args.letter!r}.")
     print(f"{len(df):,} cells, {df['slide'].nunique()} sections, "
@@ -554,7 +486,8 @@ def main() -> None:
             observed.update(dict(zip(breakdown["comparator"], breakdown["median_gap"])))
 
         mean_counts, detection = gene_statistics(mat)
-        pools = matched_pools(mean_counts, detection, program_idx, args.null_neighbours)
+        pools = matched_pools(mean_counts, detection, program_idx,
+                              args.null_neighbours)
         print(f"\n  Drawing {args.null_sets} matched-null sets "
               f"(pool of {args.null_neighbours} per gene, seed {args.null_seed})")
         for gene, pos, pool in zip(program, program_idx, pools):
@@ -563,18 +496,22 @@ def main() -> None:
                   f"  det {detection[pool].min():.3f}-{detection[pool].max():.3f}")
 
         null_sets = draw_null_sets(pools, args.null_sets, np.random.default_rng(args.null_seed))
-        # Positions of the kept cells in the matrix's column order, so each null set's scores can
-        # be dropped straight into the frame without re-aligning 2.5M labels per draw.
-        keep = pd.Index(cell_id).get_indexer(df.index)
+        keep = keep_all
         null_df = df.copy()
         rows = []
+        null_units: list[pd.DataFrame] = []
         for n, gene_idx in enumerate(null_sets, 1):
             null_df["score"] = score_gene_set(mat, totals, np.asarray(gene_idx),
                                               args.scale_factor)[keep]
-            for key, gap in median_gaps(null_df, comparators, pooled_only,
-                                        args.min_section_cells).items():
-                rows.append({"comparator": key, "null_set": n, "median_gap": gap,
+            per_unit_gaps = unit_gaps(null_df, comparators, pooled_only,
+                                      args.min_section_cells)
+            for key, gaps in per_unit_gaps.items():
+                rows.append({"comparator": key, "null_set": n,
+                             "median_gap": float(gaps.median()) if len(gaps) else float("nan"),
                              "genes": ",".join(genes[gene_idx])})
+                if args.null_per_unit_csv and len(gaps):
+                    null_units.append(pd.DataFrame({"unit": gaps.index, "comparator": key,
+                                                    "gap": gaps.to_numpy()}))
             if n % 25 == 0 or n == len(null_sets):
                 print(f"    ... {n}/{len(null_sets)} sets scored")
         null_long = pd.DataFrame(rows)
@@ -620,6 +557,88 @@ def main() -> None:
         draws_path = args.output_csv.with_name(args.output_csv.stem + "_null_draws.csv")
         null_long.to_csv(draws_path, index=False)
         print(f"Wrote {draws_path} ({len(null_long)} comparator x null-set rows)")
+    # Background-dilution correction. See the matched_null module docstring: this is the part
+    # the matched null provably cannot do, and the 12q amplicon set sits where it matters.
+    spanning_table = pd.DataFrame()
+    if args.spanning_sets:
+        letter_cells = keep_all[df["is_letter"].to_numpy()]
+        affinity, strata_used = background_affinity(
+            mat, totals, read_neg(args.counts_h5, cell_id), letter_cells,
+            args.affinity_strata, args.scale_factor, 50)
+        log_abundance = np.log10(gene_statistics(mat)[0] + MEAN_COUNT_EPS)
+        obs_affinity = float(affinity[program_idx].mean())
+        obs_abundance = float(log_abundance[program_idx].mean())
+        obs_pct = 100 * float((affinity < obs_affinity).mean())
+        print(f"\n  === background-dilution correction: {args.spanning_sets} spanning sets ===")
+        print(f"  affinity from {letter_cells.size:,} {args.letter} cells over {strata_used} "
+              f"depth strata")
+        print(f"  programme mean affinity {obs_affinity:+.4f}  (panel pct {obs_pct:.2f})")
+
+        spanning = draw_spanning_sets(affinity, gene_statistics(mat)[0], program_idx,
+                                      args.spanning_sets, np.random.default_rng(args.null_seed))
+        span_df = df.copy()
+        records = []
+        for n, gene_idx in enumerate(spanning, 1):
+            idx_arr = np.asarray(gene_idx)
+            span_df["score"] = score_gene_set(mat, totals, idx_arr, args.scale_factor)[keep_all]
+            gaps = median_gaps(span_df, comparators, pooled_only, args.min_section_cells)
+            for key, gap in gaps.items():
+                records.append({"comparator": key, "set_affinity": float(affinity[idx_arr].mean()),
+                                "set_abundance": float(log_abundance[idx_arr].mean()),
+                                "median_gap": gap})
+            if n % 50 == 0 or n == len(spanning):
+                print(f"    ... {n}/{len(spanning)} spanning sets scored")
+        span_long = pd.DataFrame(records).dropna(subset=["median_gap"])
+
+        observed = {POOLED_KEY: s["median_gap"]}
+        if not breakdown.empty:
+            observed.update(dict(zip(breakdown["comparator"], breakdown["median_gap"])))
+        rows = []
+        for key, grp in span_long.groupby("comparator"):
+            if len(grp) < 10:
+                continue
+            obs = observed.get(key, float("nan"))
+            coef, predicted, resid = fit_and_predict(
+                grp["set_affinity"].to_numpy(), grp["set_abundance"].to_numpy(),
+                grp["median_gap"].to_numpy(), obs_affinity, obs_abundance)
+            lo, hi = grp["set_affinity"].min(), grp["set_affinity"].max()
+            bracketed = bool(lo <= obs_affinity <= hi)
+            rows.append({"comparator": key, "n_sets": len(grp), "observed_gap": obs,
+                         "predicted_from_dilution": predicted,
+                         "residual": obs - predicted,
+                         "p_residual": empirical_p(obs - predicted, resid.to_numpy()
+                                                   if hasattr(resid, "to_numpy") else resid),
+                         "slope_affinity": float(coef[1]),
+                         "span_lo": float(lo), "span_hi": float(hi),
+                         "affinity_bracketed": bracketed})
+        spanning_table = pd.DataFrame(rows).sort_values("p_residual")
+        print(f"  {'comparator':28s} {'observed':>9s} {'dilution':>9s} {'residual':>9s} "
+              f"{'p':>7s} {'bracketed':>10s}")
+        for _, row in spanning_table.iterrows():
+            label = "ALL (pooled)" if row["comparator"] == POOLED_KEY else str(row["comparator"])
+            print(f"  {label[:26]:28s} {row['observed_gap']:>+9.3f} "
+                  f"{row['predicted_from_dilution']:>+9.3f} {row['residual']:>+9.3f} "
+                  f"{row['p_residual']:>7.3f} {str(row['affinity_bracketed']):>10s}")
+        if not spanning_table.empty and not spanning_table["affinity_bracketed"].all():
+            print("  WARNING: the programme's affinity is OUTSIDE the spanning range for the rows")
+            print("  marked False, so their prediction is an EXTRAPOLATION. Raise --spanning-sets")
+            print("  or widen the draw before quoting them.")
+        print("  READ: 'dilution' is the gap predicted at the programme's own affinity and")
+        print("  abundance. The RESIDUAL is what background cannot account for -- that, not the")
+        print("  raw gap, is the amplicon claim.")
+
+    if args.null_sets and args.null_per_unit_csv and null_units:
+        mean_units = (pd.concat(null_units).groupby(["unit", "comparator"], observed=True)["gap"]
+                      .mean().reset_index())
+        mean_units["slide"] = mean_units["unit"].str.rsplit(":", n=1).str[0]
+        args.null_per_unit_csv.parent.mkdir(parents=True, exist_ok=True)
+        mean_units.to_csv(args.null_per_unit_csv, index=False)
+        print(f"Wrote {args.null_per_unit_csv} ({len(mean_units)} unit x comparator rows, "
+              f"the matched per-unit control for program_gap_by_group.py)")
+    if not spanning_table.empty:
+        span_path = args.output_csv.with_name(args.output_csv.stem + "_dilution.csv")
+        spanning_table.to_csv(span_path, index=False)
+        print(f"Wrote {span_path} ({len(spanning_table)} comparators)")
     if args.per_unit_csv and per_unit:
         long = pd.concat(per_unit).rename_axis("unit").reset_index()
         # The unit label is "<slide>:F<fov>", so the slide is recoverable downstream without

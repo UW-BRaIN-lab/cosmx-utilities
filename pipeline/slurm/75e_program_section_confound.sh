@@ -50,7 +50,24 @@
 #               comparators' depth (75g), so this is the live confound. 200 sets resolves p to
 #               about 0.005 and costs roughly 10-15 minutes.
 #   NULL_SEED   seed for that draw (default 0), so a reported p is reproducible.
+#               With NULL_SETS set, the run also writes <stem>_program_by_unit_null.csv: the mean
+#               per-unit gap across the null sets, which is the properly matched per-unit CONTROL
+#               for program_gap_by_group.py (donor-level excess). The old hand-picked 30-gene
+#               control was matched to the COMBINED six-gene set and is the WRONG control once
+#               the loci are split -- especially for the one-gene EGFR run.
 #   NULL_NEIGHBOURS  candidate pool per programme gene (default 100).
+#   SPANNING_SETS    run the BACKGROUND-DILUTION correction with this many spanning sets
+#               (default 0 = off). REQUIRED FOR ANY AMPLICON CLAIM. 75q put CDK4/MDM2/OS9 in the
+#               panel's bottom 0.25% for how their expression tracks the per-cell negprobe load,
+#               so a background-heavier population shows a deficit in them with no copy number
+#               involved. The matched null CANNOT control this (too few genes are that extreme to
+#               match against); this lays null sets ACROSS the affinity range instead, fits
+#               gap ~ affinity + abundance, and reports the residual. 300 is plenty. Check the
+#               `bracketed` column is True -- False means the prediction is an extrapolation.
+#               Costs roughly as much again as the same number of NULL_SETS, so for a long run
+#               either set NULL_SETS=0 (the spanning fit controls abundance too) or move off ckpt
+#               with:  --account=carrolllab --partition=cpu-g2-mem2x --qos=''
+#               which is non-preemptible.
 #   COMPARE_TO  restrict the comparison group to these cell types instead of every other cell.
 #               'malignant' expands to the nine malignant Core-L4 columns. REQUIRED whenever the
 #               reference itself stratifies on the programme: gbmap_level4_panel.csv puts all
@@ -67,7 +84,7 @@
 # Only the programme genes' rows and per-cell column sums are materialised, so this never
 # transposes or densifies the counts — far lighter than 75d.
 #SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=pipeline/logs/program_confound_%j.out
 #SBATCH --error=pipeline/logs/program_confound_%j.err
 
@@ -109,6 +126,16 @@ export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}"
 
+# Echo the RESOLVED plan before any work: a stale checkout silently ignores new env knobs, and
+# that has already cost a run that re-did the defaults while looking like it honoured the request.
+echo "PLAN  letter=${LETTER}  tag=${TAG}  unit=${UNIT:-fov}  min_cells=${MIN_CELLS:-25}"
+echo "      genes=${GENES:-<default heat-shock set>}"
+echo "      compare_to=${COMPARE_TO:-<every other cell>}"
+echo "      null_sets=${NULL_SETS:-0}  spanning_sets=${SPANNING_SETS:-0}"
+if [[ "${SPANNING_SETS:-0}" -eq 0 ]]; then
+    echo "      NOTE: no dilution correction. Any AMPLICON claim needs SPANNING_SETS>0."
+fi
+
 echo "Staging anchor counts + labels from Kopah (sections come from the cell ids)..."
 s5cmd cp "${BASE}/${INPUT}/anchor/anchor_input.h5" "$WORK/anchor_input.h5"
 s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_typing.h5" "$WORK/anchor_typing.h5"
@@ -121,6 +148,10 @@ NULL_ARG=()
 if [[ "${NULL_SETS:-0}" -gt 0 ]]; then
     NULL_ARG=(--null-sets "$NULL_SETS" --null-seed "${NULL_SEED:-0}"
               --null-neighbours "${NULL_NEIGHBOURS:-100}")
+fi
+SPAN_ARG=()
+if [[ "${SPANNING_SETS:-0}" -gt 0 ]]; then
+    SPAN_ARG=(--spanning-sets "$SPANNING_SETS")
 fi
 
 apptainer exec \
@@ -136,8 +167,10 @@ apptainer exec \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
         ${COMPARE_ARG[@]+"${COMPARE_ARG[@]}"} \
         ${NULL_ARG[@]+"${NULL_ARG[@]}"} \
+        ${SPAN_ARG[@]+"${SPAN_ARG[@]}"} \
         --output-csv "$WORK/${STEM}_program_by_section.csv" \
-        --per-unit-csv "$WORK/${STEM}_program_by_unit.csv"
+        --per-unit-csv "$WORK/${STEM}_program_by_unit.csv" \
+        --null-per-unit-csv "$WORK/${STEM}_program_by_unit_null.csv"
 
 echo "Uploading the tables to Kopah (tag: ${TAG})..."
 DEST="${BASE}/${STAGE4}/supervised_gbmap/program_confound"
@@ -147,7 +180,9 @@ s5cmd cp "$WORK/${STEM}_program_by_section.csv" "${DEST}/${STEM}_program_by_sect
 # when NULL_SETS was set.
 for extra in "${STEM}_program_by_section_by_type.csv" "${STEM}_program_by_unit.csv" \
              "${STEM}_program_by_section_null.csv" \
-             "${STEM}_program_by_section_null_draws.csv"; do
+             "${STEM}_program_by_section_null_draws.csv" \
+             "${STEM}_program_by_unit_null.csv" \
+             "${STEM}_program_by_section_dilution.csv"; do
     if [[ -f "$WORK/$extra" ]]; then
         s5cmd cp "$WORK/$extra" "${DEST}/${extra}"
     fi
