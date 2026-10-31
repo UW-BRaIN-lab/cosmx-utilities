@@ -86,9 +86,10 @@ import pandas as pd
 import scipy.sparse as sp
 
 from anchor_profiles import read_cell_calls
-from matched_null import (DEFAULT_NULL_NEIGHBOURS, draw_null_sets, empirical_p,
-                          gene_statistics, load_counts, matched_pools, resolve_genes,
-                          score_gene_set)
+from matched_null import (DEFAULT_NULL_NEIGHBOURS, MEAN_COUNT_EPS, background_affinity,
+                          draw_null_sets, draw_spanning_sets, empirical_p,
+                          fit_and_predict, gene_statistics, load_counts,
+                          matched_pools, read_neg, resolve_genes, score_gene_set)
 from pseudobulk_core import DEFAULT_SCALE_FACTOR
 
 # The programme 75d surfaced as separating `t` from every natively-called class.
@@ -159,6 +160,19 @@ def parse_args() -> argparse.Namespace:
                         f"genes across sets; too small and the null stops being a distribution.")
     p.add_argument("--null-seed", type=int, default=0,
                    help="Seed for the null draw, so a reported p is reproducible.")
+    p.add_argument("--spanning-sets", type=int, default=0,
+                   help="Run the BACKGROUND-DILUTION correction with this many spanning null "
+                        "sets (0 = off). 75q found CDK4/MDM2/OS9 in the panel's bottom 0.25% for "
+                        "how their expression tracks the per-cell negprobe load; genes down "
+                        "there deflate when background inflates a library, so a "
+                        "background-heavier population shows a deficit in them with no copy "
+                        "number involved. The matched null cannot control it (too few genes are "
+                        "that extreme to match against), so this instead lays null sets ACROSS "
+                        "the affinity range, fits gap ~ affinity + abundance, and reads the "
+                        "prediction at the programme's own values. The residual is what dilution "
+                        "does not explain. Needs /neg in the counts h5. 300 is plenty.")
+    p.add_argument("--affinity-strata", type=int, default=10,
+                   help="Depth strata the background affinity is computed within (default 10).")
     p.add_argument("--null-per-unit-csv", type=Path,
                    help="With --null-sets, also write the MEAN per-unit gap across the null "
                         "sets, in the same long format as --per-unit-csv. This is the properly "
@@ -543,6 +557,76 @@ def main() -> None:
         draws_path = args.output_csv.with_name(args.output_csv.stem + "_null_draws.csv")
         null_long.to_csv(draws_path, index=False)
         print(f"Wrote {draws_path} ({len(null_long)} comparator x null-set rows)")
+    # Background-dilution correction. See the matched_null module docstring: this is the part
+    # the matched null provably cannot do, and the 12q amplicon set sits where it matters.
+    spanning_table = pd.DataFrame()
+    if args.spanning_sets:
+        letter_cells = keep_all[df["is_letter"].to_numpy()]
+        affinity, strata_used = background_affinity(
+            mat, totals, read_neg(args.counts_h5, cell_id), letter_cells,
+            args.affinity_strata, args.scale_factor, 50)
+        log_abundance = np.log10(gene_statistics(mat)[0] + MEAN_COUNT_EPS)
+        obs_affinity = float(affinity[program_idx].mean())
+        obs_abundance = float(log_abundance[program_idx].mean())
+        obs_pct = 100 * float((affinity < obs_affinity).mean())
+        print(f"\n  === background-dilution correction: {args.spanning_sets} spanning sets ===")
+        print(f"  affinity from {letter_cells.size:,} {args.letter} cells over {strata_used} "
+              f"depth strata")
+        print(f"  programme mean affinity {obs_affinity:+.4f}  (panel pct {obs_pct:.2f})")
+
+        spanning = draw_spanning_sets(affinity, gene_statistics(mat)[0], program_idx,
+                                      args.spanning_sets, np.random.default_rng(args.null_seed))
+        span_df = df.copy()
+        records = []
+        for n, gene_idx in enumerate(spanning, 1):
+            idx_arr = np.asarray(gene_idx)
+            span_df["score"] = score_gene_set(mat, totals, idx_arr, args.scale_factor)[keep_all]
+            gaps = median_gaps(span_df, comparators, pooled_only, args.min_section_cells)
+            for key, gap in gaps.items():
+                records.append({"comparator": key, "set_affinity": float(affinity[idx_arr].mean()),
+                                "set_abundance": float(log_abundance[idx_arr].mean()),
+                                "median_gap": gap})
+            if n % 50 == 0 or n == len(spanning):
+                print(f"    ... {n}/{len(spanning)} spanning sets scored")
+        span_long = pd.DataFrame(records).dropna(subset=["median_gap"])
+
+        observed = {POOLED_KEY: s["median_gap"]}
+        if not breakdown.empty:
+            observed.update(dict(zip(breakdown["comparator"], breakdown["median_gap"])))
+        rows = []
+        for key, grp in span_long.groupby("comparator"):
+            if len(grp) < 10:
+                continue
+            obs = observed.get(key, float("nan"))
+            coef, predicted, resid = fit_and_predict(
+                grp["set_affinity"].to_numpy(), grp["set_abundance"].to_numpy(),
+                grp["median_gap"].to_numpy(), obs_affinity, obs_abundance)
+            lo, hi = grp["set_affinity"].min(), grp["set_affinity"].max()
+            bracketed = bool(lo <= obs_affinity <= hi)
+            rows.append({"comparator": key, "n_sets": len(grp), "observed_gap": obs,
+                         "predicted_from_dilution": predicted,
+                         "residual": obs - predicted,
+                         "p_residual": empirical_p(obs - predicted, resid.to_numpy()
+                                                   if hasattr(resid, "to_numpy") else resid),
+                         "slope_affinity": float(coef[1]),
+                         "span_lo": float(lo), "span_hi": float(hi),
+                         "affinity_bracketed": bracketed})
+        spanning_table = pd.DataFrame(rows).sort_values("p_residual")
+        print(f"  {'comparator':28s} {'observed':>9s} {'dilution':>9s} {'residual':>9s} "
+              f"{'p':>7s} {'bracketed':>10s}")
+        for _, row in spanning_table.iterrows():
+            label = "ALL (pooled)" if row["comparator"] == POOLED_KEY else str(row["comparator"])
+            print(f"  {label[:26]:28s} {row['observed_gap']:>+9.3f} "
+                  f"{row['predicted_from_dilution']:>+9.3f} {row['residual']:>+9.3f} "
+                  f"{row['p_residual']:>7.3f} {str(row['affinity_bracketed']):>10s}")
+        if not spanning_table.empty and not spanning_table["affinity_bracketed"].all():
+            print("  WARNING: the programme's affinity is OUTSIDE the spanning range for the rows")
+            print("  marked False, so their prediction is an EXTRAPOLATION. Raise --spanning-sets")
+            print("  or widen the draw before quoting them.")
+        print("  READ: 'dilution' is the gap predicted at the programme's own affinity and")
+        print("  abundance. The RESIDUAL is what background cannot account for -- that, not the")
+        print("  raw gap, is the amplicon claim.")
+
     if args.null_sets and args.null_per_unit_csv and null_units:
         mean_units = (pd.concat(null_units).groupby(["unit", "comparator"], observed=True)["gap"]
                       .mean().reset_index())
@@ -551,6 +635,10 @@ def main() -> None:
         mean_units.to_csv(args.null_per_unit_csv, index=False)
         print(f"Wrote {args.null_per_unit_csv} ({len(mean_units)} unit x comparator rows, "
               f"the matched per-unit control for program_gap_by_group.py)")
+    if not spanning_table.empty:
+        span_path = args.output_csv.with_name(args.output_csv.stem + "_dilution.csv")
+        spanning_table.to_csv(span_path, index=False)
+        print(f"Wrote {span_path} ({len(spanning_table)} comparators)")
     if args.per_unit_csv and per_unit:
         long = pd.concat(per_unit).rename_axis("unit").reset_index()
         # The unit label is "<slide>:F<fov>", so the slide is recoverable downstream without
