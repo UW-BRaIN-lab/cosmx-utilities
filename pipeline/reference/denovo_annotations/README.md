@@ -58,3 +58,6 @@ This table feeds `python/prep_insitutree_profiles.py` -> `../insitutree_profiles
 of `../insitutree_hierarchy_k27.json`; `python/tests/test_k27_hierarchy.py` keeps the three in lockstep.
 `../insitutree_hierarchy_k27_neuron_ei.csv` is the `LABEL_MAPS` file that collapses the neuron leaves to
 Excitatory_neuron / Inhibitory_neuron.
+
+85/85b read the hierarchy from the repo but stage the PROFILE MATRIX from Kopah `reference/`, so upload it before
+submitting: `s5cmd cp pipeline/reference/insitutree_profiles_k27.csv s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/`.
