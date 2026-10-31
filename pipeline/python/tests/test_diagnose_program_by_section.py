@@ -336,6 +336,78 @@ def test_unit_gaps_are_indexed_by_unit_for_the_control_join():
     assert gaps.index.is_unique and len(gaps) > 5
 
 
+def _fixture_background_confound(rng, n_genes=300, n_cells=6000, n_units=20):
+    """NO real deficit. The letter only carries more background, and the programme genes happen
+    to be the ones that deflate when a library is inflated by it.
+
+    Every gene has the same biology in both groups. Each gene gets a coupling to the per-cell
+    background load; the programme's coupling is ZERO, which puts it at the bottom of the
+    affinity spread exactly where 75q found CDK4, MDM2 and OS9. Because the letter's library is
+    inflated by background, the programme's normalised share drops in it while a mid-coupling
+    gene is partly compensated -- so the programme shows a deficit with no biology behind it.
+    """
+    gene_rate = rng.lognormal(-1.0, 1.2, n_genes)
+    gene_rate /= gene_rate.sum()
+    is_letter = rng.random(n_cells) < 0.4
+    bg_load = np.where(is_letter, rng.gamma(6.0, 2.0, n_cells), rng.gamma(1.0, 0.4, n_cells))
+
+    coupling = rng.gamma(2.0, 0.8, n_genes)
+    order = np.argsort(gene_rate)
+    program_idx = order[int(.5 * n_genes):int(.5 * n_genes) + 5]
+    coupling[program_idx] = 0.0
+
+    counts = rng.poisson(np.outer(gene_rate, np.full(n_cells, 300.0))
+                         + np.outer(coupling, bg_load))
+    mat = sp.csc_matrix(counts.astype(np.float64))
+    frame = pd.DataFrame({
+        "cell_type": np.where(is_letter, "t", "OPC-like"),
+        "slide": [f"U{i % n_units}" for i in range(n_cells)],
+        "is_letter": is_letter,
+    })
+    return mat, np.asarray(mat.sum(axis=0)).ravel(), bg_load, program_idx, frame
+
+
+def _confound_p(mat, totals, neg, program_idx, frame, match_affinity, n_sets=200, seed=5):
+    """The 75e null path, with or without the background-affinity axis."""
+    comparators, pooled_only = ["OPC-like"], False
+    frame = frame.copy()
+    frame["score"] = dp.score_gene_set(mat, totals, np.asarray(program_idx), _SCALE)
+    observed = dp.median_gaps(frame, comparators, pooled_only, 25)[dp.POOLED_KEY]
+
+    mean_counts, detection = dp.gene_statistics(mat)
+    extra = ()
+    if match_affinity:
+        cells = np.flatnonzero(frame["is_letter"].to_numpy())
+        extra = (dp.background_affinity(mat, totals, neg, cells, 10, _SCALE, 50)[0],)
+    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 60, extra)
+    draws = dp.draw_null_sets(pools, n_sets, np.random.default_rng(seed))
+
+    null_frame = frame.copy()
+    gaps = []
+    for gene_idx in draws:
+        null_frame["score"] = dp.score_gene_set(mat, totals, np.asarray(gene_idx), _SCALE)
+        gaps.append(dp.median_gaps(null_frame, comparators, pooled_only, 25)[dp.POOLED_KEY])
+    gaps = np.asarray(gaps, dtype=float)
+    return observed, gaps, dp.empirical_p(observed, gaps)
+
+
+def test_background_dilution_fools_the_two_axis_null():
+    """The confound 75q surfaced, documented as an OPEN failure mode rather than a fixed one.
+
+    Matching on background affinity as a third axis does NOT repair it: CDK4, MDM2 and OS9 sit at
+    the 0.1-0.2 percentile, only ~15 genes on a 6,175-gene panel are that far down, and any
+    workable pool reaches back into mid-pack. The prior question is whether the population carries
+    more background than its comparator at all -- if it does not, this mechanism never fires.
+    """
+    mat, totals, neg, idx, frame = _fixture_background_confound(np.random.default_rng(31))
+    observed, gaps, p = _confound_p(mat, totals, neg, idx, frame, match_affinity=False)
+    print(f"      2-axis null: observed {observed:+.3f}  null median {np.median(gaps):+.3f}  "
+          f"p {p:.3f}")
+    assert observed < -0.02, f"the dilution must look like a deficit, got {observed:+.3f}"
+    assert p <= 0.05, (
+        f"this fixture exists because the two-axis null calls it real; got p={p:.3f}")
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

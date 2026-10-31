@@ -55,13 +55,12 @@ import argparse
 import sys
 from pathlib import Path
 
-import h5py
 import numpy as np
 import pandas as pd
 
 from anchor_profiles import read_cell_calls
-from matched_null import (DEFAULT_NULL_NEIGHBOURS, draw_null_sets, empirical_p, gene_statistics,
-                          load_counts, matched_pools)
+from matched_null import (DEFAULT_NULL_NEIGHBOURS, background_affinity, draw_null_sets,
+                          empirical_p, gene_statistics, load_counts, matched_pools, read_neg)
 from pseudobulk_core import DEFAULT_SCALE_FACTOR
 
 # `b`'s recurring "carries instead" set from 75g, which also appears in `l`'s and `e`'s lists.
@@ -98,18 +97,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scale-factor", type=float, default=DEFAULT_SCALE_FACTOR)
     p.add_argument("--output-dir", type=Path, required=True)
     return p.parse_args()
-
-
-def read_neg(counts_h5: Path, cell_id: np.ndarray) -> np.ndarray:
-    """Per-cell mean negprobe count, in the matrix's column order."""
-    with h5py.File(counts_h5, "r") as f:
-        if "neg" not in f:
-            sys.exit(f"ERROR: /neg missing in {counts_h5}; it is written by "
-                     f"split_insitutype_inputs.py and is what this test measures against.")
-        neg = np.asarray(f["neg"][()], dtype=np.float64)
-    if neg.size != cell_id.size:
-        sys.exit(f"ERROR: /neg has {neg.size:,} entries for {cell_id.size:,} cells.")
-    return neg
 
 
 def resolve_present(genes: np.ndarray, wanted: str, label: str) -> list[int]:
@@ -153,51 +140,6 @@ def background_by_celltype(totals: np.ndarray, neg: np.ndarray, cell_type: np.nd
             "background_ratio": float(grp["neg"].mean() / (grp["depth"].mean() / n_genes)),
         })
     return pd.DataFrame(rows).sort_values("background_ratio", ascending=False)
-
-
-def background_affinity(mat, totals: np.ndarray, neg: np.ndarray, cells: np.ndarray,
-                        n_strata: int, scale_factor: float,
-                        min_stratum: int) -> tuple[np.ndarray, int]:
-    """Per-gene correlation of log-norm expression with `/neg`, pooled over depth strata.
-
-    Accumulates sums off each stratum's nonzeros, so the only dense objects are per-gene
-    accumulators. Zeros are carried correctly: they contribute nothing to the sums and are
-    accounted for by dividing by the stratum's full cell count.
-    """
-    n_genes = mat.shape[0]
-    sub_totals = totals[cells]
-    edges = np.quantile(sub_totals, np.linspace(0, 1, n_strata + 1))
-    stratum = np.clip(np.searchsorted(edges, sub_totals, side="right") - 1, 0, n_strata - 1)
-
-    weighted_r = np.zeros(n_genes)
-    weight = 0
-    used = 0
-    for s in range(n_strata):
-        take = cells[stratum == s]
-        if take.size < min_stratum:
-            continue
-        block = mat[:, take].tocsc()
-        n = take.size
-        col = np.repeat(np.arange(n), np.diff(block.indptr))
-        with np.errstate(divide="ignore", invalid="ignore"):
-            x = np.log1p(block.data * scale_factor / totals[take][col])
-        neg_s = neg[take]
-        sum_x = np.bincount(block.indices, weights=x, minlength=n_genes)
-        sum_x2 = np.bincount(block.indices, weights=x * x, minlength=n_genes)
-        sum_xn = np.bincount(block.indices, weights=x * neg_s[col], minlength=n_genes)
-
-        mean_x, mean_n = sum_x / n, neg_s.mean()
-        var_x = np.maximum(sum_x2 / n - mean_x ** 2, 0.0)
-        var_n = max(float(neg_s.var()), 0.0)
-        denom = np.sqrt(var_x * var_n)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            r = np.where(denom > 0, (sum_xn / n - mean_x * mean_n) / denom, 0.0)
-        weighted_r += r * n
-        weight += n
-        used += 1
-    if not weight:
-        sys.exit("ERROR: no depth stratum had enough cells; lower --depth-strata.")
-    return weighted_r / weight, used
 
 
 def main() -> None:

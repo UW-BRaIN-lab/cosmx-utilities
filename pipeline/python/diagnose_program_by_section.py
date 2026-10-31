@@ -358,6 +358,9 @@ def main() -> None:
     if df.empty:
         sys.exit("ERROR: no cells left after joining labels and slides — check the ids.")
     df["is_letter"] = df["cell_type"] == args.letter
+    # Positions of the kept cells in the matrix's column order, needed both by the null loop and
+    # by the background-affinity axis.
+    keep_all = pd.Index(cell_id).get_indexer(df.index)
     if not df["is_letter"].any():
         sys.exit(f"ERROR: no cells labelled {args.letter!r}.")
     print(f"{len(df):,} cells, {df['slide'].nunique()} sections, "
@@ -469,7 +472,8 @@ def main() -> None:
             observed.update(dict(zip(breakdown["comparator"], breakdown["median_gap"])))
 
         mean_counts, detection = gene_statistics(mat)
-        pools = matched_pools(mean_counts, detection, program_idx, args.null_neighbours)
+        pools = matched_pools(mean_counts, detection, program_idx,
+                              args.null_neighbours)
         print(f"\n  Drawing {args.null_sets} matched-null sets "
               f"(pool of {args.null_neighbours} per gene, seed {args.null_seed})")
         for gene, pos, pool in zip(program, program_idx, pools):
@@ -478,9 +482,7 @@ def main() -> None:
                   f"  det {detection[pool].min():.3f}-{detection[pool].max():.3f}")
 
         null_sets = draw_null_sets(pools, args.null_sets, np.random.default_rng(args.null_seed))
-        # Positions of the kept cells in the matrix's column order, so each null set's scores can
-        # be dropped straight into the frame without re-aligning 2.5M labels per draw.
-        keep = pd.Index(cell_id).get_indexer(df.index)
+        keep = keep_all
         null_df = df.copy()
         rows = []
         null_units: list[pd.DataFrame] = []

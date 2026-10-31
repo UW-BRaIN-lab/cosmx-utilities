@@ -14,6 +14,18 @@ abundance AND detection rate. Those sets carry the dropout behaviour and none of
 where the observed value falls among them is the answer: inside the null means depth, outside it
 means the programme.
 
+A THIRD AXIS. 75q measured, per gene, how strongly its expression tracks the per-cell negprobe
+load. Genes at the bottom of that spread deflate when background inflates a cell's library size,
+because the normalisation divides by a total that includes the background. CDK4, MDM2 and OS9 --
+three of the five 12q amplicon genes -- sit in the panel's bottom 0.25%, so a population carrying
+more background than its comparator shows a deficit in them for reasons that have nothing to do
+with copy number. Abundance and detection do not capture that, and matching cannot fix it: only ~15 genes on a
+6,175-gene panel are that far down, so any workable candidate pool reaches back into mid-pack.
+A correction for this is UNSOLVED -- see test_background_dilution_fools_the_two_axis_null, which
+documents the failure mode rather than a fix. Before reaching for one, check whether the
+population even carries more background than its comparator (75q block 1); if it does not, the
+mechanism never fires.
+
 Used by diagnose_program_by_section.py (75e) and negprobe_background_test.py (75q).
 """
 from __future__ import annotations
@@ -132,3 +144,60 @@ def empirical_p(observed: float, null: np.ndarray) -> float:
     if not len(null) or np.isnan(observed):
         return float("nan")
     return float((np.sum(null <= observed) + 1) / (len(null) + 1))
+
+
+def read_neg(counts_h5: Path, cell_id: np.ndarray) -> np.ndarray:
+    """Per-cell mean negprobe count, in the matrix's column order."""
+    with h5py.File(counts_h5, "r") as f:
+        if "neg" not in f:
+            sys.exit(f"ERROR: /neg missing in {counts_h5}; it is written by "
+                     f"split_insitutype_inputs.py and is what this test measures against.")
+        neg = np.asarray(f["neg"][()], dtype=np.float64)
+    if neg.size != cell_id.size:
+        sys.exit(f"ERROR: /neg has {neg.size:,} entries for {cell_id.size:,} cells.")
+    return neg
+
+
+def background_affinity(mat, totals: np.ndarray, neg: np.ndarray, cells: np.ndarray,
+                        n_strata: int, scale_factor: float,
+                        min_stratum: int) -> tuple[np.ndarray, int]:
+    """Per-gene correlation of log-norm expression with `/neg`, pooled over depth strata.
+
+    Accumulates sums off each stratum's nonzeros, so the only dense objects are per-gene
+    accumulators. Zeros are carried correctly: they contribute nothing to the sums and are
+    accounted for by dividing by the stratum's full cell count.
+    """
+    n_genes = mat.shape[0]
+    sub_totals = totals[cells]
+    edges = np.quantile(sub_totals, np.linspace(0, 1, n_strata + 1))
+    stratum = np.clip(np.searchsorted(edges, sub_totals, side="right") - 1, 0, n_strata - 1)
+
+    weighted_r = np.zeros(n_genes)
+    weight = 0
+    used = 0
+    for s in range(n_strata):
+        take = cells[stratum == s]
+        if take.size < min_stratum:
+            continue
+        block = mat[:, take].tocsc()
+        n = take.size
+        col = np.repeat(np.arange(n), np.diff(block.indptr))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            x = np.log1p(block.data * scale_factor / totals[take][col])
+        neg_s = neg[take]
+        sum_x = np.bincount(block.indices, weights=x, minlength=n_genes)
+        sum_x2 = np.bincount(block.indices, weights=x * x, minlength=n_genes)
+        sum_xn = np.bincount(block.indices, weights=x * neg_s[col], minlength=n_genes)
+
+        mean_x, mean_n = sum_x / n, neg_s.mean()
+        var_x = np.maximum(sum_x2 / n - mean_x ** 2, 0.0)
+        var_n = max(float(neg_s.var()), 0.0)
+        denom = np.sqrt(var_x * var_n)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            r = np.where(denom > 0, (sum_xn / n - mean_x * mean_n) / denom, 0.0)
+        weighted_r += r * n
+        weight += n
+        used += 1
+    if not weight:
+        sys.exit("ERROR: no depth stratum had enough cells; lower --depth-strata.")
+    return weighted_r / weight, used
