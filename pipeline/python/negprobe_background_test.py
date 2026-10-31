@@ -143,12 +143,14 @@ def background_by_celltype(totals: np.ndarray, neg: np.ndarray, cell_type: np.nd
     for name, grp in frame.groupby("cell_type", observed=True):
         if len(grp) < min_cells:
             continue
-        per_gene = grp["depth"] / n_genes
+        # MEAN, not median. /neg is a mean count over ~20-30 negprobes and most cells score 0 on
+        # all of them, so its median is 0 for nearly every population and ranks on it are ties.
         rows.append({
             "cell_type": name, "n_cells": len(grp),
             "median_depth": float(grp["depth"].median()),
-            "median_neg": float(grp["neg"].median()),
-            "background_ratio": float((grp["neg"] / per_gene).median()),
+            "mean_neg": float(grp["neg"].mean()),
+            "pct_cells_with_neg": 100 * float((grp["neg"] > 0).mean()),
+            "background_ratio": float(grp["neg"].mean() / (grp["depth"].mean() / n_genes)),
         })
     return pd.DataFrame(rows).sort_values("background_ratio", ascending=False)
 
@@ -212,14 +214,15 @@ def main() -> None:
 
     print("\n=== 1. background burden by cell type ===")
     burden = background_by_celltype(totals, neg, cell_type, n_genes, MIN_CELLS_PER_TYPE)
-    print(f"  {'cell_type':30s} {'cells':>10s} {'depth':>8s} {'neg':>8s} {'bg_ratio':>9s}")
+    print(f"  {'cell_type':30s} {'cells':>10s} {'depth':>8s} {'mean_neg':>9s} {'%>0':>6s} "
+          f"{'bg_ratio':>9s}")
     shown = pd.concat([burden.head(8), burden[burden["cell_type"] == args.letter],
                        burden.tail(4)]).drop_duplicates("cell_type")
     for _, row in shown.iterrows():
         mark = "  <== letter" if row["cell_type"] == args.letter else ""
         print(f"  {str(row['cell_type'])[:28]:30s} {row['n_cells']:>10,} "
-              f"{row['median_depth']:>8.0f} {row['median_neg']:>8.3f} "
-              f"{row['background_ratio']:>9.3f}{mark}")
+              f"{row['median_depth']:>8.0f} {row['mean_neg']:>9.4f} "
+              f"{row['pct_cells_with_neg']:>6.1f} {row['background_ratio']:>9.3f}{mark}")
     if args.letter in set(burden["cell_type"]):
         rank = int((burden["cell_type"] == args.letter).argmax()) + 1
         print(f"  {args.letter} ranks {rank} of {len(burden)} types by background ratio "
@@ -252,17 +255,24 @@ def main() -> None:
         null = np.array([affinity[np.asarray(d)].mean() for d in draws])
         # One-sided the other way from a deficit: background predicts affinity ABOVE the null.
         p = empirical_p(-observed, -null)
+        # Where the set sits in the WHOLE panel's affinity spread. The matched-null p says the
+        # direction is reliable; it does not say the effect is large. Probe background should put
+        # a set near the top of the panel, not mid-pack, and with millions of cells a 0.02
+        # correlation difference is reliable and meaningless at the same time.
+        panel_pct = 100 * float((affinity < observed).mean())
         rows.append({"set": label, "n_genes": idx.size, "observed_affinity": observed,
                      "null_median": float(np.median(null)),
                      "null_p95": float(np.percentile(null, 95)),
-                     "p_value_above": p,
+                     "p_value_above": p, "panel_percentile": panel_pct,
                      "genes": ",".join(genes[idx])})
         print(f"  {label:10s} {idx.size:>3} genes   affinity {observed:+.4f}   "
-              f"null median {np.median(null):+.4f}   null p95 {np.percentile(null, 95):+.4f}   "
-              f"p(above) {p:.3f}")
-    print("  READ: signature affinity ABOVE its matched null (p <= 0.05) = PROBE BACKGROUND, and")
-    print("  the signature is weak-signal artefact, not a cell state. Inside the null = these")
-    print("  genes do not track background and the signature needs another explanation.")
+              f"null median {np.median(null):+.4f}   p(above) {p:.3f}   "
+              f"panel pct {panel_pct:>5.1f}")
+    print("  READ: probe background needs BOTH a matched-null p <= 0.05 AND a high panel")
+    print("  percentile. The p alone only says the direction is reliable -- across millions of")
+    print("  cells a 0.02 difference in correlation is reliable and trivial at once. A set that")
+    print("  is above its matched peers but mid-pack on the panel is NOT background, and the")
+    print("  signature then needs another explanation.")
     print("  The contrast set is the AMBIENT-RNA check: ambient predicts the abundant transcripts")
     print(f"  are ENRICHED in {args.letter}, so see the burden table and their affinity together.")
 

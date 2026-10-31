@@ -115,7 +115,7 @@ def test_background_ratio_ranks_a_dirty_population_first():
     cell_type = np.array(["dirty_shallow"] * 500 + ["clean_deep"] * 500)
     table = nb.background_by_celltype(totals, neg, cell_type, n_genes=1000, min_cells=100)
     assert list(table["cell_type"]) == ["dirty_shallow", "clean_deep"], table
-    assert table.iloc[0]["median_neg"] < table.iloc[1]["median_neg"], (
+    assert table.iloc[0]["mean_neg"] < table.iloc[1]["mean_neg"], (
         "the fixture must be one where raw neg would give the WRONG order")
 
 
