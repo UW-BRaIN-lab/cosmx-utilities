@@ -85,7 +85,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from anchor_profiles import decode, read_cell_calls
+from anchor_profiles import read_cell_calls
+from matched_null import (DEFAULT_NULL_NEIGHBOURS, draw_null_sets, empirical_p,
+                          gene_statistics, load_counts, matched_pools, resolve_genes,
+                          score_gene_set)
 from pseudobulk_core import DEFAULT_SCALE_FACTOR
 
 # The programme 75d surfaced as separating `t` from every natively-called class.
@@ -100,9 +103,6 @@ COMPARE_ALL = "__all_other_cells__"
 # Row label for the whole comparison group in the matched-null table, kept distinct from any
 # real cell type name.
 POOLED_KEY = "__pooled__"
-# Guards log10 of a gene that is never detected in the cohort.
-MEAN_COUNT_EPS = 1e-6
-DEFAULT_NULL_NEIGHBOURS = 100
 # A gap larger than this in a slide's FOV numbering starts a new tissue piece. The observed
 # runs are far apart (1-135 then 181-205), so this is not a delicate threshold.
 DEFAULT_FOV_GAP = 10
@@ -162,95 +162,6 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def load_counts(counts_h5: Path) -> tuple[sp.csc_matrix, np.ndarray, np.ndarray, np.ndarray]:
-    """Load the genes x cells CSC once, with per-cell library sizes.
-
-    The matched-null control scores hundreds of gene sets against the same matrix, so the file is
-    read once here instead of once per set.
-    """
-    with h5py.File(counts_h5, "r") as f:
-        n_genes, n_cells = (int(x) for x in f["counts/shape"][()])
-        mat = sp.csc_matrix(
-            (np.asarray(f["counts/data"][()], dtype=np.float64),
-             np.asarray(f["counts/indices"][()], dtype=np.int64),
-             np.asarray(f["counts/indptr"][()], dtype=np.int64)),
-            shape=(n_genes, n_cells))
-        genes = np.asarray(decode(f["genes"][()]))
-        cell_id = np.asarray(decode(f["cell_id"][()]))
-    totals = np.asarray(mat.sum(axis=0)).ravel()
-    return mat, genes, cell_id, totals
-
-
-def resolve_genes(genes: np.ndarray, program: list[str]) -> np.ndarray:
-    """Panel positions of the programme genes, failing loudly on anything off-panel."""
-    missing = [g for g in program if g not in set(genes)]
-    if missing:
-        sys.exit(f"ERROR: programme gene(s) not on the panel: {missing}")
-    return pd.Index(genes).get_indexer(program)
-
-
-def score_gene_set(mat: sp.csc_matrix, totals: np.ndarray, idx: np.ndarray,
-                   scale_factor: float) -> np.ndarray:
-    """Mean log-norm expression of the genes at `idx`, one value per cell, in column order.
-
-    Only those rows are ever materialised, so this stays light at cohort scale and is cheap
-    enough to call once per null set.
-    """
-    sub = np.asarray(mat[idx, :].todense())
-    with np.errstate(divide="ignore", invalid="ignore"):
-        norm = np.log1p(np.divide(sub * scale_factor, totals,
-                                  out=np.zeros_like(sub), where=totals > 0))
-    return norm.mean(axis=0)
-
-
-def gene_statistics(mat: sp.csc_matrix) -> tuple[np.ndarray, np.ndarray]:
-    """Per-gene mean raw count and detection rate, read off the CSC's nonzeros alone.
-
-    `mat` is genes x cells and column-compressed, so `indices` already holds the GENE of every
-    nonzero: one bincount gives the detected-cell count and a weighted one gives the total, with
-    no transpose and nothing densified.
-    """
-    n_genes, n_cells = mat.shape
-    detected = np.bincount(mat.indices, minlength=n_genes).astype(np.float64)
-    summed = np.bincount(mat.indices, weights=mat.data, minlength=n_genes)
-    return summed / n_cells, detected / n_cells
-
-
-def matched_pools(mean_counts: np.ndarray, detection: np.ndarray, program_idx: np.ndarray,
-                  n_neighbours: int) -> list[np.ndarray]:
-    """For each programme gene, the `n_neighbours` genes most like it in abundance + detection.
-
-    DEPTH is the confound this exists for. A population sequenced shallower drops a lightly
-    expressed gene to zero more often, and a zero contributes 0 to the mean score — so ANY such
-    gene shows a deficit in that population whatever its biology. Matching the null on detection
-    rate as well as abundance is what lets a null set reproduce that artefact: if it does, the
-    programme's own deficit is a statement about depth, not about the programme.
-    """
-    axes = np.vstack([np.log10(mean_counts + MEAN_COUNT_EPS), detection])
-    axes = (axes - axes.mean(axis=1, keepdims=True)) / axes.std(axis=1, keepdims=True)
-    pools = []
-    for gene in program_idx:
-        distance = np.linalg.norm(axes - axes[:, [gene]], axis=0)
-        distance[program_idx] = np.inf          # a programme gene can never stand in for another
-        pools.append(np.argsort(distance)[:n_neighbours])
-    return pools
-
-
-def draw_null_sets(pools: list[np.ndarray], n_sets: int,
-                   rng: np.random.Generator) -> list[list[int]]:
-    """One matched stand-in per programme gene per set, never the same gene twice in a set."""
-    sets = []
-    for _ in range(n_sets):
-        chosen: list[int] = []
-        for pool in pools:
-            free = [g for g in pool if g not in chosen]
-            if not free:
-                sys.exit("ERROR: a matched pool was exhausted; raise --null-neighbours.")
-            chosen.append(int(rng.choice(free)))
-        sets.append(chosen)
-    return sets
-
-
 def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
                 min_cells: int) -> dict[str, float]:
     """Median within-unit gap for the pooled comparison and for each comparator separately.
@@ -269,18 +180,6 @@ def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
             out[cell_type] = (float(pair_usable["gap"].median())
                               if not pair_usable.empty else float("nan"))
     return out
-
-
-def empirical_p(observed: float, null: np.ndarray) -> float:
-    """One-sided p that a deficit this large comes from matched genes alone.
-
-    (hits + 1) / (n + 1): the observed set is itself one draw from the null hypothesis, so a p of
-    exactly 0 is not available however many sets are drawn.
-    """
-    null = null[~np.isnan(null)]
-    if not len(null) or np.isnan(observed):
-        return float("nan")
-    return float((np.sum(null <= observed) + 1) / (len(null) + 1))
 
 
 def parse_cell_ids(cell_ids: pd.Index) -> pd.DataFrame:
