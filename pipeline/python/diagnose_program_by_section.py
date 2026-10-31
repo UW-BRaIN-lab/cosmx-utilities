@@ -159,27 +159,43 @@ def parse_args() -> argparse.Namespace:
                         f"genes across sets; too small and the null stops being a distribution.")
     p.add_argument("--null-seed", type=int, default=0,
                    help="Seed for the null draw, so a reported p is reproducible.")
+    p.add_argument("--null-per-unit-csv", type=Path,
+                   help="With --null-sets, also write the MEAN per-unit gap across the null "
+                        "sets, in the same long format as --per-unit-csv. This is the properly "
+                        "matched per-unit CONTROL for program_gap_by_group.py, which subtracts "
+                        "control from amplicon unit by unit to get the donor-level excess. The "
+                        "older workflow used a hand-picked 30-gene control matched to the "
+                        "COMBINED six-gene set, which is the wrong control once the loci are "
+                        "split -- a one-gene EGFR run in particular. This is matched per run.")
     return p.parse_args()
 
 
-def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
-                min_cells: int) -> dict[str, float]:
-    """Median within-unit gap for the pooled comparison and for each comparator separately.
+def unit_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
+              min_cells: int) -> dict[str, pd.Series]:
+    """Per-unit gap for the pooled comparison and for each comparator separately.
 
     Same `section_table` the observed verdict goes through, so an observed gap and its null are
-    computed by one code path and stay comparable.
+    computed by one code path and stay comparable. Returning the units rather than their median
+    is what lets a null set stand in as a properly matched per-unit CONTROL for
+    program_gap_by_group.py, which subtracts control from amplicon unit by unit.
     """
-    out: dict[str, float] = {}
+    out: dict[str, pd.Series] = {}
     pool = df if pooled_only else df[df["is_letter"] | df["cell_type"].isin(comparators)]
     _, usable = section_table(pool, min_cells)
-    out[POOLED_KEY] = float(usable["gap"].median()) if not usable.empty else float("nan")
+    out[POOLED_KEY] = usable["gap"]
     if len(comparators) > 1:
         for cell_type in comparators:
             pair = df[df["is_letter"] | (df["cell_type"] == cell_type)]
             _, pair_usable = section_table(pair, min_cells)
-            out[cell_type] = (float(pair_usable["gap"].median())
-                              if not pair_usable.empty else float("nan"))
+            out[cell_type] = pair_usable["gap"]
     return out
+
+
+def median_gaps(df: pd.DataFrame, comparators: list[str], pooled_only: bool,
+                min_cells: int) -> dict[str, float]:
+    """The median of `unit_gaps`, which is what the verdict and the null distribution use."""
+    return {k: (float(v.median()) if len(v) else float("nan"))
+            for k, v in unit_gaps(df, comparators, pooled_only, min_cells).items()}
 
 
 def parse_cell_ids(cell_ids: pd.Index) -> pd.DataFrame:
@@ -467,13 +483,19 @@ def main() -> None:
         keep = pd.Index(cell_id).get_indexer(df.index)
         null_df = df.copy()
         rows = []
+        null_units: list[pd.DataFrame] = []
         for n, gene_idx in enumerate(null_sets, 1):
             null_df["score"] = score_gene_set(mat, totals, np.asarray(gene_idx),
                                               args.scale_factor)[keep]
-            for key, gap in median_gaps(null_df, comparators, pooled_only,
-                                        args.min_section_cells).items():
-                rows.append({"comparator": key, "null_set": n, "median_gap": gap,
+            per_unit_gaps = unit_gaps(null_df, comparators, pooled_only,
+                                      args.min_section_cells)
+            for key, gaps in per_unit_gaps.items():
+                rows.append({"comparator": key, "null_set": n,
+                             "median_gap": float(gaps.median()) if len(gaps) else float("nan"),
                              "genes": ",".join(genes[gene_idx])})
+                if args.null_per_unit_csv and len(gaps):
+                    null_units.append(pd.DataFrame({"unit": gaps.index, "comparator": key,
+                                                    "gap": gaps.to_numpy()}))
             if n % 25 == 0 or n == len(null_sets):
                 print(f"    ... {n}/{len(null_sets)} sets scored")
         null_long = pd.DataFrame(rows)
@@ -519,6 +541,14 @@ def main() -> None:
         draws_path = args.output_csv.with_name(args.output_csv.stem + "_null_draws.csv")
         null_long.to_csv(draws_path, index=False)
         print(f"Wrote {draws_path} ({len(null_long)} comparator x null-set rows)")
+    if args.null_sets and args.null_per_unit_csv and null_units:
+        mean_units = (pd.concat(null_units).groupby(["unit", "comparator"], observed=True)["gap"]
+                      .mean().reset_index())
+        mean_units["slide"] = mean_units["unit"].str.rsplit(":", n=1).str[0]
+        args.null_per_unit_csv.parent.mkdir(parents=True, exist_ok=True)
+        mean_units.to_csv(args.null_per_unit_csv, index=False)
+        print(f"Wrote {args.null_per_unit_csv} ({len(mean_units)} unit x comparator rows, "
+              f"the matched per-unit control for program_gap_by_group.py)")
     if args.per_unit_csv and per_unit:
         long = pd.concat(per_unit).rename_axis("unit").reset_index()
         # The unit label is "<slide>:F<fov>", so the slide is recoverable downstream without

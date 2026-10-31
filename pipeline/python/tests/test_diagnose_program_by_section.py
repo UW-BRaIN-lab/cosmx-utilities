@@ -317,6 +317,25 @@ def test_a_real_programme_deficit_survives_the_matched_null():
     assert p <= 0.05, f"a real programme deficit must reach significance, got p={p:.3f}"
 
 
+def test_unit_gaps_and_median_gaps_agree():
+    """median_gaps must be exactly the median of unit_gaps, or null and control diverge."""
+    df = _fixture_diluted_pool(np.random.default_rng(21))
+    units = dp.unit_gaps(df, ["OPC-like", "MES-like_hypoxia_MHC"], False, 25)
+    medians = dp.median_gaps(df, ["OPC-like", "MES-like_hypoxia_MHC"], False, 25)
+    assert set(units) == set(medians)
+    for key, series in units.items():
+        assert np.isclose(float(series.median()), medians[key]), key
+
+
+def test_unit_gaps_are_indexed_by_unit_for_the_control_join():
+    """program_gap_by_group.py joins amplicon to control ON THE UNIT, so the index must be it."""
+    df = _fixture_diluted_pool(np.random.default_rng(22))
+    units = dp.unit_gaps(df, ["OPC-like"], False, 25)
+    gaps = units[dp.POOLED_KEY]
+    assert gaps.index.name == "slide", gaps.index.name
+    assert gaps.index.is_unique and len(gaps) > 5
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

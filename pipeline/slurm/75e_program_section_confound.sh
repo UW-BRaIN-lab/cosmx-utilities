@@ -50,6 +50,11 @@
 #               comparators' depth (75g), so this is the live confound. 200 sets resolves p to
 #               about 0.005 and costs roughly 10-15 minutes.
 #   NULL_SEED   seed for that draw (default 0), so a reported p is reproducible.
+#               With NULL_SETS set, the run also writes <stem>_program_by_unit_null.csv: the mean
+#               per-unit gap across the null sets, which is the properly matched per-unit CONTROL
+#               for program_gap_by_group.py (donor-level excess). The old hand-picked 30-gene
+#               control was matched to the COMBINED six-gene set and is the WRONG control once
+#               the loci are split -- especially for the one-gene EGFR run.
 #   NULL_NEIGHBOURS  candidate pool per programme gene (default 100).
 #   COMPARE_TO  restrict the comparison group to these cell types instead of every other cell.
 #               'malignant' expands to the nine malignant Core-L4 columns. REQUIRED whenever the
@@ -137,7 +142,8 @@ apptainer exec \
         ${COMPARE_ARG[@]+"${COMPARE_ARG[@]}"} \
         ${NULL_ARG[@]+"${NULL_ARG[@]}"} \
         --output-csv "$WORK/${STEM}_program_by_section.csv" \
-        --per-unit-csv "$WORK/${STEM}_program_by_unit.csv"
+        --per-unit-csv "$WORK/${STEM}_program_by_unit.csv" \
+        --null-per-unit-csv "$WORK/${STEM}_program_by_unit_null.csv"
 
 echo "Uploading the tables to Kopah (tag: ${TAG})..."
 DEST="${BASE}/${STAGE4}/supervised_gbmap/program_confound"
@@ -147,7 +153,8 @@ s5cmd cp "$WORK/${STEM}_program_by_section.csv" "${DEST}/${STEM}_program_by_sect
 # when NULL_SETS was set.
 for extra in "${STEM}_program_by_section_by_type.csv" "${STEM}_program_by_unit.csv" \
              "${STEM}_program_by_section_null.csv" \
-             "${STEM}_program_by_section_null_draws.csv"; do
+             "${STEM}_program_by_section_null_draws.csv" \
+             "${STEM}_program_by_unit_null.csv"; do
     if [[ -f "$WORK/$extra" ]]; then
         s5cmd cp "$WORK/$extra" "${DEST}/${extra}"
     fi
