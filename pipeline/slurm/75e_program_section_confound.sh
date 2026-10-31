@@ -25,6 +25,8 @@
 # Another letter or another programme:
 #   LETTER=b GENES=CES3,A1BG,SNRPA1,GPX1 sbatch pipeline/slurm/75e_program_slide_confound.sh
 # The amplicon question, against the malignant reference types rather than everyone:
+#   LETTER=b GENES=CDK4,MDM2,NUP107,OS9,SLC35E3 COMPARE_TO=malignant NULL_SETS=200 \
+#       TAG=amp12qnull sbatch pipeline/slurm/75e_program_section_confound.sh
 #   LETTER=b GENES=EGFR,CDK4,MDM2,NUP107,OS9,SLC35E3 COMPARE_TO=malignant \
 #       sbatch pipeline/slurm/75e_program_section_confound.sh
 #
@@ -40,6 +42,15 @@
 #               without it two runs that differ only in GENES write to the SAME Kopah key and the
 #               second silently destroys the first — which is exactly what the control run did to
 #               the amplicon run's CSVs. Pass something readable, e.g. TAG=amplicon.
+#   NULL_SETS   draw this many MATCHED-NULL gene sets and print where the observed deficit falls
+#               among them (default 0 = off). REQUIRED before any deficit goes in a figure or to
+#               the PI: the score is library-size normalised, but normalisation cannot recover an
+#               undetected transcript, so a shallower population shows a deficit on lightly
+#               expressed genes of ANY biology. The de-novo letters run as low as 0.37x their
+#               comparators' depth (75g), so this is the live confound. 200 sets resolves p to
+#               about 0.005 and costs roughly 10-15 minutes.
+#   NULL_SEED   seed for that draw (default 0), so a reported p is reproducible.
+#   NULL_NEIGHBOURS  candidate pool per programme gene (default 100).
 #   COMPARE_TO  restrict the comparison group to these cell types instead of every other cell.
 #               'malignant' expands to the nine malignant Core-L4 columns. REQUIRED whenever the
 #               reference itself stratifies on the programme: gbmap_level4_panel.csv puts all
@@ -56,7 +67,7 @@
 # Only the programme genes' rows and per-cell column sums are materialised, so this never
 # transposes or densifies the counts — far lighter than 75d.
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 #SBATCH --output=pipeline/logs/program_confound_%j.out
 #SBATCH --error=pipeline/logs/program_confound_%j.err
 
@@ -106,6 +117,11 @@ GENES_ARG=()
 if [[ -n "${GENES:-}" ]]; then GENES_ARG=(--genes "$GENES"); fi
 COMPARE_ARG=()
 if [[ -n "${COMPARE_TO:-}" ]]; then COMPARE_ARG=(--compare-to "$COMPARE_TO"); fi
+NULL_ARG=()
+if [[ "${NULL_SETS:-0}" -gt 0 ]]; then
+    NULL_ARG=(--null-sets "$NULL_SETS" --null-seed "${NULL_SEED:-0}"
+              --null-neighbours "${NULL_NEIGHBOURS:-100}")
+fi
 
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
@@ -119,6 +135,7 @@ apptainer exec \
         --min-section-cells "${MIN_CELLS:-25}" \
         ${GENES_ARG[@]+"${GENES_ARG[@]}"} \
         ${COMPARE_ARG[@]+"${COMPARE_ARG[@]}"} \
+        ${NULL_ARG[@]+"${NULL_ARG[@]}"} \
         --output-csv "$WORK/${STEM}_program_by_section.csv" \
         --per-unit-csv "$WORK/${STEM}_program_by_unit.csv"
 
@@ -126,8 +143,11 @@ echo "Uploading the tables to Kopah (tag: ${TAG})..."
 DEST="${BASE}/${STAGE4}/supervised_gbmap/program_confound"
 s5cmd cp "$WORK/${STEM}_program_by_section.csv" "${DEST}/${STEM}_program_by_section.csv"
 
-# Both are written only when COMPARE_TO named more than one type.
-for extra in "${STEM}_program_by_section_by_type.csv" "${STEM}_program_by_unit.csv"; do
+# The first two are written only when COMPARE_TO named more than one type; the null pair only
+# when NULL_SETS was set.
+for extra in "${STEM}_program_by_section_by_type.csv" "${STEM}_program_by_unit.csv" \
+             "${STEM}_program_by_section_null.csv" \
+             "${STEM}_program_by_section_null_draws.csv"; do
     if [[ -f "$WORK/$extra" ]]; then
         s5cmd cp "$WORK/$extra" "${DEST}/${extra}"
     fi

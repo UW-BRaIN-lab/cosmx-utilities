@@ -166,6 +166,157 @@ def test_resolve_comparators_defaults_to_every_other_cell():
     assert dp.resolve_comparators("", {"t", "OPC-like"}, "t") == [dp.COMPARE_ALL]
 
 
+# --------------------------------------------------------------------------------------------
+# Matched-null control. These two fixtures are the whole reason --null-sets exists: a depth
+# difference and a real programme deficit produce the SAME negative gap, and only the null
+# separates them.
+# --------------------------------------------------------------------------------------------
+import scipy.sparse as sp  # noqa: E402  (kept beside the tests that need it)
+
+_PROGRAM_SIZE = 5
+_SCALE = 1e4
+
+
+def _simulate(rng, depth_ratio=1.0, program_knockdown=1.0,
+              n_genes=400, n_cells=4000, n_units=20, letter_frac=0.35):
+    """A letter and one comparator across units, with depth and programme effects separable.
+
+    Column sums are the per-cell depth by construction, so `depth_ratio` is exactly the library
+    size the letter's cells get relative to the comparator's.
+    """
+    gene_rate = rng.lognormal(mean=-1.0, sigma=1.5, size=n_genes)
+    gene_rate /= gene_rate.sum()
+    is_letter = rng.random(n_cells) < letter_frac
+    depth = np.where(is_letter, depth_ratio, 1.0) * 300.0
+    rate = np.outer(gene_rate, depth)
+
+    # The programme is mid-abundance, so a matched pool actually has candidates on both sides.
+    order = np.argsort(gene_rate)
+    program_idx = order[int(.4 * n_genes):int(.4 * n_genes) + _PROGRAM_SIZE]
+    if program_knockdown != 1.0:
+        rate[np.ix_(program_idx, np.where(is_letter)[0])] *= program_knockdown
+
+    mat = sp.csc_matrix(rng.poisson(rate).astype(np.float64))
+    totals = np.asarray(mat.sum(axis=0)).ravel()
+    frame = pd.DataFrame({
+        "cell_type": np.where(is_letter, "t", "OPC-like"),
+        "slide": [f"U{i % n_units}" for i in range(n_cells)],
+        "is_letter": is_letter,
+    })
+    return mat, totals, program_idx, frame
+
+
+def _run_null(mat, totals, program_idx, frame, n_sets=100, seed=7, min_cells=25):
+    """Observed gap, the null gaps, and the empirical p — the same path main() takes."""
+    comparators, pooled_only = ["OPC-like"], False
+    frame = frame.copy()
+    frame["score"] = dp.score_gene_set(mat, totals, np.asarray(program_idx), _SCALE)
+    observed = dp.median_gaps(frame, comparators, pooled_only, min_cells)[dp.POOLED_KEY]
+
+    mean_counts, detection = dp.gene_statistics(mat)
+    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 40)
+    draws = dp.draw_null_sets(pools, n_sets, np.random.default_rng(seed))
+
+    null_frame = frame.copy()
+    gaps = []
+    for gene_idx in draws:
+        null_frame["score"] = dp.score_gene_set(mat, totals, np.asarray(gene_idx), _SCALE)
+        gaps.append(dp.median_gaps(null_frame, comparators, pooled_only, min_cells)[dp.POOLED_KEY])
+    gaps = np.asarray(gaps, dtype=float)
+    return observed, gaps, dp.empirical_p(observed, gaps)
+
+
+def test_gene_statistics_match_a_dense_computation():
+    rng = np.random.default_rng(1)
+    dense = rng.poisson(0.4, size=(30, 50)).astype(np.float64)
+    mean_counts, detection = dp.gene_statistics(sp.csc_matrix(dense))
+    assert np.allclose(mean_counts, dense.mean(axis=1))
+    assert np.allclose(detection, (dense > 0).mean(axis=1))
+
+
+def test_matched_pools_never_offer_a_programme_gene_as_its_own_control():
+    rng = np.random.default_rng(2)
+    mat, _, program_idx, _ = _simulate(rng)
+    mean_counts, detection = dp.gene_statistics(mat)
+    for pool in dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 40):
+        assert not set(pool) & set(program_idx.tolist())
+
+
+def test_matched_pools_track_abundance_and_detection():
+    """A control gene of the wrong abundance would not carry the dropout being controlled for."""
+    rng = np.random.default_rng(3)
+    mat, _, program_idx, _ = _simulate(rng)
+    mean_counts, detection = dp.gene_statistics(mat)
+    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 40)
+    for pos, pool in zip(program_idx, pools):
+        # Within a factor of a few on abundance, and close on the dropout-relevant axis.
+        ratio = mean_counts[pool] / max(mean_counts[pos], 1e-12)
+        assert np.median(ratio) == pytest_approx_within(0.25, 4.0), np.median(ratio)
+        assert abs(np.median(detection[pool]) - detection[pos]) < 0.15
+
+
+def pytest_approx_within(lo, hi):
+    """Tiny helper so the bound reads as a range in the assertion above."""
+    class _Within:
+        def __eq__(self, other):
+            return lo <= other <= hi
+        def __repr__(self):
+            return f"within [{lo}, {hi}]"
+    return _Within()
+
+
+def test_draw_null_sets_are_unique_within_a_set_and_reproducible():
+    rng = np.random.default_rng(4)
+    mat, _, program_idx, _ = _simulate(rng)
+    mean_counts, detection = dp.gene_statistics(mat)
+    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 40)
+    first = dp.draw_null_sets(pools, 25, np.random.default_rng(11))
+    again = dp.draw_null_sets(pools, 25, np.random.default_rng(11))
+    assert first == again, "a reported p must be reproducible from the seed"
+    for one in first:
+        assert len(set(one)) == len(one)
+        assert len(one) == _PROGRAM_SIZE
+
+
+def test_empirical_p_is_never_zero():
+    """The observed set is itself a draw, so p=0 is not an available answer."""
+    assert dp.empirical_p(-9.9, np.linspace(0, 1, 100)) == 1 / 101
+    assert np.isnan(dp.empirical_p(float("nan"), np.linspace(0, 1, 10)))
+
+
+def test_depth_driven_deficit_is_NOT_called_a_programme_deficit():
+    """The regression this control exists for.
+
+    Ground truth: the letter has identical composition and 0.4x the depth. Every gene drops out
+    more often in it, so the programme gap is negative with no programme biology at all. The
+    matched null must reproduce that gap and refuse the finding.
+    """
+    mat, totals, program_idx, frame = _simulate(np.random.default_rng(5), depth_ratio=0.4)
+    observed, gaps, p = _run_null(mat, totals, program_idx, frame)
+    print(f"      observed {observed:+.3f}   null median {np.median(gaps):+.3f}   "
+          f"null p05 {np.percentile(gaps, 5):+.3f}   p = {p:.3f}")
+
+    assert observed < -0.05, f"the depth artefact should look like a deficit, got {observed:+.3f}"
+    assert np.median(gaps) < -0.05, (
+        f"matched genes must reproduce the artefact, null median {np.median(gaps):+.3f}")
+    assert p > 0.05, f"a pure depth artefact must NOT reach significance, got p={p:.3f}"
+
+
+def test_a_real_programme_deficit_survives_the_matched_null():
+    """The converse: same depth, programme genes specifically knocked down. p must be small."""
+    mat, totals, program_idx, frame = _simulate(
+        np.random.default_rng(6), depth_ratio=1.0, program_knockdown=0.2)
+    observed, gaps, p = _run_null(mat, totals, program_idx, frame)
+    print(f"      observed {observed:+.3f}   null median {np.median(gaps):+.3f}   "
+          f"null p05 {np.percentile(gaps, 5):+.3f}   p = {p:.3f}")
+
+    assert observed < -0.05, f"the knockdown should show as a deficit, got {observed:+.3f}"
+    assert observed < np.percentile(gaps, 5), (
+        f"a real deficit must sit below the null's 5th pct "
+        f"({observed:+.3f} vs {np.percentile(gaps, 5):+.3f})")
+    assert p <= 0.05, f"a real programme deficit must reach significance, got p={p:.3f}"
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
