@@ -1,0 +1,28 @@
+denovo_label,n_cells,proposed_gbmap_type,runner_up,confidence,forced_top2,compartment,marker_annotation,top_markers,note
+b,778088,,OPC-like,none,OPC-like 33.04%; Reg_T 13.81%,Malignant 57.36%,b - Low_signal sink,"CES3,F2RL3,A1BG,SNRPA1,GPX1,PTEN,HOXA3,SNAI1",low-signal sink; no GBmap equivalent
+aa,209157,Oligodendrocyte,,high,Oligodendrocyte 86.86%; OPC-like 7.99%,Normal_CNS 87.52%,aa - Oligodendrocyte,"MOBP,MAG,PLP1,MBP,MAL,UGT8,CNTN2,QDPR",right arm with native Oligodendrocyte
+t,190800,AC-like,OPC-like,likely,OPC-like 32.35%; AC-like 29.99%,Malignant 92.36%,t - AC-like,"CRYAB,HSPB1,NTSR2,ACSBG1,PAX6,PDGFRA,SEMA3E,LANCL2",mixed: forced call splits OPC-like/AC-like/MES; markers are AC-like
+z,120651,Astrocyte,MES-like_hypoxia_MHC,ambiguous,MES-like_hypoxia_MHC 43.06%; Astrocyte 30.29%,Malignant 67.43%,z - Astrocytic,"AQP1,AQP4,SLC1A2,GJA1,FGFR3,GPC5,NTSR2,ACSBG1",reactive astrocyte vs AC-like malignant (open PI question)
+q,113725,MES-like_hypoxia_MHC,AC-like,likely,MES-like_hypoxia_MHC 46.88%; AC-like 24.33%,Malignant 94.94%,q - MES/hypoxic-AC,"EDN3,AGT,POSTN,VEGFA,PDPN,SEC61G,LANCL2,IL1RAP",MES/hypoxic AC-like
+n,111992,Neuron,,high,Neuron 94.49%; NPC-like_OPC 1.6%,Normal_CNS 94.69%,n - Neuron (excitatory),"SV2B,SLC17A7,SYN3,CAMK2A,RYR2,NRGN,CHGA",upper-left tails with native Neuron; excitatory markers
+l,111669,Endo_capilar,Endo_arterial,likely,Endo_capilar 55.27%; Endo_arterial 16.22%,Vascular_mural 89.56%,l - Endothelial,"CLDN5,VWF,FLT1,CD34,NOTCH4,ROBO4,ESAM",forced call splits across the vascular group; lower-right tail
+u,110363,TAM-BDM_anti-infl,TAM-BDM_hypoxia_MES,likely,TAM-BDM_anti-infl 30.53%; TAM-BDM_hypoxia_MES 23.22%,Myeloid 84.81%,u - TAM/macrophage,"CD14,CD163,VSIG4,SPP1,OLR1,STAB1,SLC11A1",TAM split across 9 destinations; shares the upper-left arc with the TAM/monocyte types
+o,107593,MES-like_hypoxia_MHC,MES-like_hypoxia_independent,likely,MES-like_hypoxia_MHC 63.85%; MES-like_hypoxia_independent 23.21%,Malignant 90.17%,o - Hypoxia,"VEGFA,NDRG1,ATF3,HILPDA,DDIT3,HSPB1,CRYAB,PPP1R15A",hypoxia programme
+e,76061,Neuron,OPC-like,ambiguous,Neuron 48.63%; OPC-like 18.74%,Normal_CNS 53.2%,e - Neuron (excitatory),"FABP3,SLC17A7,CHGA,SNAP25,SYN2,NRGN,KCNQ3",Neuron only ~49% with 43% malignant: neuron contaminated with tumour cells
+f,74347,Neuron,,high,Neuron 98.69%; NPC-like_Prolif 0.58%,Normal_CNS 98.71%,f - Neuron,"VSNL1,SNCA,SH3GL2,NEFL,SLC17A7,SNAP25,SYT1",
+j,50970,NPC-like_OPC,OPC-like,likely,NPC-like_OPC 42.68%; OPC-like 25.95%,Malignant 92.42%,j - OPC/NPC-like,"PCDH15,GPR17,PROM1,NKX2-2,BCAS1,PDGFRA,CCND1,BAMBI","cosine 0.89 to NPC-like_OPC, possible duplicate"
+v,50140,AC-like,AC-like_Prolif,high,AC-like 61.99%; AC-like_Prolif 24.79%,Malignant 99.23%,v - AC-like (ALDH1L1),"ALDH1L1,SLC4A4,HOPX,MT3,CSPG5,DBI,SLC6A11",ALDH1L1 AC-like
+s,30750,Neuron,,high,Neuron 98.12%; NPC-like_OPC 0.79%,Normal_CNS 98.18%,s - Neuron (inhibitory),"GAD1,GAD2,SLC32A1,SST,PNOC,CPLX1,SNCG",inhibitory (GABAergic) neuron
+k,30685,AC-like,,high,AC-like 71.08%; MES-like_hypoxia_MHC 9.91%,Malignant 98.48%,k - AC-like/EGFR,"ALDH1L1,MT3,S100B,EGFR,AQP1,RYR3,LPL",EGFR-high AC-like
+w,27033,MES-like_hypoxia_independent,MES-like_hypoxia_MHC,likely,MES-like_hypoxia_independent 51.54%; MES-like_hypoxia_MHC 46.02%,Malignant 98.09%,w - MES-inflammatory,"LTF,CHI3L1,VCAM1,TGFB2,SOD2,CCL2,CSF1,TNC",coin flip between the two MES-like types; inflammatory MES
+a,26245,MES-like_hypoxia_independent,SMC_COL,likely,MES-like_hypoxia_independent 62.26%; SMC_COL 25.68%,Malignant 70.18%,a - MES-invasive,"HP,EGLN3,COL12A1,COL1A2,BGN,POSTN,C1R,NFKBIZ",invasive/ECM MES with stromal admixture
+y,25780,AC-like,OPC-like,ambiguous,AC-like 61.61%; OPC-like 17.05%,Malignant 96%,y - Interferon-response,"IFI44L,OAS3,IFIT1,IFIT3,HUS1,SLIT1,PTCH1","interferon-response STATE, not a GBmap cell type"
+c,24069,Pericyte,SMC,high,Pericyte 78.28%; SMC 8.76%,Vascular_mural 99.89%,c - Mural/pericyte,"COL4A1,COL4A2,PDGFRB,NOTCH3,EDNRA,TAGLN,NID1",lower-right vascular tail
+g,21116,Perivascular_fibroblast,SMC_COL,likely,SMC_COL 47.66%; Perivascular_fibroblast 22.49%,Vascular_mural 90.32%,g - Fibroblast/stroma,"SFRP2,LUM,COL3A1,DCN,COL1A1,OGN,COL6A3",forced plurality is SMC_COL but the markers (SFRP2/LUM/DCN/COL1A1) read as fibroblast
+i,20960,OPC-like,AC-like,likely,OPC-like 51.88%; AC-like 28.8%,Malignant 99.47%,i - NPC-like/MDM4,"DLL3,GPR17,MDM4,BCAN,SEC61G,CNTN2,PIK3C2B",DLL3/GPR17/MDM4 reads NPC-like
+m,20085,MES-like_hypoxia_MHC,,high,MES-like_hypoxia_MHC 73.51%; AC-like 14.68%,Malignant 99.64%,m - Hypoxia/stem,"VEGFA,IGFBP5,MT3,MT1X,PROM1,HILPDA,NTRK2",hypoxia/stem; merge-candidate with o
+d,18732,,NPC-like_Prolif,none,OPC-like 34.2%; MES-like_hypoxia_MHC 23.92%,Malignant 88.3%,d - NPC-like/prolif,"SOX10,CDK4,RXRG,COL21A1,ACVR1B,DTX3,ME1",SOX10/CDK4: likely patient-specific amplicon programme; spread over 8 destinations
+p,11027,MES-like_hypoxia_MHC,AC-like_Prolif,ambiguous,MES-like_hypoxia_MHC 33.2%; AC-like_Prolif 23.47%,Malignant 78.55%,p - MES (ALDH1A3),"ITGB4,ALDH1A3,MDK,GDF15,L1CAM,TMEFF2,TNFRSF12A,SERPINE1",ALDH1A3 MES programme; no single GBmap destination
+x,7562,MES-like_hypoxia_MHC,MES-like_hypoxia_independent,likely,MES-like_hypoxia_MHC 72.76%; MES-like_hypoxia_independent 19.92%,Malignant 99.79%,x - MES/MDM4,"NFASC,SFRP4,SERPINA3,VCAM1,MDM4,TNC,TGFB2,AQP4",moderate quality; merge-candidate with i
+h,139,,,none,MES-like_hypoxia_MHC 49.64%; AC-like 12.23%,Malignant 80.58%,h - junk (tiny),"POSTN,MOBP,LTF,S100A1,PLP1,MAG",junk (139 cells)
+r,1,,,none,NPC-like_OPC 100%,Malignant 100%,r - junk (tiny),"CAV2,IFIT5,ERRFI1,TEK,TRIM13,RGMB",junk (1 cell)

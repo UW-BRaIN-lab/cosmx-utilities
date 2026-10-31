@@ -45,3 +45,16 @@ from `marker_overlap_vs_reference.py`. Evidence to check in Napari, not a rename
 columns. `support` = strong (concordance >= 0.95 and overlap p < 1e-3) / partial (p < 0.05) / none.
 
 Built from the full `marker_overlap.csv` of the K=21 run (SEA-AD MTG reference).
+
+## `fullcohort_pruned_k27_gbmap_proposal.csv` — which GBmap type each k=27 letter resembles
+
+A PROPOSAL (2026-10-30), not a decision. One row per letter of the k=27 anchor-cohort fit
+(`stage4_anchor_pruned`), combining three sources: the forced GBmap call (`forced_top2`, from
+75c's corrected `forced_named_posteriors.csv`, via `supervised_mapping_summary.csv`), the marker
+annotation in `fullcohort_pruned_k27.csv`, and where the letter's cells sit in the cohort UMAP
+relative to the named types (UMAP position breaks ties only; it is weak evidence on its own).
+
+`confidence`: `high` (all sources agree), `likely` (a clear plurality, with a runner-up),
+`ambiguous` (the sources disagree or the letter is a state/mixture), `none` (no GBmap
+equivalent, e.g. the `b` sink, or junk). Letters never carry InSituType pinned cells, so the
+forced call is not affected by pinning, though the named profiles were calibrated with them.
