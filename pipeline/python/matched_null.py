@@ -19,12 +19,21 @@ load. Genes at the bottom of that spread deflate when background inflates a cell
 because the normalisation divides by a total that includes the background. CDK4, MDM2 and OS9 --
 three of the five 12q amplicon genes -- sit in the panel's bottom 0.25%, so a population carrying
 more background than its comparator shows a deficit in them for reasons that have nothing to do
-with copy number. Abundance and detection do not capture that, and matching cannot fix it: only ~15 genes on a
-6,175-gene panel are that far down, so any workable candidate pool reaches back into mid-pack.
-A correction for this is UNSOLVED -- see test_background_dilution_fools_the_two_axis_null, which
-documents the failure mode rather than a fix. Before reaching for one, check whether the
-population even carries more background than its comparator (75q block 1); if it does not, the
-mechanism never fires.
+with copy number. Abundance and detection do not capture that, and MATCHING cannot fix it: only ~15 genes on a
+6,175-gene panel are that far down, so any workable candidate pool reaches back into mid-pack
+(test_background_dilution_fools_the_two_axis_null keeps that failure mode on the record).
+
+A SPANNING null does fix it, because it does not need matched sets at the extreme -- only sets on
+BOTH SIDES of the programme's affinity, so the relationship is interpolated rather than
+extrapolated. The panel's bottom 1% is ~62 genes, so five-gene sets averaging the 12q amplicon's
+affinity are easy to draw in quantity. draw_spanning_sets lays sets uniformly across the affinity
+range while holding abundance near the programme's inside each window, and fit_and_predict
+regresses the gap on affinity and abundance together and reads off the prediction at the
+programme's own values. The residual is then what the dilution does not explain.
+
+Measured on the real b-vs-OPC-like 12q row, extrapolating from the MATCHED null put ~31% of the
+-0.819 gap down to dilution -- but from a fit whose support stopped at -0.0083 while the
+programme sits at -0.0335. That 4x extrapolation is exactly what the spanning draw removes.
 
 Used by diagnose_program_by_section.py (75e) and negprobe_background_test.py (75q).
 """
@@ -201,3 +210,54 @@ def background_affinity(mat, totals: np.ndarray, neg: np.ndarray, cells: np.ndar
     if not weight:
         sys.exit("ERROR: no depth stratum had enough cells; lower --depth-strata.")
     return weighted_r / weight, used
+
+
+def draw_spanning_sets(affinity: np.ndarray, mean_counts: np.ndarray, program_idx: np.ndarray,
+                       n_sets: int, rng: np.random.Generator,
+                       window_pct: float | None = None,
+                       abundance_factor: int = 4) -> list[list[int]]:
+    """Null sets laid uniformly across the affinity range, abundance held near the programme's.
+
+    Each set targets one evenly spaced affinity percentile, draws from the genes within
+    `window_pct` of it, and inside that window prefers the genes closest to the programme in
+    abundance. So affinity varies by design and abundance does not drift with it, which is what
+    lets the fit separate the two.
+    """
+    k = int(program_idx.size)
+    n_genes = int(affinity.size)
+    if window_pct is None:
+        # Wide enough that a window holds several times the set size, whatever the panel size.
+        window_pct = max(0.5, 100.0 * (8 * k) / max(n_genes, 1) / 2.0)
+
+    order = np.argsort(affinity)
+    rank = np.empty(n_genes, dtype=int)
+    rank[order] = np.arange(n_genes)
+    pct = 100.0 * rank / max(n_genes - 1, 1)
+
+    target_abundance = np.log10(mean_counts[program_idx] + MEAN_COUNT_EPS).mean()
+    excluded = set(int(g) for g in program_idx)
+    sets: list[list[int]] = []
+    for i in range(n_sets):
+        target = 100.0 * (i + 0.5) / n_sets
+        window = np.flatnonzero(np.abs(pct - target) <= window_pct)
+        window = np.array([g for g in window if g not in excluded], dtype=int)
+        if window.size < k:
+            continue
+        distance = np.abs(np.log10(mean_counts[window] + MEAN_COUNT_EPS) - target_abundance)
+        shortlist = window[np.argsort(distance)[:max(k * abundance_factor, k)]]
+        sets.append([int(g) for g in rng.choice(shortlist, size=k, replace=False)])
+    return sets
+
+
+def fit_and_predict(set_affinity: np.ndarray, set_abundance: np.ndarray, set_gap: np.ndarray,
+                    obs_affinity: float, obs_abundance: float
+                    ) -> tuple[np.ndarray, float, np.ndarray]:
+    """OLS gap ~ affinity + abundance; returns coefficients, the prediction, and the residuals.
+
+    Reading the prediction at the programme's own affinity and abundance is the whole point: the
+    part of its gap that dilution explains, and the part it does not.
+    """
+    design = np.column_stack([np.ones_like(set_affinity), set_affinity, set_abundance])
+    coef, *_ = np.linalg.lstsq(design, set_gap, rcond=None)
+    predicted = float(coef[0] + coef[1] * obs_affinity + coef[2] * obs_abundance)
+    return coef, predicted, set_gap - design @ coef

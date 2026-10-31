@@ -336,7 +336,8 @@ def test_unit_gaps_are_indexed_by_unit_for_the_control_join():
     assert gaps.index.is_unique and len(gaps) > 5
 
 
-def _fixture_background_confound(rng, n_genes=300, n_cells=6000, n_units=20):
+def _fixture_background_confound(rng, n_genes=300, n_cells=6000, n_units=20,
+                                 program_knockdown=1.0):
     """NO real deficit. The letter only carries more background, and the programme genes happen
     to be the ones that deflate when a library is inflated by it.
 
@@ -352,12 +353,16 @@ def _fixture_background_confound(rng, n_genes=300, n_cells=6000, n_units=20):
     bg_load = np.where(is_letter, rng.gamma(6.0, 2.0, n_cells), rng.gamma(1.0, 0.4, n_cells))
 
     coupling = rng.gamma(2.0, 0.8, n_genes)
+    # A tail of genes that are also decoupled, mirroring the real panel's bottom 1% (~60 genes).
+    coupling[rng.random(n_genes) < 0.10] = 0.0
     order = np.argsort(gene_rate)
     program_idx = order[int(.5 * n_genes):int(.5 * n_genes) + 5]
     coupling[program_idx] = 0.0
 
-    counts = rng.poisson(np.outer(gene_rate, np.full(n_cells, 300.0))
-                         + np.outer(coupling, bg_load))
+    real = np.outer(gene_rate, np.full(n_cells, 300.0))
+    if program_knockdown != 1.0:
+        real[np.ix_(program_idx, np.flatnonzero(is_letter))] *= program_knockdown
+    counts = rng.poisson(real + np.outer(coupling, bg_load))
     mat = sp.csc_matrix(counts.astype(np.float64))
     frame = pd.DataFrame({
         "cell_type": np.where(is_letter, "t", "OPC-like"),
@@ -385,6 +390,65 @@ def _confound_p(mat, totals, neg, program_idx, frame, n_sets=200, seed=5):
         gaps.append(dp.median_gaps(null_frame, comparators, pooled_only, 25)[dp.POOLED_KEY])
     gaps = np.asarray(gaps, dtype=float)
     return observed, gaps, dp.empirical_p(observed, gaps)
+
+
+def _spanning_p(mat, totals, neg, program_idx, frame, n_sets=300, seed=5):
+    """The 75e spanning path: lay sets across the affinity range, fit, read off the residual."""
+    comparators, pooled_only = ["OPC-like"], False
+    frame = frame.copy()
+    frame["score"] = dp.score_gene_set(mat, totals, np.asarray(program_idx), _SCALE)
+    observed = dp.median_gaps(frame, comparators, pooled_only, 25)[dp.POOLED_KEY]
+
+    cells = np.flatnonzero(frame["is_letter"].to_numpy())
+    affinity = dp.background_affinity(mat, totals, neg, cells, 10, _SCALE, 50)[0]
+    mean_counts = dp.gene_statistics(mat)[0]
+    log_abundance = np.log10(mean_counts + dp.MEAN_COUNT_EPS)
+    sets = dp.draw_spanning_sets(affinity, mean_counts, np.asarray(program_idx), n_sets,
+                                 np.random.default_rng(seed))
+
+    span_frame = frame.copy()
+    aff_x, abund_x, gap_y = [], [], []
+    for gene_idx in sets:
+        idx = np.asarray(gene_idx)
+        span_frame["score"] = dp.score_gene_set(mat, totals, idx, _SCALE)
+        gap = dp.median_gaps(span_frame, comparators, pooled_only, 25)[dp.POOLED_KEY]
+        if not np.isnan(gap):
+            aff_x.append(affinity[idx].mean())
+            abund_x.append(log_abundance[idx].mean())
+            gap_y.append(gap)
+    aff_x, abund_x, gap_y = map(np.asarray, (aff_x, abund_x, gap_y))
+
+    obs_aff = float(affinity[np.asarray(program_idx)].mean())
+    obs_abund = float(log_abundance[np.asarray(program_idx)].mean())
+    _, predicted, resid = dp.fit_and_predict(aff_x, abund_x, gap_y, obs_aff, obs_abund)
+    bracketed = bool(aff_x.min() <= obs_aff <= aff_x.max())
+    return observed, predicted, dp.empirical_p(observed - predicted, resid), bracketed
+
+
+def test_spanning_null_brackets_the_programme_where_matching_could_not():
+    """The precondition the matched null failed: sets on BOTH sides of the programme."""
+    mat, totals, neg, idx, frame = _fixture_background_confound(np.random.default_rng(31))
+    *_, bracketed = _spanning_p(mat, totals, neg, idx, frame)
+    assert bracketed, "without bracketing the prediction is an extrapolation, which is the bug"
+
+
+def test_spanning_null_corrects_the_background_false_positive():
+    """Same data the two-axis null called real at p 0.005: dilution must now absorb it."""
+    mat, totals, neg, idx, frame = _fixture_background_confound(np.random.default_rng(31))
+    observed, predicted, p, _ = _spanning_p(mat, totals, neg, idx, frame)
+    print(f"      no real deficit: observed {observed:+.3f}  dilution predicts {predicted:+.3f}  "
+          f"residual {observed - predicted:+.3f}  p {p:.3f}")
+    assert p > 0.05, f"a pure background dilution must not survive the spanning null, p={p:.3f}"
+
+
+def test_spanning_null_still_detects_a_real_deficit_under_background():
+    """The guard against over-correcting: a genuine knockdown must still come through."""
+    mat, totals, neg, idx, frame = _fixture_background_confound(
+        np.random.default_rng(31), program_knockdown=0.25)
+    observed, predicted, p, _ = _spanning_p(mat, totals, neg, idx, frame)
+    print(f"      real 4x knockdown: observed {observed:+.3f}  dilution predicts {predicted:+.3f}"
+          f"  residual {observed - predicted:+.3f}  p {p:.3f}")
+    assert p <= 0.05, f"a real deficit must survive the correction, p={p:.3f}"
 
 
 def test_background_dilution_fools_the_two_axis_null():
