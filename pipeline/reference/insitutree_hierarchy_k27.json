@@ -1,0 +1,102 @@
+{
+ "Astro_AC_MES": {
+  "AC_like": [
+   "AC-like",
+   "AClike_denovo",
+   "AClike_nonEGFRamp_denovo",
+   "AClike_hypoxic_denovo",
+   "Malignant_stressed_denovo",
+   "MES_AClike_EDN3_denovo",
+   "MES2_hypoxia_dependent_denovo",
+   "MES_hypoxic_ECM_denovo",
+   "Malignant_IFN_denovo",
+   "OPC_NPClike_MDM4_denovo",
+   "Stress_sig"
+  ],
+  "MES_astro": [
+   "MES-like_hypoxia_MHC",
+   "MES-like_hypoxia_independent",
+   "MES1_like_denovo",
+   "AC_MESlike_MDM4_denovo",
+   "Reactive_astrocyte_denovo",
+   "Astrocyte"
+  ]
+ },
+ "OPC_NPC": [
+  "OPC",
+  "OPC_denovo",
+  "OPC-like",
+  "NPC-like_OPC",
+  "NPC-like_neural",
+  "NPC-like_Prolif",
+  "OPC-like_Prolif",
+  "AC-like_Prolif",
+  "OPC_NPClike_denovo",
+  "MES1_hypoxia_independent_denovo",
+  "RG"
+ ],
+ "Oligodendrocyte": [
+  "Oligodendrocyte"
+ ],
+ "Neuron": [
+  "Neuron",
+  "Inhibitory_SST_PV_denovo",
+  "Excitatory_glutamatergic_denovo",
+  "Excitatory_FABP3_denovo",
+  "Excitatory_deep_cortical_denovo"
+ ],
+ "Vascular": {
+  "Endothelial": [
+   "Endo_arterial",
+   "Endo_capilar",
+   "Tip-like",
+   "Scavenging_endothelial"
+  ],
+  "Mural_stromal": [
+   "Pericyte",
+   "Scavenging_pericyte",
+   "SMC",
+   "SMC_COL",
+   "SMC_prolif",
+   "VLMC",
+   "Perivascular_fibroblast",
+   "MVP_pericyte_denovo",
+   "Fibroblast_inflammatory_denovo"
+  ]
+ },
+ "Myeloid": [
+  "DC1",
+  "DC2",
+  "DC3",
+  "cDC1",
+  "cDC2",
+  "pDC",
+  "Mono_anti-infl",
+  "Mono_hypoxia",
+  "Mono_naive",
+  "TAM-BDM_INF",
+  "TAM-BDM_MHC",
+  "TAM-BDM_anti-infl",
+  "TAM-BDM_hypoxia_MES",
+  "TAM-MG_aging_sig",
+  "TAM-MG_pro-infl_I",
+  "TAM-MG_pro-infl_II",
+  "TAM-MG_prolif",
+  "Mast"
+ ],
+ "Lymphoid": [
+  "B_cell",
+  "Plasma_B",
+  "CD4_INF",
+  "CD4_rest",
+  "CD8_EM",
+  "CD8_NK_sig",
+  "CD8_cytotoxic",
+  "NK",
+  "Prolif_T",
+  "Reg_T"
+ ],
+ "Low_signal": [
+  "Low_signal_denovo"
+ ]
+}

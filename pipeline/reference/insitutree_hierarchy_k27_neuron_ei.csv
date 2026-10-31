@@ -1,0 +1,6 @@
+leaf,collapsed_label
+Excitatory_glutamatergic_denovo,Excitatory_neuron
+Excitatory_FABP3_denovo,Excitatory_neuron
+Excitatory_deep_cortical_denovo,Excitatory_neuron
+Inhibitory_SST_PV_denovo,Inhibitory_neuron
+Neuron,Inhibitory_neuron
