@@ -367,19 +367,15 @@ def _fixture_background_confound(rng, n_genes=300, n_cells=6000, n_units=20):
     return mat, np.asarray(mat.sum(axis=0)).ravel(), bg_load, program_idx, frame
 
 
-def _confound_p(mat, totals, neg, program_idx, frame, match_affinity, n_sets=200, seed=5):
-    """The 75e null path, with or without the background-affinity axis."""
+def _confound_p(mat, totals, neg, program_idx, frame, n_sets=200, seed=5):
+    """The 75e null path, matched on abundance and detection as the job ships it."""
     comparators, pooled_only = ["OPC-like"], False
     frame = frame.copy()
     frame["score"] = dp.score_gene_set(mat, totals, np.asarray(program_idx), _SCALE)
     observed = dp.median_gaps(frame, comparators, pooled_only, 25)[dp.POOLED_KEY]
 
     mean_counts, detection = dp.gene_statistics(mat)
-    extra = ()
-    if match_affinity:
-        cells = np.flatnonzero(frame["is_letter"].to_numpy())
-        extra = (dp.background_affinity(mat, totals, neg, cells, 10, _SCALE, 50)[0],)
-    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 60, extra)
+    pools = dp.matched_pools(mean_counts, detection, np.asarray(program_idx), 60)
     draws = dp.draw_null_sets(pools, n_sets, np.random.default_rng(seed))
 
     null_frame = frame.copy()
@@ -400,7 +396,7 @@ def test_background_dilution_fools_the_two_axis_null():
     more background than its comparator at all -- if it does not, this mechanism never fires.
     """
     mat, totals, neg, idx, frame = _fixture_background_confound(np.random.default_rng(31))
-    observed, gaps, p = _confound_p(mat, totals, neg, idx, frame, match_affinity=False)
+    observed, gaps, p = _confound_p(mat, totals, neg, idx, frame)
     print(f"      2-axis null: observed {observed:+.3f}  null median {np.median(gaps):+.3f}  "
           f"p {p:.3f}")
     assert observed < -0.02, f"the dilution must look like a deficit, got {observed:+.3f}"
