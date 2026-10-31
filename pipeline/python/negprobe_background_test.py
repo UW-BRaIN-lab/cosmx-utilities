@@ -265,9 +265,25 @@ def main() -> None:
                      "null_p95": float(np.percentile(null, 95)),
                      "p_value_above": p, "panel_percentile": panel_pct,
                      "genes": ",".join(genes[idx])})
-        print(f"  {label:10s} {idx.size:>3} genes   affinity {observed:+.4f}   "
-              f"null median {np.median(null):+.4f}   p(above) {p:.3f}   "
-              f"panel pct {panel_pct:>5.1f}")
+        # PER GENE, always. The first real run had a signature whose genes sat at BOTH extremes
+        # of the panel -- 8 in the top 0.5%, 5 in the bottom 0.3% -- and the set mean averaged
+        # them to zero. A mean over a bimodal set is not a summary of it, and reading only the
+        # mean turned a confirmed background signature into a rejected one.
+        pct_each = 100 * np.array([(affinity < affinity[i]).mean() for i in idx])
+        top, bottom = int((pct_each >= 95).sum()), int((pct_each <= 5).sum())
+        rows.append({"set": label, "n_genes": idx.size, "observed_affinity": observed,
+                     "null_median": float(np.median(null)),
+                     "null_p95": float(np.percentile(null, 95)),
+                     "p_value_above": p, "panel_percentile": panel_pct,
+                     "n_top5pct": top, "n_bottom5pct": bottom,
+                     "genes": ",".join(genes[idx])})
+        print(f"  {label:10s} {idx.size:>3} genes   mean affinity {observed:+.4f}   "
+              f"null median {np.median(null):+.4f}   p(above) {p:.3f}")
+        print(f"    {top} gene(s) in the panel's TOP 5%, {bottom} in the BOTTOM 5%"
+              + ("   <-- BIMODAL: read the genes, not the mean" if top and bottom else ""))
+        for gene, aff, pc in sorted(zip(genes[idx], affinity[idx], pct_each),
+                                    key=lambda r: -r[2]):
+            print(f"      {gene:12s} {aff:+.4f}  panel pct {pc:>5.1f}")
     print("  READ: probe background needs BOTH a matched-null p <= 0.05 AND a high panel")
     print("  percentile. The p alone only says the direction is reliable -- across millions of")
     print("  cells a 0.02 difference in correlation is reliable and trivial at once. A set that")
