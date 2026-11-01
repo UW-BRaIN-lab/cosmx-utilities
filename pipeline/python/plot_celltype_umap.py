@@ -17,6 +17,13 @@ because 60+ leaves cannot each get a distinguishable colour:
 Every label must belong to the hierarchy (a leaf or a node name, as InSituTree emits a
 single-child node's name); an unknown label stops the run rather than being drawn unlabelled.
 
+With --label-colors-csv (label,hex_color, e.g. pipeline/reference/insitutree_k27_label_colors.csv
+from scripts/napari-label-colors.py) every cell type takes its Napari colour, so the UMAP and the
+slides agree. Those colours are made legible on Napari's black background, so the figures that
+use them are drawn on black: the flat UMAP, the leaf panels, and in hierarchy mode an extra
+<output stem>_celltypes.png with every cell in its type's colour and the legend grouped by branch.
+A label missing from the table stops the run.
+
 Reads a stage-4c cosmx_typed.h5ad (obs has cell_type, obsm has X_umap) in backed mode, so the
 expression matrix is never loaded.
 
@@ -35,7 +42,8 @@ Usage:
         --title "Extended L3 - rescale"
     uv run python pipeline/python/plot_celltype_umap.py \\
         --h5ad cosmx_typed.h5ad --output umap_cell_type_hierarchy.png \\
-        --hierarchy pipeline/reference/insitutree_hierarchy_k27.json
+        --hierarchy pipeline/reference/insitutree_hierarchy_k27.json \\
+        --label-colors-csv pipeline/reference/insitutree_k27_label_colors.csv
 """
 
 from __future__ import annotations
@@ -70,6 +78,12 @@ BACKDROP_MAX_ALPHA_FRACTION = 0.55
 PANEL_POINT_SIZE = 0.4
 SHUFFLE_SEED = 0
 PNG_DPI = 150
+# Figures in Napari colours sit on black, like the slides; the all-cell density behind each leaf
+# panel then tops out at this grey level so the leaf's own colour stays the brightest thing.
+DARK_BACKGROUND = "black"
+DARK_INK = "white"
+DARK_BACKDROP_MAX_LIGHTNESS = 0.22
+LEGEND_ROWS_PER_COLUMN = 36
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,6 +101,8 @@ def parse_args() -> argparse.Namespace:
                    help="Top-level branch drawn grey underneath (hierarchy mode).")
     p.add_argument("--min-panel-cells", type=int, default=MIN_PANEL_CELLS,
                    help="Labels with fewer cells get no small-multiples panel (hierarchy mode).")
+    p.add_argument("--label-colors-csv", type=Path, default=None,
+                   help="label,hex_color table of Napari colours; draws cell types in them, on black.")
     p.add_argument("--color-key", default="cell_type", help="obs column to colour by.")
     p.add_argument("--umap-key", default="X_umap", help="obsm key with the 2D embedding.")
     p.add_argument("--title", default=None, help="Plot title.")
@@ -131,11 +147,28 @@ def compartment_colors(hierarchy: dict, sink_label: str) -> dict[str, str]:
     return colors
 
 
+def read_label_colors(path: Path, labels) -> dict[str, str]:
+    """The Napari colour of each observed label; a label the table lacks stops the run."""
+    table = pd.read_csv(path, dtype=str)
+    colors = dict(zip(table["label"], table["hex_color"]))
+    missing = sorted(set(labels) - set(colors))
+    if missing:
+        raise KeyError(f"{len(missing)} labels have no colour in {path}: {missing[:10]}")
+    return colors
+
+
 def strip_axes(ax) -> None:
     ax.set_xticks([])
     ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_visible(False)
+
+
+def darken(fig, axes) -> None:
+    fig.patch.set_facecolor(DARK_BACKGROUND)
+    for ax in axes:
+        ax.set_facecolor(DARK_BACKGROUND)
+        ax.title.set_color(DARK_INK)
 
 
 def apply_view(ax, xy: np.ndarray) -> None:
@@ -147,19 +180,24 @@ def apply_view(ax, xy: np.ndarray) -> None:
 
 
 def plot_flat(xy: np.ndarray, s: pd.Series, args) -> None:
-    """Every type its own colour (tab20 x3), legend sorted by abundance."""
+    """Every type its own colour (Napari's, else tab20 x3), legend sorted by abundance."""
     import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
     from matplotlib.lines import Line2D
 
     codes = s.cat.codes.to_numpy()
     labels = list(s.cat.categories)
     counts = Counter(s)
 
-    # Distinct colour per category (combine three tab20 maps for up to 60).
-    base = []
-    for name in ("tab20", "tab20b", "tab20c"):
-        base += [plt.get_cmap(name)(i) for i in range(20)]
-    colors = np.array([base[i % len(base)] for i in range(len(labels))])
+    if args.label_colors_csv is None:
+        # Distinct colour per category (combine three tab20 maps for up to 60).
+        base = []
+        for name in ("tab20", "tab20b", "tab20c"):
+            base += [plt.get_cmap(name)(i) for i in range(20)]
+        colors = np.array([base[i % len(base)] for i in range(len(labels))])
+    else:
+        napari = read_label_colors(args.label_colors_csv, labels)
+        colors = np.array([to_rgba(napari[label]) for label in labels])
     point_colors = colors[codes]
 
     # Plot points in shuffled order so no single type is drawn on top.
@@ -179,7 +217,10 @@ def plot_flat(xy: np.ndarray, s: pd.Series, args) -> None:
     leg = [f"{labels[i]}  ({counts[labels[i]]:,})" for i in by_count]
     ax.legend(handles, leg, loc="center left", bbox_to_anchor=(1.01, 0.5),
               ncol=1 if len(labels) <= 36 else 2, fontsize=8, frameon=False,
-              handletextpad=0.4, labelspacing=0.3)
+              handletextpad=0.4, labelspacing=0.3,
+              labelcolor=DARK_INK if args.label_colors_csv else None)
+    if args.label_colors_csv is not None:
+        darken(fig, [ax])
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=PNG_DPI, bbox_inches="tight")
@@ -231,9 +272,50 @@ def plot_compartments(xy, compartments: np.ndarray, colors: dict[str, str], orde
     print(f"Wrote {args.output} ({len(xy):,} cells, {len(present)} compartments)")
 
 
+def plot_celltypes(xy, labels: np.ndarray, table: pd.DataFrame, colors: dict[str, str],
+                   sink_labels: set[str], title: str | None, path: Path, point_size: float) -> None:
+    """Every cell in its type's Napari colour on black; the sink underneath, the rest shuffled on
+    top; the legend lists the types under their branch, in hierarchy order."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
+    from matplotlib.lines import Line2D
+
+    names = table["label"].tolist()
+    rgba = np.array([to_rgba(colors[name]) for name in names])
+    codes = pd.Categorical(labels, categories=names).codes
+    is_sink = np.isin(labels, list(sink_labels))
+    typed = np.flatnonzero(~is_sink)
+    typed = typed[np.random.RandomState(SHUFFLE_SEED).permutation(len(typed))]
+
+    fig, ax = plt.subplots(figsize=(12, 9))
+    ax.scatter(*xy[is_sink].T, c=rgba[codes[is_sink]], s=point_size, linewidths=0, rasterized=True)
+    ax.scatter(xy[typed, 0], xy[typed, 1], c=rgba[codes[typed]], s=point_size,
+               linewidths=0, rasterized=True)
+    apply_view(ax, xy)
+    strip_axes(ax)
+    if title:
+        ax.set_title(title, fontsize=14)
+
+    handles, texts = [], []
+    for compartment, group in table.groupby("compartment", sort=False):
+        handles.append(Line2D([], [], linestyle=""))
+        texts.append(compartment.upper())
+        for row in group.itertuples():
+            handles.append(Line2D([0], [0], marker="o", linestyle="", markersize=5,
+                                  markerfacecolor=colors[row.label], markeredgewidth=0))
+            texts.append(f"{row.label}  ({row.n_cells:,})")
+    ax.legend(handles, texts, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False,
+              fontsize=7, ncol=-(-len(texts) // LEGEND_ROWS_PER_COLUMN), handletextpad=0.4,
+              labelspacing=0.25, labelcolor=DARK_INK)
+    darken(fig, [ax])
+    fig.savefig(path, dpi=PNG_DPI, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Wrote {path} ({len(xy):,} cells, {len(names)} types in Napari colours)")
+
+
 def plot_leaf_panels(xy, labels: np.ndarray, panels: list[str], panel_colors: dict[str, str],
-                     path: Path) -> None:
-    """One panel per label: its cells over a grey density of every cell."""
+                     path: Path, dark: bool = False) -> None:
+    """One panel per label: its cells over a grey density of every cell (on black when `dark`)."""
     import matplotlib.pyplot as plt
 
     xlim, ylim, _, _ = umap_view_limits(xy)
@@ -241,14 +323,17 @@ def plot_leaf_panels(xy, labels: np.ndarray, panels: list[str], panel_colors: di
     ylim = ylim or (xy[:, 1].min(), xy[:, 1].max())
     density, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=DENSITY_BINS, range=[xlim, ylim])
     backdrop = np.log1p(density.T)
-    backdrop_vmax = backdrop.max() / BACKDROP_MAX_ALPHA_FRACTION
+    if dark:
+        backdrop_cmap, backdrop_vmax = "gray", backdrop.max() / DARK_BACKDROP_MAX_LIGHTNESS
+    else:
+        backdrop_cmap, backdrop_vmax = "Greys", backdrop.max() / BACKDROP_MAX_ALPHA_FRACTION
 
     rows = -(-len(panels) // PANEL_COLUMNS)
     fig, axes = plt.subplots(rows, PANEL_COLUMNS, squeeze=False,
                              figsize=(PANEL_COLUMNS * PANEL_SIZE_IN, rows * PANEL_SIZE_IN))
     for ax, label in zip(axes.flat, panels):
         ax.imshow(backdrop, origin="lower", extent=(*xlim, *ylim), aspect="auto",
-                  cmap="Greys", vmin=0, vmax=backdrop_vmax, interpolation="nearest")
+                  cmap=backdrop_cmap, vmin=0, vmax=backdrop_vmax, interpolation="nearest")
         mask = labels == label
         ax.scatter(xy[mask, 0], xy[mask, 1], c=[panel_colors[label]], s=PANEL_POINT_SIZE,
                    linewidths=0, rasterized=True)
@@ -257,8 +342,10 @@ def plot_leaf_panels(xy, labels: np.ndarray, panels: list[str], panel_colors: di
         ax.set_xticks([]); ax.set_yticks([])
     for ax in list(axes.flat)[len(panels):]:
         ax.axis("off")
+    if dark:
+        darken(fig, axes.flat)
     fig.tight_layout()
-    fig.savefig(path, dpi=PNG_DPI)
+    fig.savefig(path, dpi=PNG_DPI, facecolor=fig.get_facecolor())
     plt.close(fig)
     print(f"Wrote {path} ({len(panels)} panels)")
 
@@ -286,9 +373,20 @@ def plot_hierarchy(xy: np.ndarray, s: pd.Series, args) -> None:
     skipped = table.loc[table["n_cells"] < args.min_panel_cells]
     print(f"Small multiples: {len(panels)} panels; skipped (< {args.min_panel_cells} cells): "
           + (", ".join(f"{r.label} ({r.n_cells})" for r in skipped.itertuples()) or "none"))
-    panel_colors = {label: SINK_PANEL_COLOR if label_to_compartment[label] == args.sink_label
-                    else colors[label_to_compartment[label]] for label in panels}
-    plot_leaf_panels(xy, labels, panels, panel_colors, Path(f"{stem}_leaves.png"))
+    if args.label_colors_csv is None:
+        panel_colors = {label: SINK_PANEL_COLOR if label_to_compartment[label] == args.sink_label
+                        else colors[label_to_compartment[label]] for label in panels}
+    else:
+        napari = read_label_colors(args.label_colors_csv, table["label"])
+        sink_labels = {label for label, c in label_to_compartment.items() if c == args.sink_label}
+        plot_celltypes(xy, labels, table, napari, sink_labels, args.title,
+                       Path(f"{stem}_celltypes.png"), args.point_size)
+        panel_colors = {label: napari[label] for label in panels}
+    if not panels:
+        print(f"No label reaches --min-panel-cells {args.min_panel_cells}; no small-multiples figure")
+        return
+    plot_leaf_panels(xy, labels, panels, panel_colors, Path(f"{stem}_leaves.png"),
+                     dark=args.label_colors_csv is not None)
 
 
 def main() -> None:

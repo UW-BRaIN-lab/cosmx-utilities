@@ -192,6 +192,73 @@ def test_flat_mode_still_writes_one_png():
         assert not (tmp / "flat_counts.csv").exists()
 
 
+def _write_toy_colors(path, drop=None):
+    import pandas as pd
+    labels = [label for label in TOY_COUNTS if label != drop]
+    pd.DataFrame({"label": labels, "hex_color": ["#51F0B2", "#7449AA", "#D5DC34", "#F5C242",
+                                                 "#2211D4", "#BDF613"][:len(labels)]}).to_csv(path, index=False)
+
+
+def test_napari_colours_add_the_celltype_figure():
+    import json
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _write_toy_h5ad(tmp / "typed.h5ad")
+        _write_toy_colors(tmp / "colors.csv")
+        (tmp / "hierarchy.json").write_text(json.dumps(TOY_HIERARCHY))
+        _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--hierarchy", str(tmp / "hierarchy.json"),
+                   "--label-colors-csv", str(tmp / "colors.csv"), "--min-panel-cells", "50",
+                   "--output", str(tmp / "umap.png")])
+        for name in ("umap.png", "umap_celltypes.png", "umap_leaves.png", "umap_counts.csv"):
+            assert (tmp / name).stat().st_size > 0, name
+        _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--label-colors-csv", str(tmp / "colors.csv"),
+                   "--output", str(tmp / "flat.png")])
+        assert (tmp / "flat.png").stat().st_size > 0
+
+
+def test_no_label_above_the_panel_minimum_skips_the_panel_figure():
+    import json
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _write_toy_h5ad(tmp / "typed.h5ad")
+        (tmp / "hierarchy.json").write_text(json.dumps(TOY_HIERARCHY))
+        _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--hierarchy", str(tmp / "hierarchy.json"),
+                   "--min-panel-cells", "100000", "--output", str(tmp / "umap.png")])
+        assert (tmp / "umap.png").stat().st_size > 0
+        assert (tmp / "umap_counts.csv").exists()
+        assert not (tmp / "umap_leaves.png").exists()
+
+
+def test_a_label_without_a_napari_colour_stops_the_run():
+    """A cell type missing from the colour table would otherwise be drawn in some other colour
+    than Napari's with no warning."""
+    import json
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _write_toy_h5ad(tmp / "typed.h5ad")
+        _write_toy_colors(tmp / "colors.csv", drop="OPC")
+        (tmp / "hierarchy.json").write_text(json.dumps(TOY_HIERARCHY))
+        try:
+            _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--hierarchy", str(tmp / "hierarchy.json"),
+                       "--label-colors-csv", str(tmp / "colors.csv"), "--output", str(tmp / "umap.png")])
+        except KeyError as err:
+            print(f"missing colour rejected: {err}")
+            assert "OPC" in str(err)
+        else:
+            raise AssertionError("a label without a colour was drawn")
+
+
+def test_k27_colour_table_covers_every_reference_column():
+    import pandas as pd
+    reference = _PY_DIR.parent / "reference"
+    columns = list(pd.read_csv(reference / "insitutree_profiles_k27.csv", nrows=0).columns[1:])
+    colors = pcu.read_label_colors(reference / "insitutree_k27_label_colors.csv", columns + ["Low_signal"])
+    print(f"{len(colors)} colours in the table")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

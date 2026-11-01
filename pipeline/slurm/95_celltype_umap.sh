@@ -17,9 +17,13 @@
 # InSituTree runs: set HIERARCHY_BASENAME (a file in pipeline/reference/) instead. Its leaves are
 # already names, so no annotation table is read; the job writes the compartment UMAP, the
 # per-leaf small multiples and the counts table (umap_cell_type_hierarchy*):
-#   RUN=stage4_insitutree_k27 HIERARCHY_BASENAME=insitutree_hierarchy_k27.json POINT_SIZE=0.2 \
+#   RUN=stage4_insitutree_k27 HIERARCHY_BASENAME=insitutree_hierarchy_k27.json \
+#       LABEL_COLORS_BASENAME=insitutree_k27_label_colors.csv POINT_SIZE=0.2 \
 #       sbatch pipeline/slurm/95_celltype_umap.sh
-# POINT_SIZE (default 1.0) is the scatter marker size; full-cohort runs want ~0.2.
+# LABEL_COLORS_BASENAME (optional, in pipeline/reference/) draws each cell type in its Napari colour,
+# on black, and adds umap_cell_type_hierarchy_celltypes.png; build the table with
+# scripts/napari-label-colors.py. POINT_SIZE (default 1.0) is the scatter marker size; full-cohort
+# runs want ~0.2.
 #
 # Required env (from pipeline/.env): KOPAH_*, APPTAINER_RSC.
 
@@ -65,6 +69,11 @@ else
     [[ -f "$MAPPING" ]] || { echo "ERROR: no annotation table $MAPPING" >&2; exit 1; }
     OUTPUT_STEM="umap_cell_type_annotated"
     MODE_ARGS=(--mapping "$MAPPING")
+fi
+if [[ -n "${LABEL_COLORS_BASENAME:-}" ]]; then
+    LABEL_COLORS="${PIPELINE_DIR}/reference/${LABEL_COLORS_BASENAME}"
+    [[ -f "$LABEL_COLORS" ]] || { echo "ERROR: no label colour table $LABEL_COLORS" >&2; exit 1; }
+    MODE_ARGS+=(--label-colors-csv "$LABEL_COLORS")
 fi
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
