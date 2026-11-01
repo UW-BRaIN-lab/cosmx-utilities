@@ -51,7 +51,7 @@ def main() -> None:
 
     names = hierarchy_names(json.loads(args.hierarchy.read_text()))
     with open(args.output, "w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(COLUMNS)
         writer.writerows((name, deterministic_color(name)) for name in names)
     print(f"Wrote {len(names)} label colours to {args.output}")
