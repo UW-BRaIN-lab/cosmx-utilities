@@ -78,6 +78,120 @@ def test_diffuse_tails_alone_can_cross_the_threshold():
     assert n_outside / len(xy) < 0.02
 
 
+TOY_HIERARCHY = {
+    "Glia": {"Astro": ["Astrocyte", "Reactive_astrocyte_denovo"], "OPC": ["OPC"]},
+    "Neuron": ["Excitatory", "Inhibitory"],
+    "Low_signal": ["Low_signal_denovo"],
+}
+TOY_COUNTS = {"Astrocyte": 300, "Reactive_astrocyte_denovo": 200, "OPC": 40,
+              "Excitatory": 250, "Inhibitory": 120, "Low_signal": 400}
+
+
+def test_hierarchy_order_is_depth_first_with_top_level_branch():
+    order = pcu.hierarchy_order(TOY_HIERARCHY)
+    print(order)
+    assert [name for name, _ in order] == ["Glia", "Astro", "Astrocyte", "Reactive_astrocyte_denovo",
+                                          "OPC", "OPC", "Neuron", "Excitatory", "Inhibitory",
+                                          "Low_signal", "Low_signal_denovo"]
+    assert dict(order)["Reactive_astrocyte_denovo"] == "Glia"
+
+
+def test_single_child_node_name_maps_and_unknown_labels_fail():
+    """InSituTree reports the sink by its node name (Low_signal), not its leaf; that must map.
+    A label outside the tree must stop the run instead of being drawn unlabelled."""
+    mapping = pcu.compartment_of(["Low_signal", "OPC", "Inhibitory"], TOY_HIERARCHY)
+    assert mapping == {"Low_signal": "Low_signal", "OPC": "Glia", "Inhibitory": "Neuron"}
+    try:
+        pcu.compartment_of(["Astrocyte", "Microglia"], TOY_HIERARCHY)
+    except KeyError as err:
+        print(f"unknown label rejected: {err}")
+        assert "Microglia" in str(err)
+    else:
+        raise AssertionError("an unknown label was accepted")
+
+
+def test_compartment_colours_are_fixed_and_sink_is_grey():
+    colors = pcu.compartment_colors(TOY_HIERARCHY, "Low_signal")
+    assert colors == {"Glia": pcu.COMPARTMENT_COLORS[0], "Neuron": pcu.COMPARTMENT_COLORS[1],
+                      "Low_signal": pcu.SINK_COLOR}
+    too_many = {f"branch{i}": [f"leaf{i}"] for i in range(len(pcu.COMPARTMENT_COLORS) + 1)}
+    too_many["Low_signal"] = ["Low_signal_denovo"]
+    try:
+        pcu.compartment_colors(too_many, "Low_signal")
+    except ValueError as err:
+        print(f"too many branches rejected: {err}")
+    else:
+        raise AssertionError("more branches than colours were accepted")
+
+
+def test_k27_hierarchy_covers_every_reference_column():
+    """Every profile column of the k=27 reference (the labels InSituTree can emit), plus the sink's
+    node name, maps to a branch, and the branches fit the colour list."""
+    import json
+    import pandas as pd
+    reference = _PY_DIR.parent / "reference"
+    hierarchy = json.loads((reference / "insitutree_hierarchy_k27.json").read_text())
+    columns = list(pd.read_csv(reference / "insitutree_profiles_k27.csv", nrows=0).columns[1:])
+    mapping = pcu.compartment_of(columns + ["Low_signal"], hierarchy)
+    print(pd.Series(mapping).value_counts().to_string())
+    colors = pcu.compartment_colors(hierarchy, "Low_signal")
+    assert len(colors) == len(hierarchy) == 8
+
+
+def _write_toy_h5ad(path):
+    import anndata as ad
+    import pandas as pd
+    import scipy.sparse as sp
+    rng = np.random.RandomState(2)
+    labels = [label for label, n in TOY_COUNTS.items() for _ in range(n)]
+    centres = {label: rng.uniform(-30, 30, size=2) for label in TOY_COUNTS}
+    xy = np.vstack([rng.normal(centres[label], 2.0) for label in labels])
+    obs = pd.DataFrame({"cell_type": pd.Categorical(labels)},
+                       index=[f"cell{i}" for i in range(len(labels))])
+    adata = ad.AnnData(X=sp.csr_matrix((len(labels), 3), dtype=np.float32), obs=obs)
+    adata.obsm["X_umap"] = xy
+    adata.write_h5ad(path)
+
+
+def _run_main(argv):
+    old_argv = sys.argv
+    sys.argv = ["plot_celltype_umap.py", *argv]
+    try:
+        pcu.main()
+    finally:
+        sys.argv = old_argv
+
+
+def test_hierarchy_mode_writes_compartments_panels_and_counts():
+    import json
+    import tempfile
+    import pandas as pd
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _write_toy_h5ad(tmp / "typed.h5ad")
+        (tmp / "hierarchy.json").write_text(json.dumps(TOY_HIERARCHY))
+        _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--hierarchy", str(tmp / "hierarchy.json"),
+                   "--min-panel-cells", "50", "--output", str(tmp / "umap.png")])
+        assert (tmp / "umap.png").stat().st_size > 0
+        assert (tmp / "umap_leaves.png").stat().st_size > 0
+        counts = pd.read_csv(tmp / "umap_counts.csv")
+        print(counts.to_string(index=False))
+        assert counts["label"].tolist() == ["Astrocyte", "Reactive_astrocyte_denovo", "OPC",
+                                            "Excitatory", "Inhibitory", "Low_signal"]
+        assert dict(zip(counts["label"], counts["n_cells"])) == TOY_COUNTS
+        assert counts.set_index("label").loc["OPC", "compartment"] == "Glia"
+
+
+def test_flat_mode_still_writes_one_png():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        _write_toy_h5ad(tmp / "typed.h5ad")
+        _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--output", str(tmp / "flat.png")])
+        assert (tmp / "flat.png").stat().st_size > 0
+        assert not (tmp / "flat_counts.csv").exists()
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
