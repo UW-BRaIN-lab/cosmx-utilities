@@ -71,6 +71,33 @@ def test_pick_slide_is_the_one_with_most_target_cells():
     assert prcs.pick_slide(slides, (LEIDEN == "21").to_numpy()) == "slideA"
 
 
+STRATA = pd.DataFrame({
+    "slide_cluster": ["slideA|0"] * 5 + ["slideA|1"] * 3 + ["slideA|2"] * 2 + ["slideB|0"] * 5,
+    "is_target": [False] * 5 + [True, True, False] + [True, True] + [False] * 5})
+
+
+def test_sampling_cap_is_the_largest_stratum():
+    assert prcs.sampling_cap(STRATA["slide_cluster"]) == 5
+
+
+def test_slide_strata_table_splits_target_and_rest_per_slide():
+    table = prcs.slide_strata_table(STRATA, "slideA")
+    print(table)
+    assert list(table.index) == ["0", "1", "2"]
+    assert list(table["n_sampled"]) == [5, 3, 2]
+    assert list(table["n_target"]) == [0, 2, 2]
+    assert prcs.slide_strata_table(STRATA, "slideB")["n_sampled"].sum() == 5
+
+
+def test_slide_strata_table_unknown_slide_raises():
+    try:
+        prcs.slide_strata_table(STRATA, "nope")
+    except ValueError as error:
+        assert "no anchor cells" in str(error)
+    else:
+        raise AssertionError("an unknown slide must raise")
+
+
 def test_spatial_columns_priority_and_missing():
     assert prcs.spatial_columns(pd.Index(["CenterX_global_px", "CenterY_global_px", "x"])) == (
         "CenterX_global_px", "CenterY_global_px")
@@ -94,7 +121,10 @@ def test_end_to_end_render():
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         adata.write_h5ad(tmp / "typed.h5ad")
-        pd.DataFrame({"cell_id": ids[::2]}).to_csv(tmp / "anchor_cells.csv", index=False)
+        kept = ids[::2]
+        pd.DataFrame({"cell_id": kept,
+                      "slide_cluster": [f"{cell.split('_')[0]}|{k % 4}" for k, cell in enumerate(kept)]}
+                     ).to_csv(tmp / "anchor_cells.csv", index=False)
         result = subprocess.run(
             [sys.executable, str(_PY_DIR / "plot_rare_cluster_sampling.py"), "--typed-h5ad",
              str(tmp / "typed.h5ad"), "--anchor-cells-csv", str(tmp / "anchor_cells.csv"),

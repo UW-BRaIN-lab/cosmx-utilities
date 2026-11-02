@@ -5,14 +5,17 @@ Three panels, one highlight colour:
   A  cohort-wide UMAP (obsm['X_umap']) with the chosen Leiden cluster highlighted
   B  one slide in tissue coordinates, the same cluster highlighted. Cluster cells that made it into the
      anchor cohort are filled; any that did not are hollow rings.
-  C  for every cohort-wide Leiden cluster, the share of its cells that is in the anchor cohort. The
-     dashed line is the overall share: a cluster above it was over-sampled relative to random.
+  C  the per-slide Leiden strata of that slide, as bars of cells sampled. The dashed line is the
+     per-stratum cap (the largest stratum count in anchor_cells.csv); a stratum below it was kept
+     whole. The gold part of each bar is the highlighted cohort cluster.
 
-The sampling strata are PER-SLIDE Leiden clusters ("<slide>|<n>" in anchor_cells.csv), not the
-cohort-wide clusters drawn here, so panel C is the consequence of that stratified draw, not its
-input. Everything is joined on the "<slide>_F<fov>_C<cell>" cell id, and the cohort-wide
-clustering is read from the typed AnnData's obs (extract_anchor_leiden.py explains why never to
-use anchor_cells.csv's own cluster column for this).
+The sampling strata are PER-SLIDE Leiden clusters ("<slide>|<n>" in anchor_cells.csv's
+slide_cluster column), not the cohort-wide clusters in panels A and B. Everything is joined on the
+"<slide>_F<fov>_C<cell>" cell id, and the cohort-wide clustering is read from the typed AnnData's
+obs (extract_anchor_leiden.py explains why never to use slide_cluster for that).
+
+The per-cluster sampling table (cells and share in the anchor cohort for every cohort cluster) is
+printed and written to <stem>_sampling_by_cluster.csv.
 
 Only obs and obsm['X_umap'] are read (backed mode, no matrix). The UMAP background is thinned to
 --background-cells for plotting; every cell of the highlighted cluster is always drawn.
@@ -41,6 +44,7 @@ PER_SLIDE_MARK = "|"             # the slide|n separator in anchor_cells.csv's c
 HIGHLIGHT_COLOR = "#e0a800"
 BACKGROUND_COLOR = "#d0d0d0"
 OTHER_BAR_COLOR = "#8c8c8c"
+STRATUM_COLUMN = "slide_cluster"
 UMAP_BACKGROUND_SIZE = 0.3
 SLIDE_BACKGROUND_SIZE = 0.4
 HIGHLIGHT_SIZE = 5.0
@@ -87,6 +91,25 @@ def pick_slide(slide_ids: pd.Series, is_target: np.ndarray) -> str:
     return str(slide_ids[is_target].value_counts().index[0])
 
 
+def sampling_cap(strata: pd.Series) -> int:
+    """The per-stratum cap: strata larger than it are sampled down to exactly it."""
+    return int(strata.value_counts().max())
+
+
+def slide_strata_table(anchor: pd.DataFrame, slide_name: str) -> pd.DataFrame:
+    """Sampled cells per per-slide stratum on one slide, split into highlighted cluster and the rest.
+
+    `anchor` has one row per anchor cell with `slide_cluster` ("<slide>|<n>") and a boolean is_target.
+    """
+    parts = anchor[STRATUM_COLUMN].str.rpartition(PER_SLIDE_MARK)
+    on_slide = parts[0] == slide_name
+    if not on_slide.any():
+        raise ValueError(f"no anchor cells on slide {slide_name!r}")
+    table = anchor[on_slide].groupby(parts.loc[on_slide, 2].to_numpy()).agg(
+        n_sampled=("is_target", "size"), n_target=("is_target", "sum"))
+    return table.sort_values("n_sampled", ascending=False)
+
+
 def spatial_columns(obs_columns: pd.Index) -> tuple[str, str]:
     for x_name, y_name in SPATIAL_CANDIDATES:
         if x_name in obs_columns and y_name in obs_columns:
@@ -95,7 +118,7 @@ def spatial_columns(obs_columns: pd.Index) -> tuple[str, str]:
 
 
 def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target, slide_in_anchor,
-                table, cluster, slide_name, path):
+                strata, cap, cluster, slide_name, path):
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
 
@@ -130,21 +153,24 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
               loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=9)
 
     ax = fig.add_subplot(grid[2])
-    shown = table.iloc[::-1]
-    colors = [HIGHLIGHT_COLOR if name == cluster else OTHER_BAR_COLOR for name in shown.index]
-    ax.barh(range(len(shown)), 100 * shown["share_sampled"], color=colors, height=0.75)
-    overall = 100 * table["n_sampled"].sum() / table["n_cells"].sum()
-    ax.axvline(overall, color="black", linestyle="--", linewidth=1)
-    ax.text(overall + 1, len(shown) - 0.5, f"overall {overall:.0f}%", fontsize=9, va="bottom")
-    ax.set_yticks(range(len(shown)))
-    ax.set_yticklabels([f"{name}  (n={n:,})" for name, n in zip(shown.index, shown["n_cells"])],
-                       fontsize=7)
-    for tick, name in zip(ax.get_yticklabels(), shown.index):
-        if name == cluster:
-            tick.set_fontweight("bold")
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("% of the cluster's cells in the anchor cohort")
-    ax.set_title("C  Share of each cohort Leiden cluster sampled", loc="left", fontweight="bold")
+    shown = strata.iloc[::-1]
+    rows = range(len(shown))
+    other = shown["n_sampled"] - shown["n_target"]
+    ax.barh(rows, other, color=OTHER_BAR_COLOR, height=0.75)
+    ax.barh(rows, shown["n_target"], left=other, color=HIGHLIGHT_COLOR, edgecolor="black",
+            linewidth=0.3, height=0.75)
+    ax.axvline(cap, color="black", linestyle="--", linewidth=1)
+    n_whole = int((strata["n_sampled"] < cap).sum())
+    ax.text(cap, len(shown) - 0.3, f"cap {cap:,} per stratum", fontsize=9, ha="right", va="bottom")
+    ax.text(0.88, 0.02, f"{n_whole} of {len(strata)} strata below the cap\n(all their cells kept)",
+            transform=ax.transAxes, fontsize=9, ha="right", va="bottom")
+    ax.set_yticks(list(rows))
+    ax.set_yticklabels([f"stratum {name}" for name in shown.index], fontsize=7)
+    ax.set_xlabel(f"cells sampled on slide {slide_name}")
+    ax.set_title("C  Per-slide strata sampled into the anchor cohort", loc="left", fontweight="bold")
+    ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label=f"Leiden {cluster}"),
+                       Patch(facecolor=OTHER_BAR_COLOR, label="other cohort clusters")],
+              loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False, fontsize=9)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 
@@ -189,9 +215,10 @@ def main() -> None:
     if args.cluster not in set(leiden):
         sys.exit(f"ERROR: no cluster {args.cluster!r}; present: {sorted(set(leiden), key=int)}")
 
-    anchor_ids = pd.read_csv(args.anchor_cells_csv, usecols=["cell_id"])["cell_id"].astype(str)
-    in_anchor = anchor_membership(cell_ids, anchor_ids)
+    anchor = pd.read_csv(args.anchor_cells_csv, usecols=["cell_id", STRATUM_COLUMN], dtype=str)
+    in_anchor = anchor_membership(cell_ids, anchor["cell_id"])
     is_target = (leiden == args.cluster).to_numpy()
+    anchor["is_target"] = pd.Series(is_target, index=cell_ids).reindex(anchor["cell_id"]).fillna(False).astype(bool).to_numpy()
     slide_ids = obs[args.slide_key].astype(str).reset_index(drop=True)
 
     table = cluster_sampling_table(leiden, in_anchor)
@@ -218,8 +245,12 @@ def main() -> None:
 
     args.output_stem.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(f"{args.output_stem}_sampling_by_cluster.csv")
+    cap = sampling_cap(anchor[STRATUM_COLUMN])
+    strata = slide_strata_table(anchor, slide_name)
+    print(f"per-stratum cap (largest stratum count): {cap:,}; slide {slide_name}: {len(strata)} strata, "
+          f"{int((strata['n_sampled'] < cap).sum())} below the cap")
     draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, is_target[on_slide], in_anchor[on_slide],
-                table, args.cluster, slide_name, Path(f"{args.output_stem}.png"))
+                strata, cap, args.cluster, slide_name, Path(f"{args.output_stem}.png"))
 
 
 if __name__ == "__main__":
