@@ -53,9 +53,12 @@ SLIDE_BACKGROUND_SIZE = 0.4
 HIGHLIGHT_SIZE = 5.0
 SHUFFLE_SEED = 0
 PNG_DPI = 170
-FIGURE_SIZE = (17, 6.2)
-PANEL_WIDTH_RATIOS = [1, 1, 1.05]
-PANEL_SPACING = 0.5
+AXES_HEIGHT_INCHES = 5.2         # every panel is this tall; widths follow each panel's data aspect
+STRATA_PANEL_ASPECT = 1.05       # width / height of panel C
+PANEL_GAP = 0.32                 # gridspec wspace: room for panel C's stratum labels
+GRID_MARGINS = dict(left=0.03, right=0.99, bottom=0.2, top=0.9)
+VIEW_MARGIN = 0.02
+TITLE_SIZE = 12
 
 
 def anchor_membership(cell_ids: pd.Index, anchor_ids: pd.Series) -> np.ndarray:
@@ -177,25 +180,44 @@ def spatial_columns(obs_columns: pd.Index) -> tuple[str, str]:
     raise KeyError(f"no centroid columns in obs; tried {SPATIAL_CANDIDATES}")
 
 
-def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target, slide_in_anchor,
-                strata, cap, cluster, slide_name, path):
+def view_aspect(xy: np.ndarray, xlim=None, ylim=None) -> tuple[tuple, tuple, float]:
+    """Axis limits (given, else the data range plus a margin) and the width / height they imply."""
+    limits = []
+    for axis, given in enumerate((xlim, ylim)):
+        if given is None:
+            lo, hi = xy[:, axis].min(), xy[:, axis].max()
+            pad = (hi - lo) * VIEW_MARGIN
+            given = (lo - pad, hi + pad)
+        limits.append(given)
+    (x0, x1), (y0, y1) = limits
+    return limits[0], limits[1], (x1 - x0) / (y1 - y0)
+
+
+def draw_figure(umap_xy, thin_keep, is_target, slide_xy, slide_target, slide_in_anchor,
+                strata, cap, cluster, path):
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
 
-    fig = plt.figure(figsize=FIGURE_SIZE, facecolor="white")
-    grid = fig.add_gridspec(1, 3, width_ratios=PANEL_WIDTH_RATIOS, wspace=PANEL_SPACING)
+    clip_xlim, clip_ylim, _, _ = umap_view_limits(umap_xy)
+    umap_xlim, umap_ylim, umap_aspect = view_aspect(umap_xy, clip_xlim, clip_ylim)
+    slide_xlim, slide_ylim, slide_aspect = view_aspect(slide_xy)
+
+    ratios = [umap_aspect, slide_aspect, STRATA_PANEL_ASPECT]
+    margins = GRID_MARGINS
+    fig_height = AXES_HEIGHT_INCHES / (margins["top"] - margins["bottom"])
+    fig_width = AXES_HEIGHT_INCHES * (sum(ratios) + (len(ratios) - 1) * PANEL_GAP * np.mean(ratios)) / (
+        margins["right"] - margins["left"])
+    fig = plt.figure(figsize=(fig_width, fig_height), facecolor="white")
+    grid = fig.add_gridspec(1, len(ratios), width_ratios=ratios, wspace=PANEL_GAP, **margins)
 
     ax = fig.add_subplot(grid[0])
     ax.scatter(*umap_xy[thin_keep & ~is_target].T, s=UMAP_BACKGROUND_SIZE, c=BACKGROUND_COLOR,
                linewidths=0, rasterized=True)
     ax.scatter(*umap_xy[is_target].T, s=HIGHLIGHT_SIZE, c=HIGHLIGHT_COLOR, edgecolors="black",
                linewidths=0.15, rasterized=True)
-    xlim, ylim, _, _ = umap_view_limits(umap_xy)
-    if xlim is not None:
-        ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
-    ax.set(xticks=[], yticks=[], xlabel="UMAP 1", ylabel="UMAP 2")
-    ax.set_title(f"A  Cohort UMAP: Leiden {cluster} highlighted", loc="left", fontweight="bold")
+    ax.set(xlim=umap_xlim, ylim=umap_ylim, xticks=[], yticks=[], xlabel="UMAP 1", ylabel="UMAP 2")
+    ax.set_title(f"A  Cohort UMAP: Leiden {cluster} highlighted", loc="left", fontweight="bold",
+                 fontsize=TITLE_SIZE)
 
     ax = fig.add_subplot(grid[1])
     ax.scatter(*slide_xy[~slide_target].T, s=SLIDE_BACKGROUND_SIZE, c=BACKGROUND_COLOR,
@@ -205,9 +227,8 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
     ax.scatter(*slide_xy[dropped].T, s=HIGHLIGHT_SIZE, c=UNSAMPLED_COLOR, linewidths=0, rasterized=True)
     ax.scatter(*slide_xy[kept].T, s=HIGHLIGHT_SIZE, c=HIGHLIGHT_COLOR, edgecolors="black", linewidths=0.15,
                rasterized=True)
-    ax.set_aspect("equal")
-    ax.set(xticks=[], yticks=[])
-    ax.set_title(f"B  Same cluster in tissue\n    slide {slide_name}", loc="left", fontweight="bold")
+    ax.set(xlim=slide_xlim, ylim=slide_ylim, xticks=[], yticks=[])
+    ax.set_title(f"B  Leiden {cluster} on CosMx slide", loc="left", fontweight="bold", fontsize=TITLE_SIZE)
     ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label="in anchor cohort"),
                        Patch(facecolor=UNSAMPLED_COLOR, label="not sampled")],
               loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=9)
@@ -224,15 +245,17 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
     ax.text(cap, len(shown) - 0.3, f"cap {cap:,} per stratum", fontsize=9, ha="right", va="bottom")
     ax.set_yticks(list(rows))
     ax.set_yticklabels([f"stratum {name}" for name in shown.index], fontsize=7)
-    ax.set_xlabel(f"cells sampled on slide {slide_name}\n"
+    ax.set_xlabel(f"cells sampled on this slide\n"
                   f"{len(strata) - n_whole} of {len(strata)} strata thinned to the cap, "
                   f"{n_whole} kept whole")
-    ax.set_title("C  Cells sampled per stratum", loc="left", fontweight="bold")
+    ax.set_title("C  Cells sampled per stratum", loc="left", fontweight="bold", fontsize=TITLE_SIZE)
     ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label=f"Leiden {cluster}"),
                        Patch(facecolor=OTHER_BAR_COLOR, label="other cohort clusters")],
               loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False, fontsize=9)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
+    for panel in fig.axes[:2]:
+        panel.set_aspect("equal", adjustable="box")
 
     fig.savefig(path, dpi=PNG_DPI, bbox_inches="tight")
     plt.close(fig)
@@ -320,8 +343,8 @@ def main() -> None:
     strata = slide_strata_table(anchor, slide_name)
     print(f"per-stratum cap (largest stratum count): {cap:,}; slide {slide_name}: {len(strata)} strata, "
           f"{int((strata['n_sampled'] < cap).sum())} below the cap")
-    draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, is_target[on_slide], in_anchor[on_slide],
-                strata, cap, args.cluster, slide_name, Path(f"{args.output_stem}.png"))
+    draw_figure(umap_xy, thin_keep, is_target, slide_xy, is_target[on_slide], in_anchor[on_slide],
+                strata, cap, args.cluster, Path(f"{args.output_stem}.png"))
 
 
 if __name__ == "__main__":
