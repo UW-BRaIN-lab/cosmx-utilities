@@ -46,6 +46,7 @@ UNSAMPLED_COLOR = "#f1dc9c"
 BACKGROUND_COLOR = "#d0d0d0"
 OTHER_BAR_COLOR = "#8c8c8c"
 STRATUM_COLUMN = "slide_cluster"
+HOME_STRATUM_MIN_SHARE = 0.25     # a cluster "lives in" a stratum when it is this share of its sampled cells
 UMAP_BACKGROUND_SIZE = 0.3
 SLIDE_BACKGROUND_SIZE = 0.4
 HIGHLIGHT_SIZE = 5.0
@@ -109,6 +110,29 @@ def slide_strata_table(anchor: pd.DataFrame, slide_name: str) -> pd.DataFrame:
     table = anchor[on_slide].groupby(parts.loc[on_slide, 2].to_numpy()).agg(
         n_sampled=("is_target", "size"), n_target=("is_target", "sum"))
     return table.sort_values("n_sampled", ascending=False)
+
+
+def cluster_survey(anchor: pd.DataFrame, cap: int) -> pd.DataFrame:
+    """Per cohort cluster: where its anchor cells are, and whether its own strata were kept whole.
+
+    `anchor` has one row per anchor cell with `slide_cluster`, and the cohort-wide `leiden`.
+    A cluster's home strata are the per-slide strata where it is at least HOME_STRATUM_MIN_SHARE of
+    the sampled cells; the ones below the cap were kept whole, which is the case the figure is for.
+    """
+    counts = anchor.groupby([STRATUM_COLUMN, "leiden"]).size().unstack(fill_value=0)
+    stratum_total = counts.sum(axis=1)
+    stratum_slide = pd.Series(counts.index, index=counts.index).str.rpartition(PER_SLIDE_MARK)[0]
+    rows = []
+    for cluster in counts.columns:
+        in_stratum = counts[cluster]
+        by_slide = in_stratum.groupby(stratum_slide).sum().sort_values(ascending=False)
+        home = (in_stratum / stratum_total) >= HOME_STRATUM_MIN_SHARE
+        rows.append({"leiden": cluster, "n_anchor_cells": int(in_stratum.sum()),
+                     "top_slide": by_slide.index[0],
+                     "top_slide_share": by_slide.iloc[0] / in_stratum.sum(),
+                     "home_strata": int(home.sum()),
+                     "home_strata_below_cap": int((home & (stratum_total < cap)).sum())})
+    return pd.DataFrame(rows).set_index("leiden")
 
 
 def spatial_columns(obs_columns: pd.Index) -> tuple[str, str]:
@@ -247,6 +271,12 @@ def main() -> None:
     args.output_stem.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(f"{args.output_stem}_sampling_by_cluster.csv")
     cap = sampling_cap(anchor[STRATUM_COLUMN])
+    survey = cluster_survey(anchor.assign(leiden=pd.Series(leiden.to_numpy(), index=cell_ids)
+                                          .reindex(anchor["cell_id"]).to_numpy()), cap)
+    print(f"\nSurvey: where each cohort cluster's anchor cells are, and how many of its home strata "
+          f"(cluster >= {HOME_STRATUM_MIN_SHARE:.0%} of the stratum) fell below the {cap:,} cap:")
+    print(survey.to_string(float_format=lambda value: f"{value:.3f}"))
+    survey.to_csv(f"{args.output_stem}_survey.csv")
     strata = slide_strata_table(anchor, slide_name)
     print(f"per-stratum cap (largest stratum count): {cap:,}; slide {slide_name}: {len(strata)} strata, "
           f"{int((strata['n_sampled'] < cap).sum())} below the cap")

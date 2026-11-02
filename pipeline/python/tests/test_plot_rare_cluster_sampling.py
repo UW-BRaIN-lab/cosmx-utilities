@@ -89,6 +89,15 @@ def test_slide_strata_table_splits_target_and_rest_per_slide():
     assert prcs.slide_strata_table(STRATA, "slideB")["n_sampled"].sum() == 5
 
 
+def test_cluster_survey_finds_home_strata_below_cap():
+    anchor = STRATA.assign(leiden=np.where(STRATA["is_target"], "27", "0"))
+    survey = prcs.cluster_survey(anchor, cap=5)
+    print(survey)
+    assert survey.loc["27", "n_anchor_cells"] == 4 and survey.loc["27", "top_slide"] == "slideA"
+    assert survey.loc["27", "home_strata"] == 2 and survey.loc["27", "home_strata_below_cap"] == 2
+    assert survey.loc["0", "home_strata"] == 3 and survey.loc["0", "home_strata_below_cap"] == 1
+
+
 def test_slide_strata_table_unknown_slide_raises():
     try:
         prcs.slide_strata_table(STRATA, "nope")
