@@ -21,7 +21,8 @@
 #       LABEL_COLORS_BASENAME=insitutree_k27_label_colors.csv POINT_SIZE=0.2 \
 #       sbatch pipeline/slurm/95_celltype_umap.sh
 # LABEL_COLORS_BASENAME (optional, in pipeline/reference/) draws each cell type in its Napari colour,
-# on black, and adds umap_cell_type_hierarchy_celltypes.png; build the table with
+# on black, and adds umap_cell_type_hierarchy_celltypes.png (legend grouped by branch) and
+# umap_cell_type_hierarchy_celltypes_white.png (on white, no branch names); build the table with
 # scripts/napari-label-colors.py. POINT_SIZE (default 1.0) is the scatter marker size; full-cohort
 # runs want ~0.2.
 #

@@ -22,7 +22,8 @@ from scripts/napari-label-colors.py) every cell type takes its Napari colour, so
 slides agree. Those colours are made legible on Napari's black background, so the figures that
 use them are drawn on black: the flat UMAP, the leaf panels, and in hierarchy mode an extra
 <output stem>_celltypes.png with every cell in its type's colour and the legend grouped by branch.
-A label missing from the table stops the run.
+Hierarchy mode also writes <output stem>_celltypes_white.png, the same figure on white with the
+branch names left out of the legend. A label missing from the table stops the run.
 
 Reads a stage-4c cosmx_typed.h5ad (obs has cell_type, obsm has X_umap) in backed mode, so the
 expression matrix is never loaded.
@@ -84,6 +85,9 @@ DARK_BACKGROUND = "black"
 DARK_INK = "white"
 DARK_BACKDROP_MAX_LIGHTNESS = 0.22
 LEGEND_ROWS_PER_COLUMN = 36
+# Half the Napari colours are under 3:1 against white, so on white each legend swatch gets an outline.
+LIGHT_SWATCH_EDGE = "#777777"
+LIGHT_SWATCH_EDGE_WIDTH = 0.5
 
 
 def parse_args() -> argparse.Namespace:
@@ -272,13 +276,34 @@ def plot_compartments(xy, compartments: np.ndarray, colors: dict[str, str], orde
     print(f"Wrote {args.output} ({len(xy):,} cells, {len(present)} compartments)")
 
 
+def celltype_legend(table: pd.DataFrame, colors: dict[str, str], dark: bool,
+                    branch_headers: bool) -> tuple[list, list[str]]:
+    """Legend handles and texts, one per type in table order, each branch's name above its types
+    when `branch_headers`; on white the swatches are outlined."""
+    from matplotlib.lines import Line2D
+
+    edge = {"markeredgewidth": 0} if dark else {"markeredgewidth": LIGHT_SWATCH_EDGE_WIDTH,
+                                                "markeredgecolor": LIGHT_SWATCH_EDGE}
+    handles, texts = [], []
+    for compartment, group in table.groupby("compartment", sort=False):
+        if branch_headers:
+            handles.append(Line2D([], [], linestyle=""))
+            texts.append(compartment.upper())
+        for row in group.itertuples():
+            handles.append(Line2D([0], [0], marker="o", linestyle="", markersize=5,
+                                  markerfacecolor=colors[row.label], **edge))
+            texts.append(f"{row.label}  ({row.n_cells:,})")
+    return handles, texts
+
+
 def plot_celltypes(xy, labels: np.ndarray, table: pd.DataFrame, colors: dict[str, str],
-                   sink_labels: set[str], title: str | None, path: Path, point_size: float) -> None:
-    """Every cell in its type's Napari colour on black; the sink underneath, the rest shuffled on
-    top; the legend lists the types under their branch, in hierarchy order."""
+                   sink_labels: set[str], title: str | None, path: Path, point_size: float,
+                   dark: bool = True, branch_headers: bool = True) -> None:
+    """Every cell in its type's Napari colour (on black when `dark`); the sink underneath, the rest
+    shuffled on top; the legend lists the types in hierarchy order, under their branch name when
+    `branch_headers`."""
     import matplotlib.pyplot as plt
     from matplotlib.colors import to_rgba
-    from matplotlib.lines import Line2D
 
     names = table["label"].tolist()
     rgba = np.array([to_rgba(colors[name]) for name in names])
@@ -296,21 +321,16 @@ def plot_celltypes(xy, labels: np.ndarray, table: pd.DataFrame, colors: dict[str
     if title:
         ax.set_title(title, fontsize=14)
 
-    handles, texts = [], []
-    for compartment, group in table.groupby("compartment", sort=False):
-        handles.append(Line2D([], [], linestyle=""))
-        texts.append(compartment.upper())
-        for row in group.itertuples():
-            handles.append(Line2D([0], [0], marker="o", linestyle="", markersize=5,
-                                  markerfacecolor=colors[row.label], markeredgewidth=0))
-            texts.append(f"{row.label}  ({row.n_cells:,})")
+    handles, texts = celltype_legend(table, colors, dark, branch_headers)
     ax.legend(handles, texts, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False,
               fontsize=7, ncol=-(-len(texts) // LEGEND_ROWS_PER_COLUMN), handletextpad=0.4,
-              labelspacing=0.25, labelcolor=DARK_INK)
-    darken(fig, [ax])
+              labelspacing=0.25, labelcolor=DARK_INK if dark else None)
+    if dark:
+        darken(fig, [ax])
     fig.savefig(path, dpi=PNG_DPI, bbox_inches="tight")
     plt.close(fig)
-    print(f"Wrote {path} ({len(xy):,} cells, {len(names)} types in Napari colours)")
+    print(f"Wrote {path} ({len(xy):,} cells, {len(names)} types in Napari colours, "
+          f"on {'black' if dark else 'white'})")
 
 
 def plot_leaf_panels(xy, labels: np.ndarray, panels: list[str], panel_colors: dict[str, str],
@@ -381,6 +401,9 @@ def plot_hierarchy(xy: np.ndarray, s: pd.Series, args) -> None:
         sink_labels = {label for label, c in label_to_compartment.items() if c == args.sink_label}
         plot_celltypes(xy, labels, table, napari, sink_labels, args.title,
                        Path(f"{stem}_celltypes.png"), args.point_size)
+        plot_celltypes(xy, labels, table, napari, sink_labels, args.title,
+                       Path(f"{stem}_celltypes_white.png"), args.point_size,
+                       dark=False, branch_headers=False)
         panel_colors = {label: napari[label] for label in panels}
     if not panels:
         print(f"No label reaches --min-panel-cells {args.min_panel_cells}; no small-multiples figure")

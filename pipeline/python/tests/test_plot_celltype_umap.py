@@ -210,11 +210,36 @@ def test_napari_colours_add_the_celltype_figure():
         _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--hierarchy", str(tmp / "hierarchy.json"),
                    "--label-colors-csv", str(tmp / "colors.csv"), "--min-panel-cells", "50",
                    "--output", str(tmp / "umap.png")])
-        for name in ("umap.png", "umap_celltypes.png", "umap_leaves.png", "umap_counts.csv"):
+        for name in ("umap.png", "umap_celltypes.png", "umap_celltypes_white.png", "umap_leaves.png",
+                     "umap_counts.csv"):
             assert (tmp / name).stat().st_size > 0, name
+        from PIL import Image
+        corners = {name: Image.open(tmp / name).convert("RGB").getpixel((0, 0))
+                   for name in ("umap_celltypes.png", "umap_celltypes_white.png")}
+        print(f"top-left pixel: {corners}")
+        assert corners == {"umap_celltypes.png": (0, 0, 0), "umap_celltypes_white.png": (255, 255, 255)}
         _run_main(["--h5ad", str(tmp / "typed.h5ad"), "--label-colors-csv", str(tmp / "colors.csv"),
                    "--output", str(tmp / "flat.png")])
         assert (tmp / "flat.png").stat().st_size > 0
+
+
+def test_white_legend_lists_the_types_without_branch_names():
+    """The white figure's legend is the black one's minus the branch-name rows, in the same order,
+    and only its swatches are outlined."""
+    import pandas as pd
+    table = pd.DataFrame({"compartment": ["Glia", "Glia", "Neuron", "Low_signal"],
+                          "label": ["Astrocyte", "OPC", "Excitatory", "Low_signal"],
+                          "n_cells": [300, 40, 250, 400]})
+    colors = dict(zip(table["label"], ["#51F0B2", "#D5DC34", "#F5C242", "#BDF613"]))
+    _, grouped = pcu.celltype_legend(table, colors, dark=True, branch_headers=True)
+    white_handles, flat = pcu.celltype_legend(table, colors, dark=False, branch_headers=False)
+    print(f"black legend: {grouped}\nwhite legend: {flat}")
+    assert grouped == ["GLIA", "Astrocyte  (300)", "OPC  (40)", "NEURON", "Excitatory  (250)",
+                       "LOW_SIGNAL", "Low_signal  (400)"]
+    assert flat == ["Astrocyte  (300)", "OPC  (40)", "Excitatory  (250)", "Low_signal  (400)"]
+    assert all(h.get_markeredgecolor() == pcu.LIGHT_SWATCH_EDGE for h in white_handles)
+    dark_handles, _ = pcu.celltype_legend(table, colors, dark=True, branch_headers=False)
+    assert all(h.get_markeredgewidth() == 0 for h in dark_handles)
 
 
 def test_no_label_above_the_panel_minimum_skips_the_panel_figure():
