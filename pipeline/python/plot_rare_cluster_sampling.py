@@ -55,7 +55,7 @@ SHUFFLE_SEED = 0
 PNG_DPI = 170
 AXES_HEIGHT_INCHES = 5.2         # every panel is this tall; widths follow each panel's data aspect
 STRATA_PANEL_ASPECT = 1.05       # width / height of panel C
-PANEL_GAP = 0.32                 # gridspec wspace: room for panel C's stratum labels
+PANEL_GAP = 0.2                  # gridspec wspace: room for panel C's stratum labels
 GRID_MARGINS = dict(left=0.03, right=0.99, bottom=0.2, top=0.9)
 VIEW_MARGIN = 0.02
 TITLE_SIZE = 12
@@ -245,7 +245,7 @@ def draw_figure(umap_xy, thin_keep, is_target, slide_xy, slide_target, slide_in_
     ax.text(cap, len(shown) - 0.3, f"cap {cap:,} per stratum", fontsize=9, ha="right", va="bottom")
     ax.set_yticks(list(rows))
     ax.set_yticklabels([f"stratum {name}" for name in shown.index], fontsize=7)
-    ax.set_xlabel(f"cells sampled on this slide\n"
+    ax.set_xlabel(f"cells sampled on this CosMx slide\n"
                   f"{len(strata) - n_whole} of {len(strata)} strata thinned to the cap, "
                   f"{n_whole} kept whole")
     ax.set_title("C  Cells sampled per stratum", loc="left", fontweight="bold", fontsize=TITLE_SIZE)
