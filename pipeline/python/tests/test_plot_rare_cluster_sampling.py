@@ -98,6 +98,32 @@ def test_cluster_survey_finds_home_strata_below_cap():
     assert survey.loc["0", "home_strata"] == 3 and survey.loc["0", "home_strata_below_cap"] == 1
 
 
+def test_cluster_slide_survey_ranks_slides_by_cells_kept_whole():
+    anchor = STRATA.assign(leiden=np.where(STRATA["is_target"], "27", "0"))
+    table = prcs.cluster_slide_survey(anchor, "27", cap=5)
+    print(table)
+    assert list(table.index) == ["slideA"]            # slideB has no cluster-27 cells
+    assert table.loc["slideA", "home_strata_kept_whole"] == 2
+    assert table.loc["slideA", "cells_in_kept_whole"] == 4
+
+
+def test_cluster_cells_by_fov_parses_fov_from_cell_id():
+    ids = pd.Index(["s1_F1_C1", "s1_F1_C2", "s1_F12_C3", "s2_F1_C1", "s1_F12_C4"])
+    slides = pd.Series(["s1", "s1", "s1", "s2", "s1"])
+    target = np.array([True, True, True, False, True])
+    sampled = np.array([True, False, True, True, False])
+    table = prcs.cluster_cells_by_fov(ids, slides, target, sampled)
+    print(table)
+    assert table.loc[("s1", 1), "n_cluster"] == 2 and table.loc[("s1", 1), "n_sampled"] == 1
+    assert table.loc[("s1", 12), "n_cluster"] == 2 and table.loc[("s1", 12), "n_sampled"] == 1
+    assert ("s2", 1) not in table.index
+    try:
+        prcs.cluster_cells_by_fov(pd.Index(["bad_id"]), pd.Series(["s1"]), np.array([True]), np.array([True]))
+    except ValueError:
+        return
+    raise AssertionError("an id without _F<fov>_C<cell> must raise")
+
+
 def test_slide_strata_table_unknown_slide_raises():
     try:
         prcs.slide_strata_table(STRATA, "nope")

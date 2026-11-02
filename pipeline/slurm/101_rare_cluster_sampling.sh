@@ -86,7 +86,7 @@ apptainer exec \
         "${SLIDE_ARGS[@]}" \
         --output-stem "$WORK/rare_cluster_${CLUSTER}"
 
-cp "$WORK"/rare_cluster_"${CLUSTER}"*.png "$WORK"/rare_cluster_"${CLUSTER}"_sampling_by_cluster.csv "$OUT_DIR/"
+cp "$WORK"/rare_cluster_"${CLUSTER}"*.png "$WORK"/rare_cluster_"${CLUSTER}"_*.csv "$OUT_DIR/"
 s5cmd cp "$WORK/rare_cluster_${CLUSTER}*" "${BASE}/${ANCHOR}/anchor/"
 
 echo "Done. Left in ${OUT_DIR} (and on Kopah under ${ANCHOR}/anchor/)."

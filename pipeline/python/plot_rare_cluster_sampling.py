@@ -40,6 +40,7 @@ from plot_qc import umap_view_limits
 from prep_insitucnv_input import SPATIAL_CANDIDATES
 
 MIN_ANCHOR_OVERLAP = 0.95        # anchor cells are a subset of the typed run, so expect ~1.0
+FOV_FROM_CELL_ID = r"_F(\d+)_C\d+$"
 PER_SLIDE_MARK = "|"             # the slide|n separator in anchor_cells.csv's cluster column
 HIGHLIGHT_COLOR = "#e0a800"
 UNSAMPLED_COLOR = "#f1dc9c"
@@ -112,6 +113,13 @@ def slide_strata_table(anchor: pd.DataFrame, slide_name: str) -> pd.DataFrame:
     return table.sort_values("n_sampled", ascending=False)
 
 
+def stratum_composition(anchor: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """Sampled cells per (stratum x cohort cluster), per-stratum totals, and each stratum's slide."""
+    counts = anchor.groupby([STRATUM_COLUMN, "leiden"]).size().unstack(fill_value=0)
+    stratum_slide = pd.Series(counts.index, index=counts.index).str.rpartition(PER_SLIDE_MARK)[0]
+    return counts, counts.sum(axis=1), stratum_slide
+
+
 def cluster_survey(anchor: pd.DataFrame, cap: int) -> pd.DataFrame:
     """Per cohort cluster: where its anchor cells are, and whether its own strata were kept whole.
 
@@ -119,9 +127,7 @@ def cluster_survey(anchor: pd.DataFrame, cap: int) -> pd.DataFrame:
     A cluster's home strata are the per-slide strata where it is at least HOME_STRATUM_MIN_SHARE of
     the sampled cells; the ones below the cap were kept whole, which is the case the figure is for.
     """
-    counts = anchor.groupby([STRATUM_COLUMN, "leiden"]).size().unstack(fill_value=0)
-    stratum_total = counts.sum(axis=1)
-    stratum_slide = pd.Series(counts.index, index=counts.index).str.rpartition(PER_SLIDE_MARK)[0]
+    counts, stratum_total, stratum_slide = stratum_composition(anchor)
     rows = []
     for cluster in counts.columns:
         in_stratum = counts[cluster]
@@ -133,6 +139,35 @@ def cluster_survey(anchor: pd.DataFrame, cap: int) -> pd.DataFrame:
                      "home_strata": int(home.sum()),
                      "home_strata_below_cap": int((home & (stratum_total < cap)).sum())})
     return pd.DataFrame(rows).set_index("leiden")
+
+
+def cluster_slide_survey(anchor: pd.DataFrame, cluster: str, cap: int) -> pd.DataFrame:
+    """One row per slide for one cluster, best slide for the 'kept whole' story first."""
+    counts, stratum_total, stratum_slide = stratum_composition(anchor)
+    in_stratum = counts[cluster]
+    home = (in_stratum / stratum_total) >= HOME_STRATUM_MIN_SHARE
+    kept_whole = home & (stratum_total < cap)
+    per_stratum = pd.DataFrame({"slide": stratum_slide, "anchor_cells": in_stratum, "home": home,
+                                "kept_whole": kept_whole,
+                                "cells_in_kept_whole": in_stratum.where(kept_whole, 0)})
+    per_slide = per_stratum.groupby("slide").agg(
+        anchor_cells=("anchor_cells", "sum"), home_strata=("home", "sum"),
+        home_strata_kept_whole=("kept_whole", "sum"), cells_in_kept_whole=("cells_in_kept_whole", "sum"))
+    return per_slide[per_slide["anchor_cells"] > 0].sort_values(
+        ["cells_in_kept_whole", "anchor_cells"], ascending=False)
+
+
+def cluster_cells_by_fov(cell_ids: pd.Index, slide_ids: pd.Series, is_target: np.ndarray,
+                         in_anchor: np.ndarray) -> pd.DataFrame:
+    """The highlighted cluster's cells and anchor cells per (slide, FOV), to join to FOV annotations."""
+    fov = pd.Series(cell_ids[is_target]).str.extract(FOV_FROM_CELL_ID)[0]
+    if fov.isna().any():
+        raise ValueError(f"{int(fov.isna().sum()):,} cell ids do not end in _F<fov>_C<cell> "
+                         f"(first: {cell_ids[is_target][fov.isna().to_numpy()][0]!r})")
+    table = pd.DataFrame({"slide_id": slide_ids[is_target].to_numpy(), "fov": fov.astype(int).to_numpy(),
+                          "in_anchor": in_anchor[is_target]})
+    return table.groupby(["slide_id", "fov"]).agg(n_cluster=("in_anchor", "size"),
+                                                  n_sampled=("in_anchor", "sum"))
 
 
 def spatial_columns(obs_columns: pd.Index) -> tuple[str, str]:
@@ -271,12 +306,17 @@ def main() -> None:
     args.output_stem.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(f"{args.output_stem}_sampling_by_cluster.csv")
     cap = sampling_cap(anchor[STRATUM_COLUMN])
-    survey = cluster_survey(anchor.assign(leiden=pd.Series(leiden.to_numpy(), index=cell_ids)
-                                          .reindex(anchor["cell_id"]).to_numpy()), cap)
+    anchor["leiden"] = pd.Series(leiden.to_numpy(), index=cell_ids).reindex(anchor["cell_id"]).to_numpy()
+    survey = cluster_survey(anchor, cap)
     print(f"\nSurvey: where each cohort cluster's anchor cells are, and how many of its home strata "
           f"(cluster >= {HOME_STRATUM_MIN_SHARE:.0%} of the stratum) fell below the {cap:,} cap:")
     print(survey.to_string(float_format=lambda value: f"{value:.3f}"))
     survey.to_csv(f"{args.output_stem}_survey.csv")
+    slide_survey = cluster_slide_survey(anchor, args.cluster, cap)
+    print(f"\nLeiden {args.cluster} by slide, best 'kept whole' slides first:")
+    print(slide_survey.head(15).to_string())
+    slide_survey.to_csv(f"{args.output_stem}_by_slide.csv")
+    cluster_cells_by_fov(cell_ids, slide_ids, is_target, in_anchor).to_csv(f"{args.output_stem}_by_fov.csv")
     strata = slide_strata_table(anchor, slide_name)
     print(f"per-stratum cap (largest stratum count): {cap:,}; slide {slide_name}: {len(strata)} strata, "
           f"{int((strata['n_sampled'] < cap).sum())} below the cap")
