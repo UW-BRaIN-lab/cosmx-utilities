@@ -42,6 +42,7 @@ from prep_insitucnv_input import SPATIAL_CANDIDATES
 MIN_ANCHOR_OVERLAP = 0.95        # anchor cells are a subset of the typed run, so expect ~1.0
 PER_SLIDE_MARK = "|"             # the slide|n separator in anchor_cells.csv's cluster column
 HIGHLIGHT_COLOR = "#e0a800"
+UNSAMPLED_COLOR = "#f1dc9c"
 BACKGROUND_COLOR = "#d0d0d0"
 OTHER_BAR_COLOR = "#8c8c8c"
 STRATUM_COLUMN = "slide_cluster"
@@ -52,7 +53,7 @@ SHUFFLE_SEED = 0
 PNG_DPI = 170
 FIGURE_SIZE = (17, 6.2)
 PANEL_WIDTH_RATIOS = [1, 1, 1.05]
-PANEL_SPACING = 0.42
+PANEL_SPACING = 0.5
 
 
 def anchor_membership(cell_ids: pd.Index, anchor_ids: pd.Series) -> np.ndarray:
@@ -142,14 +143,14 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
                linewidths=0, rasterized=True)
     kept = slide_target & slide_in_anchor
     dropped = slide_target & ~slide_in_anchor
-    ax.scatter(*slide_xy[kept].T, s=HIGHLIGHT_SIZE, c=HIGHLIGHT_COLOR, edgecolors="black", linewidths=0.15)
-    ax.scatter(*slide_xy[dropped].T, s=HIGHLIGHT_SIZE, facecolors="none", edgecolors=HIGHLIGHT_COLOR,
-               linewidths=0.6)
+    ax.scatter(*slide_xy[dropped].T, s=HIGHLIGHT_SIZE, c=UNSAMPLED_COLOR, linewidths=0, rasterized=True)
+    ax.scatter(*slide_xy[kept].T, s=HIGHLIGHT_SIZE, c=HIGHLIGHT_COLOR, edgecolors="black", linewidths=0.15,
+               rasterized=True)
     ax.set_aspect("equal")
     ax.set(xticks=[], yticks=[])
-    ax.set_title(f"B  Slide {slide_name}: same cluster in tissue", loc="left", fontweight="bold")
+    ax.set_title(f"B  Same cluster in tissue\n    slide {slide_name}", loc="left", fontweight="bold")
     ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label="in anchor cohort"),
-                       Patch(facecolor="none", edgecolor=HIGHLIGHT_COLOR, label="not sampled")],
+                       Patch(facecolor=UNSAMPLED_COLOR, label="not sampled")],
               loc="upper center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=9)
 
     ax = fig.add_subplot(grid[2])
@@ -162,12 +163,12 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
     ax.axvline(cap, color="black", linestyle="--", linewidth=1)
     n_whole = int((strata["n_sampled"] < cap).sum())
     ax.text(cap, len(shown) - 0.3, f"cap {cap:,} per stratum", fontsize=9, ha="right", va="bottom")
-    ax.text(0.88, 0.02, f"{n_whole} of {len(strata)} strata below the cap\n(all their cells kept)",
-            transform=ax.transAxes, fontsize=9, ha="right", va="bottom")
     ax.set_yticks(list(rows))
     ax.set_yticklabels([f"stratum {name}" for name in shown.index], fontsize=7)
-    ax.set_xlabel(f"cells sampled on slide {slide_name}")
-    ax.set_title("C  Per-slide strata sampled into the anchor cohort", loc="left", fontweight="bold")
+    ax.set_xlabel(f"cells sampled on slide {slide_name}\n"
+                  f"{len(strata) - n_whole} of {len(strata)} strata thinned to the cap, "
+                  f"{n_whole} kept whole")
+    ax.set_title("C  Cells sampled per per-slide stratum", loc="left", fontweight="bold")
     ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label=f"Leiden {cluster}"),
                        Patch(facecolor=OTHER_BAR_COLOR, label="other cohort clusters")],
               loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False, fontsize=9)
