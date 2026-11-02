@@ -227,7 +227,7 @@ def draw_figure(umap_xy, thin_keep, is_target, in_anchor, slide_xy, slide_target
     ax.set_xlabel(f"cells sampled on slide {slide_name}\n"
                   f"{len(strata) - n_whole} of {len(strata)} strata thinned to the cap, "
                   f"{n_whole} kept whole")
-    ax.set_title("C  Cells sampled per per-slide stratum", loc="left", fontweight="bold")
+    ax.set_title("C  Cells sampled per stratum", loc="left", fontweight="bold")
     ax.legend(handles=[Patch(facecolor=HIGHLIGHT_COLOR, edgecolor="black", label=f"Leiden {cluster}"),
                        Patch(facecolor=OTHER_BAR_COLOR, label="other cohort clusters")],
               loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False, fontsize=9)
