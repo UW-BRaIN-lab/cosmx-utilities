@@ -12,7 +12,9 @@
 #   SLIDE           slide for panel B (default: the slide with most cells of the cluster).
 #   TYPED_DIR       Kopah sub-dir with the typed AnnData (default stage4_insitutree).
 #   TYPED_BASENAME  default cosmx_typed.h5ad.
-#   STAGE4_DIR      Kopah sub-dir holding anchor/anchor_cells.csv (default stage4_anchor).
+#   ANCHOR_DIR      Kopah sub-dir holding anchor/anchor_cells.csv (default stage4_anchor). Deliberately not
+#                   STAGE4_DIR: that one is re-pointed per typing variant (e.g. stage4_insitutree_k27), but the
+#                   anchor cohort itself was drawn once.
 #   OUT_DIR         where the PNG and CSV are left on Klone (default $HOME/rare_cluster_sampling).
 
 #SBATCH --job-name=cosmx-rare-cluster
@@ -50,7 +52,7 @@ set +a
 : "${CLUSTER:?set CLUSTER to the cohort-wide Leiden cluster, e.g. CLUSTER=21 sbatch ...}"
 TYPED="${TYPED_DIR:-stage4_insitutree}"
 TYPED_BASENAME="${TYPED_BASENAME:-cosmx_typed.h5ad}"
-STAGE4="${STAGE4_DIR:-stage4_anchor}"
+ANCHOR="${ANCHOR_DIR:-stage4_anchor}"
 OUT_DIR="${OUT_DIR:-$HOME/rare_cluster_sampling}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -66,7 +68,7 @@ BASE="s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}"
 
 echo "Staging the typed AnnData and the anchor cohort's cell list..."
 s5cmd cp "${BASE}/${TYPED}/${TYPED_BASENAME}" "$WORK/typed.h5ad"
-s5cmd cp "${BASE}/${STAGE4}/anchor/anchor_cells.csv" "$WORK/anchor_cells.csv"
+s5cmd cp "${BASE}/${ANCHOR}/anchor/anchor_cells.csv" "$WORK/anchor_cells.csv"
 
 SLIDE_ARGS=()
 if [[ -n "${SLIDE:-}" ]]; then
@@ -85,6 +87,6 @@ apptainer exec \
         --output-stem "$WORK/rare_cluster_${CLUSTER}"
 
 cp "$WORK"/rare_cluster_"${CLUSTER}"*.png "$WORK"/rare_cluster_"${CLUSTER}"_sampling_by_cluster.csv "$OUT_DIR/"
-s5cmd cp "$WORK/rare_cluster_${CLUSTER}*" "${BASE}/${STAGE4}/anchor/"
+s5cmd cp "$WORK/rare_cluster_${CLUSTER}*" "${BASE}/${ANCHOR}/anchor/"
 
-echo "Done. Left in ${OUT_DIR} (and on Kopah under ${STAGE4}/anchor/)."
+echo "Done. Left in ${OUT_DIR} (and on Kopah under ${ANCHOR}/anchor/)."
