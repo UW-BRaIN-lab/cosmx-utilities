@@ -1,7 +1,11 @@
 # Maddie's SORL1 MTG cohort: typed AnnData (InSituTree v5)
 
-`stage4_insitutree_k21_v5/cosmx_typed.h5ad` under the cohort's Kopah prefix (`cosmx-maddie-sorl1`):
-`s3://$KOPAH_BUCKET/cosmx-maddie-sorl1/stage4_insitutree_k21_v5/cosmx_typed.h5ad`. About 1.7 GB (gzip).
+One file, about 1.7 GB (gzip), in two places:
+
+- **Lab Kopah** (needs the lab's Kopah keys): `s3://$KOPAH_BUCKET/cosmx-maddie-sorl1/stage4_insitutree_k21_v5/cosmx_typed.h5ad`
+- **Shared S3, for collaborators without Kopah access**, beside the run's raw export, with this README next to it:
+  `s3://keene-cosmx-data/CosMx-Maddie/20261002_SORL1_3D_40donors_05_10_2026_17_07_58_724/cosmx_typed_insitutree_v5.h5ad`
+  and `.../cosmx_typed_insitutree_v5_README.md`. The files are byte-identical copies of the Kopah ones under these names.
 
 793,380 cells that passed QC, 40 donors, 10 slides, with the InSituTree v5 cell types in `obs`. It is the stage-3 clustered AnnData
 plus the typing, so it holds expression, Leiden clusters and the UMAP as well.
@@ -9,7 +13,10 @@ plus the typing, so it holds expression, Leiden clusters and the UMAP as well.
 ## Load it
 
 ```bash
-# needs the lab's Kopah keys (S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+# from the shared S3 (the usual AWS credentials for the keene-cosmx-data bucket)
+aws s3 cp "s3://keene-cosmx-data/CosMx-Maddie/20261002_SORL1_3D_40donors_05_10_2026_17_07_58_724/cosmx_typed_insitutree_v5.h5ad" cosmx_typed.h5ad
+
+# or from Kopah (needs the lab's Kopah keys: S3_ENDPOINT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
 s5cmd cp "s3://$KOPAH_BUCKET/cosmx-maddie-sorl1/stage4_insitutree_k21_v5/cosmx_typed.h5ad" .
 ```
 
