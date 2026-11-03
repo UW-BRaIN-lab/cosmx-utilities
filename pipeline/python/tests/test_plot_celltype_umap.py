@@ -78,6 +78,23 @@ def test_diffuse_tails_alone_can_cross_the_threshold():
     assert n_outside / len(xy) < 0.02
 
 
+def test_napari_colours_match_the_shared_colour_rule_and_are_legible_on_black():
+    sys.path.insert(0, str(_PY_DIR.parents[1] / "scripts"))
+    import napari_colors as nc
+    from matplotlib.colors import to_hex
+    labels = ["Excitatory_L4_5_IT_like", "Microglia A", "Vascular"]
+    colors = pcu.category_colors(labels, napari=True)
+    print([to_hex(c) for c in colors])
+    assert [to_hex(c).upper() for c in colors] == [nc.deterministic_color(label) for label in labels]
+    assert all(nc.contrast_against_black(to_hex(c)) >= nc.MIN_CONTRAST_AGAINST_BLACK - 0.02 for c in colors)
+
+
+def test_default_colours_are_distinct_tab20_maps():
+    colors = pcu.category_colors([f"type{i}" for i in range(24)], napari=False)
+    assert colors.shape == (24, 4)
+    assert len({tuple(c) for c in colors}) == 24
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

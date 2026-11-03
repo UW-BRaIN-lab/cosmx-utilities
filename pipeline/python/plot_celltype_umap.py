@@ -14,8 +14,12 @@ otherwise squash the manifold into a few pixels - the same failure the stage-3c 
 Outliers are reported on stdout, never silently dropped: they stay in the counts and the
 legend, they just fall outside the drawn view.
 
-Memory: loads the full typed AnnData (~3.6GB at cohort scale) — run in a Slurm/salloc
-job (e.g. via 95_celltype_umap.sh), not on a login node.
+Only obs and obsm are read (the AnnData is opened backed), so the multi-GB expression matrix is
+never loaded and this runs on a laptop.
+
+--napari-colors gives each label the colour it has in Napari (scripts/napari_colors.py, which needs
+duckdb), so the UMAP and the viewer agree; --dark draws on black, the background those colours were
+made legible against.
 
 Usage:
     uv run python pipeline/python/plot_celltype_umap.py \\
@@ -50,7 +54,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--umap-key", default="X_umap", help="obsm key with the 2D embedding.")
     p.add_argument("--title", default=None, help="Plot title.")
     p.add_argument("--point-size", type=float, default=1.0)
+    p.add_argument("--napari-colors", action="store_true",
+                   help="Colour each label as Napari does (shared hash colour, lightened if too dark for black).")
+    p.add_argument("--dark", action="store_true", help="Black background with light text.")
     return p.parse_args()
+
+
+def category_colors(labels: list[str], napari: bool) -> np.ndarray:
+    """RGBA per label: Napari's colour for the label, or three tab20 maps combined (up to 60 distinct)."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgba
+    if napari:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+        from napari_colors import deterministic_color
+        return np.array([to_rgba(deterministic_color(label)) for label in labels])
+    base = []
+    for name in ("tab20", "tab20b", "tab20c"):
+        base += [plt.get_cmap(name)(i) for i in range(20)]
+    return np.array([base[i % len(base)] for i in range(len(labels))])
 
 
 def main() -> None:
@@ -61,7 +82,7 @@ def main() -> None:
     from matplotlib.lines import Line2D
 
     print(f"Reading {args.h5ad}")
-    adata = ad.read_h5ad(args.h5ad)
+    adata = ad.read_h5ad(args.h5ad, backed="r")
     if args.umap_key not in adata.obsm:
         print(f"ERROR: obsm['{args.umap_key}'] missing.", file=sys.stderr); sys.exit(1)
     if args.color_key not in adata.obs:
@@ -81,16 +102,14 @@ def main() -> None:
     labels = list(s.cat.categories)
     counts = Counter(s)
 
-    # Distinct colour per category (combine three tab20 maps for up to 60).
-    base = []
-    for name in ("tab20", "tab20b", "tab20c"):
-        base += [plt.get_cmap(name)(i) for i in range(20)]
-    colors = np.array([base[i % len(base)] for i in range(len(labels))])
+    colors = category_colors(labels, args.napari_colors)
     point_colors = colors[codes]
+    text_color = "white" if args.dark else "black"
 
     # Plot points in shuffled order so no single type is drawn on top.
     order = np.random.RandomState(0).permutation(len(codes))
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(12, 8), facecolor="black" if args.dark else "white")
+    ax.set_facecolor("black" if args.dark else "white")
     ax.scatter(xy[order, 0], xy[order, 1], c=point_colors[order],
                s=args.point_size, linewidths=0, rasterized=True)
     xlim, ylim, n_outside, ratio = umap_view_limits(xy)
@@ -102,19 +121,21 @@ def main() -> None:
     for sp in ax.spines.values():
         sp.set_visible(False)
     if args.title:
-        ax.set_title(args.title, fontsize=14)
+        ax.set_title(args.title, fontsize=14, color=text_color)
 
     # Legend outside, one row per type, sorted by abundance (most cells first).
     by_count = sorted(range(len(labels)), key=lambda i: -counts[labels[i]])
     handles = [Line2D([0], [0], marker="o", linestyle="", markersize=6,
                       markerfacecolor=colors[i], markeredgewidth=0) for i in by_count]
     leg = [f"{labels[i]}  ({counts[labels[i]]:,})" for i in by_count]
-    ax.legend(handles, leg, loc="center left", bbox_to_anchor=(1.01, 0.5),
-              ncol=1 if len(labels) <= 36 else 2, fontsize=8, frameon=False,
-              handletextpad=0.4, labelspacing=0.3)
+    legend = ax.legend(handles, leg, loc="center left", bbox_to_anchor=(1.01, 0.5),
+                       ncol=1 if len(labels) <= 36 else 2, fontsize=8, frameon=False,
+                       handletextpad=0.4, labelspacing=0.3)
+    for text in legend.get_texts():
+        text.set_color(text_color)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(args.output, dpi=150, bbox_inches="tight")
+    fig.savefig(args.output, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     print(f"Wrote {args.output} ({adata.n_obs:,} cells, {len(labels)} types)")
 
 
