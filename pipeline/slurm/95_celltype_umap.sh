@@ -14,6 +14,18 @@
 # label its clusters with the GBM annotations. The retina run is:
 #   RUN=stage4 ANNOTATION_TABLE=retina_stage4 sbatch pipeline/slurm/95_celltype_umap.sh
 #
+# InSituTree runs: set HIERARCHY_BASENAME (a file in pipeline/reference/) instead. Its leaves are
+# already names, so no annotation table is read; the job writes the compartment UMAP, the
+# per-leaf small multiples and the counts table (umap_cell_type_hierarchy*):
+#   RUN=stage4_insitutree_k27 HIERARCHY_BASENAME=insitutree_hierarchy_k27.json \
+#       LABEL_COLORS_BASENAME=insitutree_k27_label_colors.csv POINT_SIZE=0.2 \
+#       sbatch pipeline/slurm/95_celltype_umap.sh
+# LABEL_COLORS_BASENAME (optional, in pipeline/reference/) draws each cell type in its Napari colour,
+# on black, and adds umap_cell_type_hierarchy_celltypes.png (legend grouped by branch) and
+# umap_cell_type_hierarchy_celltypes_white.png (on white, no branch names); build the table with
+# scripts/napari-label-colors.py. POINT_SIZE (default 1.0) is the scatter marker size; full-cohort
+# runs want ~0.2.
+#
 # Required env (from pipeline/.env): KOPAH_*, APPTAINER_RSC.
 
 #SBATCH --job-name=cosmx-celltype-umap
@@ -48,8 +60,22 @@ source "${PIPELINE_DIR}/.env"
 set +a
 
 RUN="${RUN:?set RUN to the Kopah sub-prefix for the run, e.g. stage4_extl3_rescale}"
-MAPPING="${PIPELINE_DIR}/reference/denovo_annotations/${ANNOTATION_TABLE:-$RUN}.csv"
-[[ -f "$MAPPING" ]] || { echo "ERROR: no annotation table $MAPPING" >&2; exit 1; }
+if [[ -n "${HIERARCHY_BASENAME:-}" ]]; then
+    HIERARCHY="${PIPELINE_DIR}/reference/${HIERARCHY_BASENAME}"
+    [[ -f "$HIERARCHY" ]] || { echo "ERROR: no hierarchy $HIERARCHY" >&2; exit 1; }
+    OUTPUT_STEM="umap_cell_type_hierarchy"
+    MODE_ARGS=(--hierarchy "$HIERARCHY")
+else
+    MAPPING="${PIPELINE_DIR}/reference/denovo_annotations/${ANNOTATION_TABLE:-$RUN}.csv"
+    [[ -f "$MAPPING" ]] || { echo "ERROR: no annotation table $MAPPING" >&2; exit 1; }
+    OUTPUT_STEM="umap_cell_type_annotated"
+    MODE_ARGS=(--mapping "$MAPPING")
+fi
+if [[ -n "${LABEL_COLORS_BASENAME:-}" ]]; then
+    LABEL_COLORS="${PIPELINE_DIR}/reference/${LABEL_COLORS_BASENAME}"
+    [[ -f "$LABEL_COLORS" ]] || { echo "ERROR: no label colour table $LABEL_COLORS" >&2; exit 1; }
+    MODE_ARGS+=(--label-colors-csv "$LABEL_COLORS")
+fi
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -70,12 +96,13 @@ apptainer exec \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/plot_celltype_umap.py" \
         --h5ad "$WORK/typed.h5ad" \
-        --mapping "$MAPPING" \
-        --output "$WORK/umap_cell_type_annotated.png" \
+        "${MODE_ARGS[@]}" \
+        --point-size "${POINT_SIZE:-1.0}" \
+        --output "$WORK/${OUTPUT_STEM}.png" \
         --title "${RUN}"
 
-echo "Uploading annotated UMAP to Kopah..."
-s5cmd cp "$WORK/umap_cell_type_annotated.png" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${RUN}/qc_plots/umap_cell_type_annotated.png"
+echo "Uploading cell-type UMAP to Kopah..."
+s5cmd cp "$WORK/${OUTPUT_STEM}*" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${RUN}/qc_plots/"
 
-echo "Done: annotated cell-type UMAP for ${RUN}"
+echo "Done: cell-type UMAP for ${RUN}"
