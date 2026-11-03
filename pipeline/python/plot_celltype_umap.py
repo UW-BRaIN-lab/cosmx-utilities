@@ -21,6 +21,9 @@ never loaded and this runs on a laptop.
 duckdb), so the UMAP and the viewer agree; --dark draws on black, the background those colours were
 made legible against.
 
+--panels-output also writes a grid with one small panel per label (that label coloured, every other cell
+faint grey), so small populations hidden under big ones in the single plot can be found.
+
 Usage:
     uv run python pipeline/python/plot_celltype_umap.py \\
         --h5ad cosmx_typed.h5ad --output umap_cell_type_annotated.png \\
@@ -57,7 +60,50 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--napari-colors", action="store_true",
                    help="Colour each label as Napari does (shared hash colour, lightened if too dark for black).")
     p.add_argument("--dark", action="store_true", help="Black background with light text.")
+    p.add_argument("--panels-output", type=Path, default=None,
+                   help="Also write a grid PNG with one panel per label, most cells first.")
     return p.parse_args()
+
+
+PANEL_COLUMNS = 6
+PANEL_SIZE_INCHES = 3.0
+PANEL_BACKGROUND_CELLS = 60_000     # faint context drawn in every panel; all cells would be 24x the work
+PANEL_BACKGROUND_COLOR = "#303030"
+PANEL_BACKGROUND_COLOR_LIGHT = "#d8d8d8"
+
+
+def draw_panels(xy: np.ndarray, codes: np.ndarray, labels: list[str], colors: np.ndarray, counts: Counter,
+                limits: tuple, output: Path, title: str | None, dark: bool, point_size: float) -> None:
+    """One small panel per label, most cells first: that label in its colour over faint grey context."""
+    import matplotlib.pyplot as plt
+    text_color = "white" if dark else "black"
+    background = "black" if dark else "white"
+    context_color = PANEL_BACKGROUND_COLOR if dark else PANEL_BACKGROUND_COLOR_LIGHT
+    order = sorted(range(len(labels)), key=lambda i: -counts[labels[i]])
+    n_rows = -(-len(order) // PANEL_COLUMNS)
+    fig, axes = plt.subplots(n_rows, PANEL_COLUMNS, figsize=(PANEL_COLUMNS * PANEL_SIZE_INCHES, n_rows * PANEL_SIZE_INCHES),
+                             facecolor=background, squeeze=False)
+    rng = np.random.RandomState(0)
+    context = rng.choice(len(codes), size=min(PANEL_BACKGROUND_CELLS, len(codes)), replace=False)
+    xlim, ylim = limits
+    for ax in axes.ravel():
+        ax.set_axis_off()
+    for ax, label_index in zip(axes.ravel(), order):
+        ax.set_facecolor(background)
+        ax.scatter(xy[context, 0], xy[context, 1], c=context_color, s=point_size, linewidths=0, rasterized=True)
+        in_label = np.flatnonzero(codes == label_index)
+        ax.scatter(xy[in_label, 0], xy[in_label, 1], color=colors[label_index], s=point_size * 2, linewidths=0,
+                   rasterized=True)
+        if xlim is not None:
+            ax.set_xlim(*xlim); ax.set_ylim(*ylim)
+        ax.set_title(f"{labels[label_index]}\n({counts[labels[label_index]]:,})", fontsize=8, color=text_color)
+        ax.set_axis_off()
+    if title:
+        fig.suptitle(title, fontsize=14, color=text_color)
+    fig.tight_layout(rect=(0, 0, 1, 0.97 if title else 1))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=130, facecolor=fig.get_facecolor())
+    plt.close(fig)
 
 
 def category_colors(labels: list[str], napari: bool) -> np.ndarray:
@@ -137,6 +183,10 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.output, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
     print(f"Wrote {args.output} ({adata.n_obs:,} cells, {len(labels)} types)")
+    if args.panels_output is not None:
+        draw_panels(xy, codes, labels, colors, counts, (xlim, ylim), args.panels_output, args.title,
+                    args.dark, args.point_size)
+        print(f"Wrote {args.panels_output} ({len(labels)} panels)")
 
 
 if __name__ == "__main__":
