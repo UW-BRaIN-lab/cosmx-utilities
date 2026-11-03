@@ -95,6 +95,31 @@ def test_default_colours_are_distinct_tab20_maps():
     assert len({tuple(c) for c in colors}) == 24
 
 
+def test_panel_grid_has_one_titled_panel_per_label_most_cells_first(tmp_path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from collections import Counter
+    rng = np.random.RandomState(0)
+    labels = ["small", "big", "mid"]
+    codes = np.array([0] * 5 + [1] * 50 + [2] * 20)
+    xy = rng.normal(size=(len(codes), 2))
+    colors = pcu.category_colors(labels, napari=False)
+    captured = {}
+    real_savefig = plt.Figure.savefig
+    plt.Figure.savefig = lambda self, *a, **k: (captured.update(titles=[ax.get_title() for ax in self.axes if ax.get_title()]),
+                                                  real_savefig(self, *a, **k))[1]
+    try:
+        out = tmp_path / "panels.png"
+        pcu.draw_panels(xy, codes, labels, colors, Counter(np.array(labels)[codes]), (None, None), out,
+                        "title", dark=True, point_size=1.0)
+    finally:
+        plt.Figure.savefig = real_savefig
+    print(captured["titles"])
+    assert out.exists() and out.stat().st_size > 0
+    assert captured["titles"] == ["big\n(50)", "mid\n(20)", "small\n(5)"]
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:
