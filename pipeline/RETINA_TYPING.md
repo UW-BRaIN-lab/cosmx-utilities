@@ -455,6 +455,64 @@ Related and also open: correcting `Region` in the pipeline at all requires re-ru
 and `--exclude-regions` drops those cells *before* QC stats, HVG and PCA, which changes the
 clustering and the fit. So it has to happen before InSituTree, not after.
 
+## Proposed: de novo leaves in the hierarchy (PREPARED, awaiting neuropathology sign-off)
+
+The 2026-11-04 sign-off dissolved ten de novo letters on the premise that the hierarchy would
+absorb them into the named types they resembled. The first InSituTree run shows it does not,
+for a reason that was measurable beforehand: **those branches' named profiles never fit this
+data.**
+
+| branch | its named leaves won | the de novo letter won | ratio |
+|---|---|---|---|
+| Retinal_neuron/Ganglion/Other_ganglion | 132 | `n` 15,039 | **113.9x** |
+| Cortical_neuron/Excitatory | 244 | `c,i,k` 23,352 | **95.7x** |
+| Cortical_neuron/Inhibitory | 222 | `r,q` 8,483 | **38.2x** |
+| Vascular/Endothelial | 2,224 | `j` 44,513 | **20.0x** |
+| Myeloid | 2,821 | `f` 48,058 | **17.0x** |
+| Oligodendrocyte_lineage | 15,723 | `h,d` 169,620 | **10.8x** |
+| *Astrocyte — already has de novo leaves* | *6,052* | *`m,s` 147,183* | *24.3x* |
+
+Counts are from the flat InSituType run, where all 83 types competed freely. Forcing cells to
+choose among profiles that lost by these margins does not produce a cautious answer — it
+produces a confident wrong one: `Allen_Deep-layer near-projecting`, a rare L5/L6 subset, took
+**99.5%** of its branch at a posterior of 1.000.
+
+**Do not use the posterior to catch this.** Every contest in that run returned a median
+posterior of 1.000 at the theoretical maximum against chance. A multinomial likelihood over a
+few hundred counts and thousands of genes saturates, so the posterior is 1.0 whether the call
+is right or wrong — including through any `--min-prob` filter. The flat-run count is the test
+that works; `86_insitutree_resolution.sh` with `FLAT_RESULT_BASENAME` computes it.
+
+**The control is in the same run.** `Astrocyte` is this proposal already implemented, and it is
+the healthiest node in the tree: 55.5 / 35.5 between its two de novo leaves, both populations
+surviving. At 24.3x it sits in the middle of the table, so there is no line that includes
+Excitatory and excludes Oligodendrocyte_lineage.
+
+**Prepared, not applied.** The current `retina_stage4.csv` and `retina_hierarchy.json` are left
+alone so the 66-leaf run stays reproducible. The proposal is a parallel pair:
+
+```
+DENOVO_ANNOTATIONS=retina_stage4_denovo_leaves.csv \
+  HIERARCHY_BASENAME=retina_hierarchy_denovo_leaves.json \
+  TREE_PROFILES_BASENAME=retina_insitutree_profiles_denovo_leaves.csv \
+  sbatch pipeline/slurm/84_prep_insitutree_profiles.sh
+```
+
+then 85 with the same `HIERARCHY_BASENAME` and that `TREE_PROFILES_BASENAME`. **76 leaves,
+76 columns, lockstep verified locally.** 12 letters kept, 7 dropped — `a` (low signal), `o`
+(components span several branches), `g`/`b`/`l` (stress state), `e` (incoherent), `p` (9 cells).
+
+**Naming:** annotation first, number last, matching `denovo_astrocyte_1`; numbered only where a
+branch takes more than one, so a unique leaf is not `_1` with no sibling. The finer identity
+(`r` is SST+, `d` is newly-formed oligodendrocyte) stays in the annotations CSV rather than in
+a type name that every downstream table would inherit as a claim.
+
+**This reverses part of her decision, so it is her call.** The justification is new information
+— the tree demonstrably mis-assigned those cells — which is what warrants reopening it. One
+caveat to put to her honestly: a de novo profile wins back the cells it was fit to, so this
+re-derives the InSituType partition rather than testing it. The evidence that these are real
+populations remains the markers and regional distribution, not their size in the tree.
+
 ## Gotchas
 
 **`pipeline/.env` used to OVERWRITE variables you passed on the command line — fixed
