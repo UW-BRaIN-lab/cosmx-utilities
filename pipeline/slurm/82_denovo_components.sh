@@ -22,6 +22,9 @@
 #                                component's nearest reference types (the column that says
 #                                which hierarchy branch it belongs under). Unset = omit.
 #   TOP_REFERENCE=2              nearest reference types to report per component
+#   FOV_ANNOTATIONS_BASENAME=    FOV annotation CSV in pipeline/reference/; drops cells in
+#                                FOVs the SME marked exclude=1 BEFORE anything is measured.
+#                                Set it whenever the result feeds a reference profile.
 #   CLUSTERED_BASENAME=cosmx_clustered.h5ad
 #   RESULT_BASENAME=insitutype_result.h5
 
@@ -103,6 +106,14 @@ if [[ -n "${REFERENCE_BASENAME:-}" ]]; then
     echo "Scoring components against ${REFERENCE_BASENAME}"
 fi
 
+FOV_ARG=()
+if [[ -n "${FOV_ANNOTATIONS_BASENAME:-}" ]]; then
+    FOV_CSV="${PIPELINE_DIR}/reference/${FOV_ANNOTATIONS_BASENAME}"
+    [[ -f "$FOV_CSV" ]] || { echo "ERROR: no such FOV annotations: $FOV_CSV" >&2; exit 1; }
+    FOV_ARG=(--fov-annotations "$FOV_CSV")
+    echo "Dropping SME-excluded FOVs per ${FOV_ANNOTATIONS_BASENAME}"
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -116,6 +127,7 @@ apptainer exec \
         --top-reference "${TOP_REFERENCE:-2}" \
         --out-dir "$WORK/out" \
         ${REFERENCE_ARG[@]+"${REFERENCE_ARG[@]}"} \
+        ${FOV_ARG[@]+"${FOV_ARG[@]}"} \
         "${CLUSTER_ARGS[@]}"
 
 echo "Uploading tables to Kopah (${STAGE4}/denovo_components)..."
