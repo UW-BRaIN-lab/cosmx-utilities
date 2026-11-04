@@ -30,6 +30,9 @@ from pathlib import Path
 
 import anndata as ad
 import h5py
+
+# Sibling module: Python puts this script's directory on sys.path when it is run by path.
+from fov_exclusions import excluded_mask
 import numpy as np
 
 
@@ -38,6 +41,10 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--combined-h5ad", type=Path, required=True,
                    help="Stage-3a combined_qc.h5ad (all probes, var['probe_type']).")
+    p.add_argument("--fov-annotations", type=Path, default=None,
+                   help="fov_annotations.csv; drops cells in FOVs the SME marked exclude=1 "
+                        "before the input is written, so InSituType and InSituTree never "
+                        "see tissue no reference covers. Needs obs slide_id + fov.")
     p.add_argument("--output", type=Path, required=True,
                    help="Output insitutype_input.h5.")
     return p.parse_args()
@@ -60,6 +67,13 @@ def main() -> None:
         print("ERROR: var['probe_type'] missing; was this built by stage 3a?",
               file=sys.stderr)
         sys.exit(1)
+
+    if args.fov_annotations is not None:
+        keep = ~excluded_mask(adata.obs, args.fov_annotations)
+        n_dropped = int((~keep).sum())
+        print(f"Excluding {n_dropped:,} cells in FOVs marked exclude=1 "
+              f"({n_dropped / adata.n_obs * 100:.1f}% of {adata.n_obs:,})")
+        adata = adata[keep.to_numpy()].copy()
 
     gene_mask = (adata.var["probe_type"] == "gene").to_numpy()
     neg_mask = (adata.var["probe_type"] == "negprobe").to_numpy()
