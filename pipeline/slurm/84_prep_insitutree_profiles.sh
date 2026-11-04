@@ -56,9 +56,10 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
+set -a
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/slurm/_load_env.sh"
+source "${PIPELINE_DIR}/.env"
+set +a
 
 STAGE4="${STAGE4_DIR:-stage4}"
 SOURCE_RESULT_BASENAME="${SOURCE_RESULT_BASENAME:-insitutype_result.h5}"
@@ -142,5 +143,7 @@ echo "Uploading ${TREE_PROFILES_BASENAME} to Kopah reference/..."
 s5cmd cp "$WORK/${TREE_PROFILES_BASENAME}" \
     "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${TREE_PROFILES_BASENAME}"
 
-echo "Done. Run 85 with REFERENCE_BASENAME=${TREE_PROFILES_BASENAME} and"
-echo "HIERARCHY_BASENAME=${HIERARCHY_BASENAME}."
+# NOT REFERENCE_BASENAME: .env defines that for the atlas reference and would overwrite it.
+echo "Done. Run 85 with:"
+echo "  TREE_PROFILES_BASENAME=${TREE_PROFILES_BASENAME} \\"
+echo "  HIERARCHY_BASENAME=${HIERARCHY_BASENAME}"
