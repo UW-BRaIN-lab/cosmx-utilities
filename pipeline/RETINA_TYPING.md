@@ -413,6 +413,34 @@ genes vs 369/288). Region-coherent at 84.8% retina, and 91.8% of its Leiden clus
 it is a tight population rather than a slice of a larger one. Its best reference match is only
 0.635, with pericyte 0.004 behind.
 
+**Colouring it in Napari.** `pipeline/reference/napari_splits_retina.csv` breaks it out as its
+own value so the neuropathologist can see it rather than read about it:
+
+```
+label,column,values,new_name
+a,leiden,22,a_deep_retinal
+```
+
+Pass it to the metadata writer with `--split-spec`, and point `--combined-h5ad` at
+**`cosmx_clustered.h5ad`**, not `combined_qc.h5ad` — the split needs `obs['leiden']`, which
+only the clustered file carries:
+
+```
+uv run python scripts/celltypes-to-napari-metadata.py \
+    --typing-h5 insitutree_result.h5 \
+    --combined-h5ad cosmx_clustered.h5ad \
+    --split-spec pipeline/reference/napari_splits_retina.csv \
+    --column insitutree --out-dir retina_napari_insitutree \
+    --merge-into retina_napari_metadata_merged
+```
+
+This rides along with the single deferred `_metadata.csv` regeneration that will also carry
+the InSituTree calls and the corrected `uwa7761eyes` Region — one new file, not three.
+
+A split that matches no cell is a FATAL error, not a warning. The whole point is to make a
+population visible; one that silently moves nothing leaves it indistinguishable from the
+cluster around it, and the output looks entirely normal to whoever opens it.
+
 Deep AND matching nothing is the combination that separates a population the atlases lack from
 a flat low-signal pool: a faint cluster matches nothing BECAUSE it is faint, and this one is not
 faint. It is the strongest candidate in `a` for the sclera / choroidal stroma that §02 of the
