@@ -58,6 +58,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
+# Sibling module: Python puts this script's directory on sys.path when it is run by path,
+# which is how every stage invokes it.
+from fov_exclusions import FOV_COL, SLIDE_COL, drop_excluded_fovs
+
 DEFAULT_PARTITION_COL = "leiden"
 # Same name and default as cluster_batch_entropy.py, so the two read alike.
 DEFAULT_DEPTH_COLS = "total_counts,qc_genes_detected"
@@ -74,10 +78,6 @@ DEFAULT_TOP_REFERENCE = 2
 GENE_PROBE_VALUE = "gene"
 PROBE_TYPE_COL = "probe_type"
 DEFAULT_SCALE_FACTOR = 1e4        # Seurat LogNormalize / scanpy normalize_total default
-SLIDE_COL = "slide_id"
-FOV_COL = "fov"
-# fov_annotations.csv (see pipeline/reference/FOV_ANNOTATIONS.md)
-FOV_SLIDE_COL, FOV_FOV_COL, FOV_EXCLUDE_COL = "slide_id", "fov", "exclude"
 # A shared-gene count below this means the AnnData and the reference are not the same panel.
 MIN_SHARED_GENES = 50
 
@@ -184,44 +184,6 @@ def load_obs(path: Path, required: list[str], optional: list[str]) -> pd.DataFra
         return adata.obs[present].copy()
     finally:
         adata.file.close()
-
-
-def drop_excluded_fovs(df: pd.DataFrame, annotations_csv: Path) -> pd.DataFrame:
-    """Remove cells in FOVs the SME ruled out of analysis, by (slide, FOV).
-
-    Read straight from fov_annotations.csv rather than obs['Region_excluded'], because that
-    column only exists if stage 1 was run with --fov-annotations, and a run predating the
-    SME's exclusions carries the stale AtoMx Region with no exclusion flag at all.
-    """
-    annotations = pd.read_csv(annotations_csv, dtype={FOV_SLIDE_COL: str})
-    for col in (FOV_SLIDE_COL, FOV_FOV_COL, FOV_EXCLUDE_COL):
-        if col not in annotations.columns:
-            sys.exit(f"ERROR: {annotations_csv} has no '{col}' column")
-    missing = [c for c in (SLIDE_COL, FOV_COL) if c not in df.columns]
-    if missing:
-        sys.exit(f"ERROR: obs is missing {missing}, needed to apply --fov-annotations")
-
-    excluded = annotations.loc[annotations[FOV_EXCLUDE_COL].astype(int) == 1]
-    if excluded.empty:
-        print(f"NOTE: {annotations_csv} marks no FOV excluded; nothing dropped")
-        return df
-
-    keys = set(zip(excluded[FOV_SLIDE_COL].astype(str).str.strip(),
-                   excluded[FOV_FOV_COL].astype(int)))
-    in_excluded = pd.Series(
-        list(zip(df[SLIDE_COL].astype(str).str.strip(), df[FOV_COL].astype(int))),
-        index=df.index).isin(keys)
-
-    # Matching nothing means the slide ids or FOV numbering disagree -- which would quietly
-    # produce a contaminated profile, the exact failure this option exists to prevent.
-    if not in_excluded.any():
-        sys.exit(f"ERROR: none of the {len(keys)} excluded (slide, FOV) pairs matched any "
-                 f"cell. obs slides: {sorted(df[SLIDE_COL].astype(str).unique())[:6]}; "
-                 f"annotation slides: {sorted(excluded[FOV_SLIDE_COL].unique())[:6]}")
-
-    print(f"Excluding {int(in_excluded.sum()):,} cells in {len(keys)} SME-excluded FOVs "
-          f"({in_excluded.mean()*100:.1f}% of the cohort)")
-    return df[~in_excluded]
 
 
 def component_reference_similarity(h5ad: Path, cell_ids: pd.Index,
