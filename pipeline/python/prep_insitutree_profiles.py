@@ -161,7 +161,7 @@ def main() -> None:
         identity = ann_id.get(letter, "(no annotation)") if ann_id is not None else "(no annotation)"
         print(f"  keep de-novo '{letter}' -> '{new_name}'   [{identity}]")
     dropped = sorted(set(denovo) - set(rename))
-    print(f"  dropping de-novo {dropped} (conserved types better covered by GBmap, or junk)")
+    print(f"  dropping de-novo {dropped} (not kept; see the annotations CSV for each one's disposition)")
 
     kept = select_columns(named, rename, args.drop_named)
     out = profiles[kept].rename(columns=rename)
@@ -175,7 +175,9 @@ def main() -> None:
     out.to_csv(args.output)
     print(f"Wrote {args.output} ({out.shape[0]:,} genes x {out.shape[1]} cell types: "
           f"{len(kept) - len(rename)} named + {len(rename)} de-novo)")
-    print("REMINDER: add the kept new_names as leaves in insitutree_hierarchy.json (lockstep).")
+    print("Every kept new_name must be a leaf of the hierarchy this matrix will be "
+          "used with, and vice versa. 84_prep_insitutree_profiles.sh checks that "
+          "and fails if it does not hold.")
 
 
 if __name__ == "__main__":
