@@ -367,6 +367,58 @@ But the *profile* is upstream of both.
    column of the InSituTree matrix must share one scaling or the per-branch likelihoods are
    incomparable.
 
+### What the 2026-11-04 re-run with the exclusion showed
+
+Stage 70 dropped **14,433 cells (1.7% of 849,510), leaving 835,077**, and `82` was re-run
+against the filtered cohort. Two independent confirmations that the exclusion hit the right
+cells: `a` fell 102,468 → 93,164, a drop of **9,304**, matching the count measured separately
+from the stitched Napari metadata; and the cohort's dominant region flipped from Retina 23.3%
+to Gray matter 23.5%, which is what must happen when 14,433 cells wrongly labelled Retina go.
+
+**The ciliary cells were spread across `a`, not concentrated.** Leiden component 11 (3,960
+cells, 581 median counts — the deepest) vanished entirely; component 5 lost 3,224; every other
+component lost a few hundred. Component 22 lost only 48 of 6,338 and is **not** ciliary.
+
+**`a` is a low-signal population almost throughout.** Against a cohort median of 369 counts,
+after the exclusion exactly ONE of its nine components sits above cohort depth:
+
+| component | % of `a` | median counts | vs cohort | nearest (cosine) | runner-up gap |
+|---|---|---|---|---|---|
+| 5 | 51.2 | 190 | 51% | Mona_fibroblast (0.670) | 0.012 |
+| 4 | 9.9 | 218 | 59% | Mona_fibroblast (0.771) | 0.004 |
+| 0 | 9.7 | 101 | 27% | Mona_fibroblast (0.715) | 0.006 |
+| 3 | 7.1 | 236 | 64% | Mona_pericyte (0.666) | 0.007 |
+| **22** | 6.8 | **447** | **121%** | Mona_fibroblast (0.635) | 0.004 |
+| 6 | 6.4 | 234 | 63% | HRCA_microglial (0.580) | 0.000 |
+| 2 | 3.1 | 209 | 57% | HRCA_microglial (0.688) | 0.009 |
+| 1 | 2.9 | 256 | 69% | Mona_endothelium (0.689) | 0.006 |
+| 7 | 1.0 | 124 | 34% | Mona_fibroblast (0.708) | 0.006 |
+
+**Do not read the `nearest` column as a branch assignment for `a`.** Every runner-up gap above
+is ≤0.012, and in each case the two types sit under DIFFERENT top-level branches (fibroblast vs
+pericyte vs microglia). That is the top of a flat distribution, not a discrimination — which is
+what cells at 27–69% of cohort depth should produce. A tie WITHIN a branch is fine and expected,
+since the reference is collinear there by design (component 3's pericyte-vs-smooth-muscle,
+component 12 of `o`'s H1-vs-H2 horizontal).
+
+**Consequence: `denovo_fibroblast` was NOT built this round.** A leaf built from `a`'s
+fibroblast-nearest components would be dominated by component 5 — half of `a`, at half cohort
+depth — on a 0.012 margin over pericyte. `a` gets no leaf until this is resolved; see the
+component 22 question below.
+
+### Component 22 — a candidate the decomposition surfaced
+
+6,290 cells, 6.8% of `a`, and the only component at or above cohort depth (447 counts, 331
+genes vs 369/288). Region-coherent at 84.8% retina, and 91.8% of its Leiden cluster is `a`, so
+it is a tight population rather than a slice of a larger one. Its best reference match is only
+0.635, with pericyte 0.004 behind.
+
+Deep AND matching nothing is the combination that separates a population the atlases lack from
+a flat low-signal pool: a faint cluster matches nothing BECAUSE it is faint, and this one is not
+faint. It is the strongest candidate in `a` for the sclera / choroidal stroma that §02 of the
+review page originally asked the neuropathologist about. Not named or given a leaf without her
+— flagged for the next review.
+
 **Read any InSituTree result from this run with the 57 FOVs filtered out at analysis time**
 — one slide, a known FOV list — or the Fibroblast and Pigmented leaf counts will look
 inflated for a reason that has nothing to do with the hierarchy working.
