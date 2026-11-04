@@ -326,6 +326,55 @@ astrocytes as one population, then test differential expression across `Region` 
 them: that uses our own tissue instead of three labs' protocols, has real spatial ground
 truth, and can discover regional programs rather than being limited to the atlases.
 
+## ⚠ KNOWN CONTAMINATION — must be revisited before anything is published
+
+**`denovo_fibroblast`'s profile carries ~9% ciliary body and cornea.** Accepted deliberately
+on 2026-11-04 to get an exploratory InSituTree run out; it is not a finished result.
+
+The SME excluded 57 FOVs on `uwa7761eyes` (2–15, 24–33, 36–68) as ciliary body / cornea,
+tissue no type in the HRCA + Monavarfeshani + Allen reference covers. Stage 1 predates that
+exclusion, so those cells went through QC and typing carrying the stale AtoMx `Region`
+(which labels them `Retina`). Measured against the stitched Napari metadata:
+
+| | |
+|---|---|
+| cells in those 57 FOVs | 15,384 (14,433 typed) |
+| of them called `a` | 64.5% |
+| `a` cells inside those FOVs | 9,304 — **9.1% of `a` cohort-wide**, 72% of `a` on that slide |
+
+`denovo_fibroblast` is derived from `a`, so roughly a tenth of its profile is that tissue.
+Because the profile is frozen into the InSituTree reference, the contamination then competes
+at the TOP node against `/Fibroblast`, `/Pigmented` and `/Vascular/Mural` for the whole
+cohort — not only on that donor.
+
+**Why no flag fixes it.** `prep_insitutree_profiles.py` never reads cells; it takes the
+already-aggregated `/profiles` matrix out of the InSituType result, where the mean over `a`
+was computed when InSituType ran. `--fov-annotations` on stage 70 keeps those cells out of
+the InSituTree *run*, which is worth doing on its own — InSituTree has no de novo escape
+hatch and would otherwise force all 14,433 into some leaf, most likely the Fibroblast and
+Pigmented leaves whose counts are the agreed test of whether `denovo_fibroblast` is right.
+But the *profile* is upstream of both.
+
+**To clear it, one of:**
+
+1. Re-run stages 1 → 4 with `--fov-annotations` + `--exclude-regions EXCLUDE_not_in_atlas`.
+   Clean, and necessary anyway if `uwa7761eyes` is dropped entirely. Note that de novo
+   letters are arbitrary per run — every letter-keyed decision and table has to be re-mapped
+   by profile cosine afterwards.
+2. Recompute the `denovo_fibroblast` column from cells, filtered, instead of from
+   `/profiles`. Gate it on the scale check this file's sibling script warns about:
+   recompute `a` UNFILTERED first and confirm it reproduces `/profiles['a']`, since every
+   column of the InSituTree matrix must share one scaling or the per-branch likelihoods are
+   incomparable.
+
+**Read any InSituTree result from this run with the 57 FOVs filtered out at analysis time**
+— one slide, a known FOV list — or the Fibroblast and Pigmented leaf counts will look
+inflated for a reason that has nothing to do with the hierarchy working.
+
+Related and also open: correcting `Region` in the pipeline at all requires re-running stage 1,
+and `--exclude-regions` drops those cells *before* QC stats, HVG and PCA, which changes the
+clustering and the fit. So it has to happen before InSituTree, not after.
+
 ## Gotchas
 
 - **R progress goes to `.err`, Python progress to `.out`.** The R stages (`30`, `73`, `74`,
