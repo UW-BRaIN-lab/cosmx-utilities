@@ -38,6 +38,8 @@ N_GENES = 60
 # so each one's nearest reference column is known in advance and the cosine is checkable.
 BLOCKS = {"1": slice(0, 20), "2": slice(20, 40), "3": slice(40, 60)}
 REF_TYPES = {"Fibro_like": "1", "Schwann_like": "2", "Astro_like": "3"}
+SLIDE = "uwa0001eyes"
+EXCLUDED_FOV = 2          # i.e. the cells of component '2'
 
 
 def build_fixture(tmp: Path) -> tuple[Path, Path]:
@@ -57,7 +59,8 @@ def build_fixture(tmp: Path) -> tuple[Path, Path]:
             labels.append(ctype)
             rows.append({"leiden": leiden, "total_counts": tc,
                          "qc_genes_detected": genes, "qc_negprobe_prop": neg,
-                         "qc_area": 9000.0, "Region": region})
+                         "qc_area": 9000.0, "Region": region,
+                         "slide_id": SLIDE, "fov": int(leiden)})
             counts = np.zeros(N_GENES, dtype=np.float32)
             counts[BLOCKS[leiden]] = 100.0
             expression.append(counts)
@@ -72,6 +75,10 @@ def build_fixture(tmp: Path) -> tuple[Path, Path]:
     for ref_name, block in REF_TYPES.items():
         reference.loc[reference.index[BLOCKS[block]], ref_name] = 500.0
     reference.to_csv(tmp / "reference.csv")
+
+    pd.DataFrame([{"slide_id": SLIDE, "fov": fov, "region": "Retina",
+                   "mixed_adjacent": 0, "exclude": int(fov == EXCLUDED_FOV)}
+                  for fov in (1, 2, 3)]).to_csv(tmp / "fov_annotations.csv", index=False)
 
     typing = tmp / "typing.h5"
     with h5py.File(typing, "w") as f:
@@ -166,6 +173,40 @@ def test_reference_similarity_names_the_right_branch(tmp: Path) -> None:
     print("  reference similarity picks the right branch per component")
 
 
+def test_fov_exclusion(tmp: Path) -> None:
+    """Excluded FOVs must be gone BEFORE measurement, and a no-op must be loud."""
+    h5ad, typing = build_fixture(tmp)
+    out = tmp / "out_fov"
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--clustered-h5ad", str(h5ad),
+         "--typing-h5", str(typing), "--cluster", "o",
+         "--fov-annotations", str(tmp / "fov_annotations.csv"),
+         "--reference-csv", str(tmp / "reference.csv"), "--out-dir", str(out)],
+        check=True, capture_output=True, text=True,
+    )
+    o = pd.read_csv(out / "o_components.csv").set_index("component")
+    # Component '2' lived entirely in the excluded FOV, so 'o' is now component '1' alone.
+    assert set(o.index) == {ddc.BASELINE_LABEL, "1"}, o.index.tolist()
+    assert o.loc["1", "pct_of_cluster"] == 100.0
+    # The baseline must also shrink, or the comparison is against contaminated cells.
+    assert o.loc[ddc.BASELINE_LABEL, "cells"] == 3 * N_PER_GROUP
+    assert "Excluding" in r.stdout
+
+    # Slide ids that match nothing must fail loudly rather than silently excluding zero.
+    bad = pd.read_csv(tmp / "fov_annotations.csv")
+    bad["slide_id"] = "not_a_slide"
+    bad.to_csv(tmp / "bad_annotations.csv", index=False)
+    r = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--clustered-h5ad", str(h5ad),
+         "--typing-h5", str(typing), "--cluster", "o",
+         "--fov-annotations", str(tmp / "bad_annotations.csv"), "--out-dir", str(out)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode != 0
+    assert "matched any cell" in r.stdout + r.stderr
+    print("  FOV exclusion applies before measurement, and a no-op is fatal")
+
+
 def test_missing_column_errors(tmp: Path) -> None:
     h5ad, typing = build_fixture(tmp)
     r = subprocess.run(
@@ -186,6 +227,7 @@ def main() -> None:
         test_separates_deep_from_shallow(tmp)
         test_tail_rollup_and_missing_cluster(tmp)
         test_reference_similarity_names_the_right_branch(tmp)
+        test_fov_exclusion(tmp)
         test_missing_column_errors(tmp)
     print("All tests passed.")
 

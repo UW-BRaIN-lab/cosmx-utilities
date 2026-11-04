@@ -49,7 +49,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import sys
 from pathlib import Path
 
@@ -58,13 +57,6 @@ import h5py
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-
-# The log-normalize / one-hot / group-mean trio already exists for the marker heatmap and is
-# the same arithmetic here; importing keeps one definition of "mean log-norm profile".
-_MP_PATH = Path(__file__).resolve().parent / "marker_pseudobulk.py"
-_mp_spec = importlib.util.spec_from_file_location("marker_pseudobulk", _MP_PATH)
-mp = importlib.util.module_from_spec(_mp_spec)
-_mp_spec.loader.exec_module(mp)
 
 DEFAULT_PARTITION_COL = "leiden"
 # Same name and default as cluster_batch_entropy.py, so the two read alike.
@@ -81,6 +73,40 @@ TAIL_LABEL = "__other__"
 DEFAULT_TOP_REFERENCE = 2
 GENE_PROBE_VALUE = "gene"
 PROBE_TYPE_COL = "probe_type"
+DEFAULT_SCALE_FACTOR = 1e4        # Seurat LogNormalize / scanpy normalize_total default
+SLIDE_COL = "slide_id"
+FOV_COL = "fov"
+# fov_annotations.csv (see pipeline/reference/FOV_ANNOTATIONS.md)
+FOV_SLIDE_COL, FOV_FOV_COL, FOV_EXCLUDE_COL = "slide_id", "fov", "exclude"
+# A shared-gene count below this means the AnnData and the reference are not the same panel.
+MIN_SHARED_GENES = 50
+
+
+def log_normalize(counts: sp.csr_matrix, scale_factor: float) -> sp.csr_matrix:
+    """log1p(counts / per-cell total * scale_factor) — Seurat LogNormalize, kept sparse."""
+    norm = sp.csr_matrix(counts, dtype=np.float64, copy=True)
+    totals = np.asarray(norm.sum(axis=1)).ravel()
+    totals[totals == 0] = 1.0
+    norm = sp.diags(scale_factor / totals) @ norm
+    norm = sp.csr_matrix(norm)
+    norm.data = np.log1p(norm.data)   # log1p(0)=0, so only stored entries change
+    return norm
+
+
+def onehot(labels: np.ndarray) -> tuple[sp.csr_matrix, np.ndarray]:
+    """Cells x groups indicator, plus the group order its columns are in."""
+    order, codes = np.unique(labels, return_inverse=True)
+    n = len(labels)
+    matrix = sp.csr_matrix((np.ones(n), (np.arange(n), codes)), shape=(n, len(order)))
+    return matrix, order
+
+
+def group_means(norm: sp.csr_matrix, indicator: sp.csr_matrix) -> np.ndarray:
+    """Mean log-norm profile per group, as groups x genes. No dense cells x genes matrix."""
+    sums = np.asarray((indicator.T @ norm).todense())
+    sizes = np.asarray(indicator.sum(axis=0)).ravel()
+    sizes[sizes == 0] = 1.0
+    return sums / sizes[:, None]
 
 
 def parse_args() -> argparse.Namespace:
@@ -108,8 +134,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--top-reference", type=int, default=DEFAULT_TOP_REFERENCE,
                    help=f"Nearest reference types to report per component "
                         f"(default: {DEFAULT_TOP_REFERENCE}).")
-    p.add_argument("--scale-factor", type=float, default=mp.DEFAULT_SCALE_FACTOR,
+    p.add_argument("--scale-factor", type=float, default=DEFAULT_SCALE_FACTOR,
                    help="Log-normalize scale factor (matches the marker heatmap).")
+    p.add_argument("--fov-annotations", type=Path, default=None,
+                   help="fov_annotations.csv; drops cells in FOVs the SME marked exclude=1 "
+                        "BEFORE anything is measured. Use it whenever the result feeds a "
+                        "reference profile, or tissue no reference covers lands in the leaf.")
     p.add_argument("--out-dir", type=Path, required=True, help="Directory for the CSVs.")
     return p.parse_args()
 
@@ -156,6 +186,44 @@ def load_obs(path: Path, required: list[str], optional: list[str]) -> pd.DataFra
         adata.file.close()
 
 
+def drop_excluded_fovs(df: pd.DataFrame, annotations_csv: Path) -> pd.DataFrame:
+    """Remove cells in FOVs the SME ruled out of analysis, by (slide, FOV).
+
+    Read straight from fov_annotations.csv rather than obs['Region_excluded'], because that
+    column only exists if stage 1 was run with --fov-annotations, and a run predating the
+    SME's exclusions carries the stale AtoMx Region with no exclusion flag at all.
+    """
+    annotations = pd.read_csv(annotations_csv, dtype={FOV_SLIDE_COL: str})
+    for col in (FOV_SLIDE_COL, FOV_FOV_COL, FOV_EXCLUDE_COL):
+        if col not in annotations.columns:
+            sys.exit(f"ERROR: {annotations_csv} has no '{col}' column")
+    missing = [c for c in (SLIDE_COL, FOV_COL) if c not in df.columns]
+    if missing:
+        sys.exit(f"ERROR: obs is missing {missing}, needed to apply --fov-annotations")
+
+    excluded = annotations.loc[annotations[FOV_EXCLUDE_COL].astype(int) == 1]
+    if excluded.empty:
+        print(f"NOTE: {annotations_csv} marks no FOV excluded; nothing dropped")
+        return df
+
+    keys = set(zip(excluded[FOV_SLIDE_COL].astype(str).str.strip(),
+                   excluded[FOV_FOV_COL].astype(int)))
+    in_excluded = pd.Series(
+        list(zip(df[SLIDE_COL].astype(str).str.strip(), df[FOV_COL].astype(int))),
+        index=df.index).isin(keys)
+
+    # Matching nothing means the slide ids or FOV numbering disagree -- which would quietly
+    # produce a contaminated profile, the exact failure this option exists to prevent.
+    if not in_excluded.any():
+        sys.exit(f"ERROR: none of the {len(keys)} excluded (slide, FOV) pairs matched any "
+                 f"cell. obs slides: {sorted(df[SLIDE_COL].astype(str).unique())[:6]}; "
+                 f"annotation slides: {sorted(excluded[FOV_SLIDE_COL].unique())[:6]}")
+
+    print(f"Excluding {int(in_excluded.sum()):,} cells in {len(keys)} SME-excluded FOVs "
+          f"({in_excluded.mean()*100:.1f}% of the cohort)")
+    return df[~in_excluded]
+
+
 def component_reference_similarity(h5ad: Path, cell_ids: pd.Index,
                                    component_of: pd.Series, reference_csv: Path,
                                    scale_factor: float, top_n: int) -> pd.DataFrame:
@@ -184,19 +252,19 @@ def component_reference_similarity(h5ad: Path, cell_ids: pd.Index,
         gene_mask = np.ones(subset.n_vars, dtype=bool)
 
     counts = sp.csr_matrix(subset.X)
-    norm = mp.log_normalize(counts[:, gene_mask], scale_factor)
+    norm = log_normalize(counts[:, gene_mask], scale_factor)
     gene_names = pd.Index(subset.var_names[gene_mask].to_numpy())
 
     shared = gene_names.intersection(reference.index)
-    if len(shared) < 50:
+    if len(shared) < MIN_SHARED_GENES:
         sys.exit(f"ERROR: only {len(shared)} genes shared between the AnnData and "
                  f"{reference_csv}; check they describe the same panel")
     print(f"  reference: {reference.shape[1]} types, {len(shared):,} genes shared")
 
     labels = component_of.reindex(subset.obs_names).to_numpy()
-    onehot, order = mp.onehot(labels)
+    indicator, order = onehot(labels)
     # group_means returns groups x genes; the cosine below wants genes down the rows.
-    profiles = pd.DataFrame(mp.group_means(norm, onehot).T, index=gene_names, columns=order)
+    profiles = pd.DataFrame(group_means(norm, indicator).T, index=gene_names, columns=order)
 
     def unit(frame: pd.DataFrame) -> np.ndarray:
         matrix = frame.loc[shared].to_numpy(dtype=np.float64)
@@ -253,8 +321,10 @@ def main() -> None:
     typed = load_typing(args.typing_h5)
     print(f"Typing: {len(typed):,} cells, {typed['cell_type'].nunique()} labels")
 
-    obs = load_obs(args.clustered_h5ad,
-                   required=[args.partition_col, *depth_cols],
+    required = [args.partition_col, *depth_cols]
+    if args.fov_annotations is not None:
+        required += [SLIDE_COL, FOV_COL]
+    obs = load_obs(args.clustered_h5ad, required=required,
                    optional=[NEGPROBE_COL, AREA_COL, REGION_COL])
     print(f"Clustered: {len(obs):,} cells, "
           f"{obs[args.partition_col].nunique()} {args.partition_col} components")
@@ -266,6 +336,9 @@ def main() -> None:
     if len(df) < len(typed):
         print(f"NOTE: {len(typed) - len(df):,} typed cells absent from the AnnData "
               f"(joined {len(df):,})")
+
+    if args.fov_annotations is not None:
+        df = drop_excluded_fovs(df, args.fov_annotations)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     component_sizes = df[args.partition_col].astype(str).value_counts()
@@ -297,6 +370,7 @@ def main() -> None:
             # Label every cell of this cluster with the component it was counted under, so
             # the rolled-up tail gets a profile too and the rows line up with the table.
             component_of = parts.where(parts.isin(keep), TAIL_LABEL)
+            # sub.index is post-exclusion, so the profile is built from the kept cells.
             similarity = component_reference_similarity(
                 args.clustered_h5ad, sub.index, component_of,
                 args.reference_csv, args.scale_factor, args.top_reference)
