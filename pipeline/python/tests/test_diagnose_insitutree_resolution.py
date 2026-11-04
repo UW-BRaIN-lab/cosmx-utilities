@@ -20,6 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -113,6 +114,55 @@ def test_size_alone_does_not_flag(tmp: Path) -> None:
     print("  dominance alone is not flagged; only dominance at chance is")
 
 
+def build_flat_run(tmp: Path) -> tuple[Path, Path]:
+    """A flat run where the Excitatory profiles won almost nothing and a de novo letter won.
+
+    This is the retina situation in miniature: `exc_0` took 3 cells in open competition and
+    the tree then handed it 400, while `astro_a` is a kept de novo cluster that won openly
+    under its letter and must NOT be flagged.
+    """
+    labels = (["exc_0"] * 3 + ["exc_1"] * 2            # the named profiles, barely winning
+              + ["m"] * 600                             # the de novo letter that took them
+              + ["astro_b"] * 200)
+    typing = tmp / "flat.h5"
+    with h5py.File(typing, "w") as f:
+        dt = h5py.string_dtype(encoding="utf-8")
+        f.create_dataset("cell_type", data=np.array(labels, dtype=object), dtype=dt)
+
+    annotations = tmp / "annotations.csv"
+    pd.DataFrame([
+        {"denovo_label": "m", "keep": "1", "new_name": "astro_a"},
+        {"denovo_label": "o", "keep": "0", "new_name": ""},
+    ]).to_csv(annotations, index=False)
+    return typing, annotations
+
+
+def test_flat_vs_tree_flags_the_captive_contest(tmp: Path) -> None:
+    summary, hierarchy = build(tmp)
+    typing, annotations = build_flat_run(tmp)
+    out = tmp / "out_flat"
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), "--summary-csv", str(summary),
+         "--hierarchy", str(hierarchy), "--flat-typing-h5", str(typing),
+         "--denovo-annotations", str(annotations), "--out-dir", str(out)],
+        check=True, capture_output=True, text=True)
+
+    frame = pd.read_csv(out / "flat_vs_tree.csv").set_index("leaf")
+    # exc_0: 3 cells won openly, 400 handed to it by the tree.
+    assert frame.loc["exc_0", "flat_cells"] == 3
+    assert frame.loc["exc_0", "tree_cells"] == N_BIG
+    assert bool(frame.loc["exc_0", "inherited"]), "a contest decided among losing profiles"
+
+    # astro_a is a KEPT de novo leaf: the flat run called those cells 'm'. Without the
+    # rename it would look like it won nothing and be flagged -- the opposite of the truth.
+    assert frame.loc["astro_a", "flat_label"] == "m"
+    assert frame.loc["astro_a", "flat_cells"] == 600
+    assert not bool(frame.loc["astro_a", "inherited"]), "a de novo leaf fit to this data"
+
+    assert "contests inherited most of their cells" in result.stdout
+    print("  flags the contest whose profiles never won openly, not the de novo leaf")
+
+
 def test_missing_columns_error(tmp: Path) -> None:
     summary, hierarchy = build(tmp)
     frame = pd.read_csv(summary).drop(columns=["probs_annotLevel_2"])
@@ -133,6 +183,7 @@ def main() -> None:
         print("test_diagnose_insitutree_resolution")
         test_separates_resolved_from_at_chance(tmp)
         test_size_alone_does_not_flag(tmp)
+        test_flat_vs_tree_flags_the_captive_contest(tmp)
         test_missing_columns_error(tmp)
     print("All tests passed.")
 
