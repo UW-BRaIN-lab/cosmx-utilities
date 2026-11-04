@@ -19,10 +19,20 @@ right and only the leaf choice collapsed".
 Reads the summaryAnnotation CSV written by R/insitutree_typing.R (cell_id, annotLevel_1..N,
 probs_annotLevel_1..N) and the hierarchy JSON the run used.
 
+With --flat-typing-h5 it also compares each leaf against the FLAT InSituType run, which is
+the test that actually works here. The posterior does not: a multinomial likelihood over a
+few hundred counts and thousands of genes saturates, so every call comes back at ~1.000
+whether it is right or wrong. What does discriminate is how a leaf fared when competition
+was open. In the retina run the five cortical excitatory profiles won 244 cells between them
+against 83 competitors; the tree then handed one of them 46,975. A profile that cannot win a
+fair contest should not be trusted with a captive one.
+
 Emits:
   resolution_by_label.csv    one row per final label, sorted by cells
   resolution_by_node.csv     one row per competition node: how decisive its contest was,
                              and how lopsided the outcome
+  flat_vs_tree.csv           (--flat-typing-h5) per leaf and per node: cells won in the flat
+                             run against cells assigned by the tree, and the ratio
 
 Usage:
     uv run python pipeline/python/diagnose_insitutree_resolution.py \\
@@ -39,6 +49,7 @@ import re
 import sys
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -48,6 +59,38 @@ CELL_ID_COL = "cell_id"
 # A contest is "at chance" when the winner's posterior is no better than this multiple of
 # 1/n_siblings. 1.5x is deliberately generous: anything under it is not a call.
 CHANCE_FACTOR = 1.5
+# A node whose tree total dwarfs what its leaves won in open competition inherited those
+# cells from dissolved de novo clusters; the finer the split it then reports, the less of it
+# rests on any profile that ever demonstrated it could fit this data.
+INHERITED_FOLD_FLAG = 5.0
+DENOVO_KEEP_COL, DENOVO_LABEL_COL, DENOVO_NAME_COL = "keep", "denovo_label", "new_name"
+
+
+def load_flat_counts(typing_h5: Path) -> pd.Series:
+    """Cells per label in the flat InSituType run (named types AND de novo letters)."""
+    with h5py.File(typing_h5, "r") as f:
+        if "cell_type" not in f:
+            sys.exit(f"ERROR: {typing_h5} has no /cell_type dataset")
+        values = np.asarray(f["cell_type"][()])
+    if values.dtype.kind == "S" or (values.size and isinstance(values.flat[0], bytes)):
+        values = np.array([v.decode("utf-8") for v in values.ravel()])
+    return pd.Series(values.astype(str)).value_counts()
+
+
+def denovo_rename(annotations_csv: Path) -> dict[str, str]:
+    """{tree leaf name -> the de novo letter it was built from}, for the kept clusters.
+
+    Without this a kept de novo leaf looks like it won nothing in the flat run, because the
+    flat run called those cells 'm', not 'denovo_astrocyte_1' -- and it would be flagged as
+    a captive-audience leaf when it is the opposite: a profile fit to this very data.
+    """
+    ann = pd.read_csv(annotations_csv, dtype=str).fillna("")
+    for col in (DENOVO_KEEP_COL, DENOVO_LABEL_COL, DENOVO_NAME_COL):
+        if col not in ann.columns:
+            sys.exit(f"ERROR: {annotations_csv} has no '{col}' column")
+    kept = ann[ann[DENOVO_KEEP_COL].str.strip().isin({"1", "true", "True", "yes"})]
+    return {r[DENOVO_NAME_COL].strip(): r[DENOVO_LABEL_COL].strip()
+            for _, r in kept.iterrows() if r[DENOVO_NAME_COL].strip()}
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +101,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hierarchy", type=Path, required=True,
                    help="The hierarchy JSON the run used.")
     p.add_argument("--out-dir", type=Path, required=True, help="Directory for the CSVs.")
+    p.add_argument("--flat-typing-h5", type=Path, default=None,
+                   help="The FLAT InSituType result (insitutype_result.h5). Adds the "
+                        "flat-run count per leaf -- the diagnostic that works here, since "
+                        "the posterior saturates at 1.0 and carries no information.")
+    p.add_argument("--denovo-annotations", type=Path, default=None,
+                   help="The keep/new_name CSV the profile matrix was built from, so kept "
+                        "de novo leaves are matched to the letter they came from.")
     p.add_argument("--top", type=int, default=30,
                    help="Labels to print (all are written to CSV).")
     return p.parse_args()
@@ -166,6 +216,50 @@ def main() -> None:
     print(by_node.to_string(index=False))
     print(f"\n=== top {args.top} labels by size ===")
     print(by_label.head(args.top).to_string(index=False))
+
+    if args.flat_typing_h5 is not None:
+        flat_counts = load_flat_counts(args.flat_typing_h5)
+        source_label = (denovo_rename(args.denovo_annotations)
+                        if args.denovo_annotations else {})
+        print(f"\nFlat run: {int(flat_counts.sum()):,} cells, {len(flat_counts)} labels"
+              + (f"; {len(source_label)} kept de novo leaves mapped to their letters"
+                 if source_label else ""))
+
+        tree_by_label = by_label.set_index("label")["cells"]
+        rows = []
+        for leaf, (node, _) in siblings_of.items():
+            flat_name = source_label.get(leaf, leaf)
+            flat = int(flat_counts.get(flat_name, 0))
+            tree = int(tree_by_label.get(leaf, 0))
+            rows.append({"leaf": leaf, "node": node, "flat_label": flat_name,
+                         "flat_cells": flat, "tree_cells": tree,
+                         "fold": round(tree / flat, 1) if flat else np.inf})
+        flat_vs_tree = pd.DataFrame(rows).sort_values("tree_cells", ascending=False)
+
+        # Per node: what its leaves won on their own, against what the tree gave them.
+        per_node = (flat_vs_tree.groupby("node")[["flat_cells", "tree_cells"]].sum()
+                    .rename(columns={"flat_cells": "node_flat_cells",
+                                     "tree_cells": "node_tree_cells"}))
+        per_node["node_fold"] = (per_node["node_tree_cells"]
+                                 / per_node["node_flat_cells"].replace(0, np.nan)).round(1)
+        per_node["inherited"] = per_node["node_fold"] >= INHERITED_FOLD_FLAG
+        flat_vs_tree = flat_vs_tree.merge(per_node, on="node", how="left")
+        flat_vs_tree.to_csv(args.out_dir / "flat_vs_tree.csv", index=False)
+
+        print("\n=== what each contest's leaves won on their own, vs what the tree gave them ===")
+        print(per_node.sort_values("node_fold", ascending=False).to_string())
+
+        inherited = per_node[per_node["inherited"]].sort_values("node_fold", ascending=False)
+        print(f"\n{len(inherited)} of {len(per_node)} contests inherited most of their cells "
+              f"(tree total >= {INHERITED_FOLD_FLAG}x what their leaves won openly):")
+        for node, r in inherited.iterrows():
+            leaves = flat_vs_tree[flat_vs_tree["node"] == node].nlargest(1, "tree_cells")
+            winner = leaves.iloc[0]
+            print(f"  {node:42s} {int(r['node_flat_cells']):>7,} -> "
+                  f"{int(r['node_tree_cells']):>7,} ({r['node_fold']}x); "
+                  f"largest leaf {winner['leaf']} won {winner['flat_cells']:,} openly")
+        print("\nThose contests are decided among profiles that never showed they fit this "
+              "data. Report them at the NODE, or give the de novo cluster its own leaf.")
 
     flagged = by_node[by_node["at_chance"]]
     print(f"\n{len(flagged)} of {len(by_node)} contests were AT CHANCE "

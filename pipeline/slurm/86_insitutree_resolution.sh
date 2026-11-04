@@ -17,6 +17,12 @@
 # Optional:
 #   TREE_STAGE_DIR=stage4_insitutree      where 85 put its outputs
 #   SUMMARY_BASENAME=insitutree_summary.csv
+#   FLAT_RESULT_BASENAME=insitutype_result.h5   the FLAT InSituType run, in STAGE4_DIR.
+#                                Set it: the posterior saturates at ~1.000 and says nothing,
+#                                so how a leaf fared in OPEN competition is the real test.
+#   DENOVO_ANNOTATIONS=          the keep/new_name CSV 84 used, so kept de novo leaves are
+#                                matched to the letter they came from rather than looking
+#                                like profiles that never won anything
 #   TOP=30                                labels to print (all are written to CSV)
 
 #SBATCH --job-name=cosmx-insitutree-resolution
@@ -70,6 +76,21 @@ echo "Staging ${SUMMARY_BASENAME} (${TREE_STAGE_DIR}) from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${TREE_STAGE_DIR}/${SUMMARY_BASENAME}" \
     "$WORK/summary.csv"
 
+FLAT_ARGS=()
+if [[ -n "${FLAT_RESULT_BASENAME:-}" ]]; then
+    STAGE4="${STAGE4_DIR:-stage4}"
+    echo "Staging the flat run ${FLAT_RESULT_BASENAME} (${STAGE4}) for comparison..."
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/${FLAT_RESULT_BASENAME}" \
+        "$WORK/flat_result.h5"
+    FLAT_ARGS=(--flat-typing-h5 "$WORK/flat_result.h5")
+    if [[ -n "${DENOVO_ANNOTATIONS:-}" ]]; then
+        ANNOTATIONS_CSV="${PIPELINE_DIR}/reference/denovo_annotations/${DENOVO_ANNOTATIONS}"
+        [[ -f "$ANNOTATIONS_CSV" ]] \
+            || { echo "ERROR: no such annotations: $ANNOTATIONS_CSV" >&2; exit 1; }
+        FLAT_ARGS+=(--denovo-annotations "$ANNOTATIONS_CSV")
+    fi
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -78,6 +99,7 @@ apptainer exec \
         --summary-csv "$WORK/summary.csv" \
         --hierarchy "$HIERARCHY_JSON" \
         --top "${TOP:-30}" \
+        ${FLAT_ARGS[@]+"${FLAT_ARGS[@]}"} \
         --out-dir "$WORK/out"
 
 echo "Uploading resolution tables to Kopah (${TREE_STAGE_DIR}/resolution)..."
