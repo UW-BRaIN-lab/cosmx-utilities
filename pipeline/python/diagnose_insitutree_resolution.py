@@ -240,6 +240,13 @@ def main() -> None:
         per_node = (flat_vs_tree.groupby("node")[["flat_cells", "tree_cells"]].sum()
                     .rename(columns={"flat_cells": "node_flat_cells",
                                      "tree_cells": "node_tree_cells"}))
+        # A cell too ambiguous to pick a leaf stops AT the node and carries the node's own
+        # name, so it belongs to no leaf. Counting only leaves made single-child nodes read
+        # as empty -- Mueller_glia showed 0 while holding 19,717 cells.
+        stopped_at_node = {node: int(tree_by_label.get(node.split("/")[-1], 0))
+                           for node in per_node.index}
+        per_node["stopped_at_node"] = pd.Series(stopped_at_node)
+        per_node["node_tree_cells"] += per_node["stopped_at_node"]
         per_node["node_fold"] = (per_node["node_tree_cells"]
                                  / per_node["node_flat_cells"].replace(0, np.nan)).round(1)
         per_node["inherited"] = per_node["node_fold"] >= INHERITED_FOLD_FLAG
