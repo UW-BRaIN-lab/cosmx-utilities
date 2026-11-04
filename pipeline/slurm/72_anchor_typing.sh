@@ -45,10 +45,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 STAGE4="${STAGE4_DIR:-stage4_anchor}"
 # READ the anchor input from INPUT_DIR (default STAGE4), WRITE the typing to STAGE4. A variant

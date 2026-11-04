@@ -44,10 +44,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Read the clustered object from the stage-3 dir; write the report alongside it.
 STAGE3="${STAGE3_DIR:-stage3}"

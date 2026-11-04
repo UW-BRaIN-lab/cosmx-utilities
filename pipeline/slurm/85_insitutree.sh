@@ -54,24 +54,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-# Command-line env must win over pipeline/.env. `set -a; source .env` overwrites it
-# otherwise -- which on 2026-11-04 silently swapped this stage's InSituTree profile matrix
-# for the atlas reference, because .env defines REFERENCE_BASENAME for stage 4b and this
-# stage read the same name. The failure was not a missing file: it ran with the wrong one.
-CALLER_OVERRIDES=()
-for knob in TREE_PROFILES_BASENAME HIERARCHY_BASENAME INPUT_DIR STAGE4_DIR \
-            QUANTILE_ABS QUANTILE_PCT EXCLUDED_GENES; do
-    [[ -n "${!knob:-}" ]] && CALLER_OVERRIDES+=("${knob}=${!knob}")
-done
-
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
-
-for override in ${CALLER_OVERRIDES[@]+"${CALLER_OVERRIDES[@]}"}; do
-    export "$override"
-done
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 STAGE4="${STAGE4_DIR:-stage4_insitutree}"
 # Where to READ insitutype_input.h5 from — defaults to the shared `stage4` prefix so the

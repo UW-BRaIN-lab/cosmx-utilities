@@ -457,18 +457,25 @@ clustering and the fit. So it has to happen before InSituTree, not after.
 
 ## Gotchas
 
-**`pipeline/.env` OVERWRITES variables you pass on the command line.** Every stage does
-`set -a; source .env; set +a`, so `FOO=bar sbatch stage.sh` loses to a `FOO=` line in `.env`.
-This cost a run on 2026-11-04: `.env` sets `REFERENCE_BASENAME=retina_combined_panel.csv` for
-stage 4b, stage 85 read the same name for its InSituTree profile matrix, and the fit started
-against the **atlas** reference instead. It did not fail on a missing file — it ran, and died
-later with `hierarchy leaves absent from reference profile columns`. The tell was in the log:
-`reference: 5993 genes x 64 cell types` where 84 had written `3,349 genes x 66 cell types`.
+**`pipeline/.env` used to OVERWRITE variables you passed on the command line — fixed
+2026-11-04, but know the shape of it.** Every stage did `set -a; source .env; set +a`, so
+`FOO=bar sbatch stage.sh` lost to a `FOO=` line in `.env`. It cost a run: `.env` sets
+`REFERENCE_BASENAME=retina_combined_panel.csv` for stage 4b, stage 85 read the same name for
+its InSituTree profile matrix, and the fit started against the **atlas** reference. It did not
+fail on a missing file — it ran, and died later with `hierarchy leaves absent from reference
+profile columns`, an error pointing at the hierarchy, which was correct. The tell was in the
+log: `reference: 5993 genes x 64 cell types` where 84 had written `3,349 genes x 66`.
 
-85 now snapshots its own knobs before sourcing `.env` and re-exports them afterwards, and its
-profile matrix is `TREE_PROFILES_BASENAME`, not `REFERENCE_BASENAME`. **Other stages still have
-the old behaviour** — if an override seems to be ignored, check whether `.env` defines the same
-name, and read back the dimensions the stage reports rather than assuming it took your value.
+All 60 stages now load `.env` through `slurm/_load_env.sh`, which keeps the caller's value and
+**echoes every override it kept**, so a log records the values a run actually used rather than
+the ones requested. 85's profile matrix is also `TREE_PROFILES_BASENAME` now, not
+`REFERENCE_BASENAME`, because one name standing for both the atlas file and the InSituTree
+profile matrix is what made the collision possible.
+
+**The habit that would have caught it earlier:** `pipeline/.env.example` is committed and lists
+every name `.env` defines. Before relying on an override, check whether that name is already
+spoken for there — and read back the dimensions or counts a stage reports instead of assuming
+it took your value.
 
 
 
