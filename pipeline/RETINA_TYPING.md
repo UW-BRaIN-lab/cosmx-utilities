@@ -312,7 +312,7 @@ the 64 named types, depth 4. Two things must happen before `85_insitutree.sh` ca
 Then:
 
 ```bash
-REFERENCE_BASENAME=retina_insitutree_profiles.csv     HIERARCHY_BASENAME=retina_hierarchy.json     sbatch pipeline/slurm/85_insitutree.sh
+TREE_PROFILES_BASENAME=retina_insitutree_profiles.csv     HIERARCHY_BASENAME=retina_hierarchy.json     sbatch --account=glioblastoma --partition=gpu-l40s --qos=gpu-l40s     pipeline/slurm/85_insitutree.sh
 ```
 
 What the hierarchy is *for* is worth being precise about: it does not decide that the
@@ -456,6 +456,21 @@ and `--exclude-regions` drops those cells *before* QC stats, HVG and PCA, which 
 clustering and the fit. So it has to happen before InSituTree, not after.
 
 ## Gotchas
+
+**`pipeline/.env` OVERWRITES variables you pass on the command line.** Every stage does
+`set -a; source .env; set +a`, so `FOO=bar sbatch stage.sh` loses to a `FOO=` line in `.env`.
+This cost a run on 2026-11-04: `.env` sets `REFERENCE_BASENAME=retina_combined_panel.csv` for
+stage 4b, stage 85 read the same name for its InSituTree profile matrix, and the fit started
+against the **atlas** reference instead. It did not fail on a missing file — it ran, and died
+later with `hierarchy leaves absent from reference profile columns`. The tell was in the log:
+`reference: 5993 genes x 64 cell types` where 84 had written `3,349 genes x 66 cell types`.
+
+85 now snapshots its own knobs before sourcing `.env` and re-exports them afterwards, and its
+profile matrix is `TREE_PROFILES_BASENAME`, not `REFERENCE_BASENAME`. **Other stages still have
+the old behaviour** — if an override seems to be ignored, check whether `.env` defines the same
+name, and read back the dimensions the stage reports rather than assuming it took your value.
+
+
 
 - **R progress goes to `.err`, Python progress to `.out`.** The R stages (`30`, `73`, `74`,
   `80`, `85`) log with `message()`, which writes to stderr — `pearson_pca.R` for instance has
