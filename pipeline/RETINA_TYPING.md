@@ -594,6 +594,50 @@ parenchyma is implausible, no de novo letter is lymphoid, and the leaves are dis
 so this is cells being sent to the WRONG BRANCH at the top level. It needs its own look, not a
 relabelling.
 
+### Lymphoid: the leaves are attractors, and a 72-leaf option drops them
+
+`Lymphoid` was the one node left suspect after the 75-leaf run — 11,910 cells, inherited 9.5x,
+no de novo letter mapping there. Decomposed with `82_denovo_components.sh` against our own
+clustering, it is not a split problem. **These are not lymphocytes.**
+
+Across all **29 components of all three leaves, every single one's nearest reference type is
+`HRCA_microglial cell`.** Not one is nearest to T, B or NK; where a lymphoid type appears it
+is `nearest_2`, always behind microglia. And they are faint — against the cohort's 369 counts,
+the dominant component of each leaf sits at 140 (T), 108 (B), 106 (NK), i.e. **29–38% of
+cohort depth** — with `pct_of_component` of 0.1–3.8%, so they are thin slices skimmed off many
+Leiden clusters rather than a population sitting anywhere.
+
+**The mechanism is the opposite of a flat attractor.** Ranked by cosine to the panel-average
+profile, the lymphoid types are the SHARPEST in the whole reference: NK 64/64, T cell 63/64,
+B cell 56/64. A very sharp profile concentrates its mass on a few marker genes, so a cell with
+~110 counts over ~90 genes that happens to put two or three on pan-immune genes gets an
+enormous likelihood ratio toward it. Microglia placing second throughout explains which cells:
+microglia and lymphocytes share PTPRC, CTSS and the rest, so a faint myeloid cell's few
+informative counts fit both, and the sharper profile wins.
+
+**Prepared: `retina_hierarchy_denovo_leaves_no_lymphoid.json`, 72 leaves**, lockstep verified.
+The Lymphoid branch is removed entirely, since dropping all three leaves would leave a
+competition with no candidates. Those 11,910 cells then go to `Myeloid`, which is what they
+resemble. Precedent for dropping an attractor type is in `merge_reference_types.py`, which
+drops Allen's `Splatter` and `Miscellaneous` for the same reason.
+
+```
+DENOVO_ANNOTATIONS=retina_stage4_denovo_leaves.csv \
+  HIERARCHY_BASENAME=retina_hierarchy_denovo_leaves_no_lymphoid.json \
+  TREE_PROFILES_BASENAME=retina_insitutree_profiles_72.csv \
+  DROP_NAMED="Mona_T cell,Mona_natural killer cell,Mona_B cell" \
+  sbatch pipeline/slurm/84_prep_insitutree_profiles.sh
+```
+
+then 85 with that hierarchy and profile matrix, and `STAGE4_DIR=stage4_insitutree_72` so the
+earlier runs stay intact.
+
+**This needs neuropathology sign-off, and more than the de novo leaves did.** Removing a
+reference type is a stronger claim than adding one, and the claim is specifically *"we cannot
+detect lymphocytes at this depth"*, NOT *"there are none"* — choroid and adjacent soft tissue
+genuinely carry immune cells. Dropping the leaves makes those cells myeloid rather than
+absent, which is the honest answer, but it does mean a real lymphocyte could not be called.
+
 ### What a high fold does and does not mean
 
 It means the node received cells its leaves never won in open competition. Combined with
