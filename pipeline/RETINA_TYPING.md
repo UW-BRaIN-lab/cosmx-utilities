@@ -549,19 +549,58 @@ choice available. `Mueller_glia` at 26.1x (19,360 cells) is Müller glia coming 
 96% OFF-midget. **A MULTI-leaf node with a high fold is the suspect case**: the winner is
 whichever profile is least unlike, and nothing says it is right.
 
-### Report these at NODE level, not leaf
+### Do NOT collapse these to node level — an earlier draft of this file said to, wrongly
 
-No de novo letter maps to any of them, so there is nothing to add -- the fix is in reporting:
+Two different questions were being conflated:
 
-- **`Lymphoid` (9.5x, 11,910 cells)** — the one still likely WRONG. T/NK/B at 1.4% of retina
-  and brain parenchyma is not real, and since no letter is lymphoid these cells are misplaced
-  at the TOP level, not mis-split within the branch. Worth its own look.
-- **`Pigmented` (7.5x, 26,628)** — RPE / pigmented epithelial / melanocyte are meaningful
-  distinctions decided among profiles that won 3,528 openly.
-- **`Diffuse_bipolar` (6.1x), `Other_bipolar` (5.6x), `Parasol_ganglion` (12.0x)** — retinal
-  subtypes among collinear profiles.
-- **`Fibroblast` (7.9x) does not matter**: its two leaves are the same cell type from two
-  atlases, so the split was never meaningful. Report the branch.
+- **Does any leaf profile fit these cells?** Measured by the flat-run count — how a profile
+  fared when all 83 types competed. This is what the fold flags.
+- **Can the leaves be told apart from each other?** Measured by `merge_reference_types.py`'s
+  test: expected counts of a 400-count cell on genes differing >=2x between a pair. Precedent
+  from that file: astrocyte **117/400** kept separate, oligodendrocyte **10/400** merged.
+
+They are orthogonal, and cosine answers neither — on this 6k panel in log space every pair
+sits at 0.91–0.999, and RPE-vs-melanocyte (0.943) scores as *more similar* than two copies
+of fibroblast (0.913).
+
+Run against the flagged nodes, the second test says **keep almost every distinction**:
+
+| pair | counts/400 | |
+|---|---|---|
+| RPE vs melanocyte | **212.9** | the most separable pair in the hierarchy |
+| RPE vs Mona pigmented epithelial | 182.9 | likely ciliary-body epithelium, not a duplicate |
+| Myeloid: microglia vs macrophage | 149.2 | |
+| Oligodendrocyte_lineage, median of 3 pairs | 132.9 | |
+| Endothelium: Mona vs Allen | 131.7 | |
+| Fibroblast: Mona vs Allen | 129.7 | ocular vs brain perivascular — not interchangeable |
+| Lymphoid: NK vs B | 127.6 | |
+| Diffuse_bipolar, 15 pairs | ~99–112 | despite cosines of 0.98–0.995 |
+| Cortical Excitatory, median of 10 | 65.0 | |
+| Lymphoid: T vs NK | 45.9 | marginal |
+| **Parasol ganglion: OFF vs ON** | **32.7** | marginal |
+| **Midget ganglion: OFF vs ON** | **4.9** | **below the merge precedent — collapse it** |
+
+**So the only merge the data supports is ON/OFF midget ganglion**, and `Parasol_ganglion` at
+32.7 is worth a second look. Everything else stays split.
+
+That has a direct consequence: `n` was absorbed into `HRCA_OFF midget ganglion cell`, and
+AtoMx independently calls those cells 96% OFF-midget — but **OFF vs ON is not separable at
+this depth (4.9/400)**, so report it as *midget ganglion cell*. The absorption is right; the
+ON/OFF half of the label is not.
+
+**`Lymphoid` remains the one real problem**, and it is not a merge question — its three leaves
+are perfectly separable (NK vs B 127.6). 11,910 cells called T/NK/B in retina and brain
+parenchyma is implausible, no de novo letter is lymphoid, and the leaves are distinguishable,
+so this is cells being sent to the WRONG BRANCH at the top level. It needs its own look, not a
+relabelling.
+
+### What a high fold does and does not mean
+
+It means the node received cells its leaves never won in open competition. Combined with
+separable leaves, that says those cells resemble none of the leaves but had to go somewhere.
+It does **not** say the call is wrong. Only outside evidence settles that — AtoMx's independent
+96% OFF-midget agreement for `n`, or the biological implausibility of a rare L5/L6 subtype
+taking 99.5% of a branch.
 
 ## Gotchas
 
