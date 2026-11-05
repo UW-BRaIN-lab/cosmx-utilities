@@ -28,8 +28,8 @@ def deterministic_color(value: str) -> str:
     result = duckdb.sql(
         "SELECT printf('#%06X', abs(hash($1)) % 16777216)",
         params=[value],
-    ).fetchone()
-    return result[0]
+    ).fetchall()
+    return result[0][0]
 
 
 MIN_FLOW_FRACTION = 0.005  # flows below this fraction of total cells are grouped into "Other"
