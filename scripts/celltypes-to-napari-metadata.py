@@ -258,6 +258,27 @@ def apply_splits(calls: pd.Series, obs: pd.DataFrame, spec: pd.DataFrame) -> pd.
     return out
 
 
+def load_split_columns(h5ad_path: Path, columns: list[str]) -> pd.DataFrame:
+    """The obs columns a split keys on, indexed by the pipeline cell index.
+
+    Read separately from the Napari key so the two can come from different files: stage 3c
+    carries obs['leiden'] but not obs['flatfile_cell_id'], and stage 3a the reverse.
+    """
+    import anndata as ad
+
+    adata = ad.read_h5ad(h5ad_path, backed="r")
+    try:
+        absent = [c for c in columns if c not in adata.obs.columns]
+        if absent:
+            print(f"ERROR: {h5ad_path} obs has no {absent}. Point --split-obs-h5ad at an "
+                  f"AnnData that has them (cosmx_clustered.h5ad carries 'leiden'); present: "
+                  f"{sorted(adata.obs.columns)[:20]}", file=sys.stderr)
+            sys.exit(1)
+        return adata.obs[columns].copy()
+    finally:
+        adata.file.close()
+
+
 def write_from_obs(args, typed: pd.DataFrame) -> None:
     """Direct path: obs already carries the Napari key, so just look it up.
 
@@ -274,46 +295,8 @@ def write_from_obs(args, typed: pd.DataFrame) -> None:
               f"flat-file key — re-run stage 1, or use --flatfiles instead.", file=sys.stderr)
         sys.exit(1)
 
-    keep_cols = ["flatfile_cell_id", "slide_id"]
-    spec = load_split_spec(args.split_spec) if args.split_spec else None
-    if spec is not None:
-        keep_cols += [c for c in spec["column"].unique() if c in adata.obs.columns]
-    obs = adata.obs[keep_cols].copy()
-
-    if spec is not None:
-        absent = [c for c in spec["column"].unique() if c not in obs.columns]
-        if absent:
-            if not args.split_obs_h5ad:
-                print(f"ERROR: --split-spec needs obs column(s) {absent}, which "
-                      f"{args.combined_h5ad} does not have. Pass --split-obs-h5ad pointing "
-                      f"at an AnnData that does (cosmx_clustered.h5ad carries 'leiden').",
-                      file=sys.stderr)
-                sys.exit(1)
-            print(f"Reading {absent} from {args.split_obs_h5ad}")
-            extra = ad.read_h5ad(args.split_obs_h5ad, backed="r")
-            try:
-                still_absent = [c for c in absent if c not in extra.obs.columns]
-                if still_absent:
-                    print(f"ERROR: {args.split_obs_h5ad} obs has no {still_absent}",
-                          file=sys.stderr)
-                    sys.exit(1)
-                extra_obs = extra.obs[absent].copy()
-            finally:
-                extra.file.close()
-            # Joined on the cell index, which both files inherit from stage 3a. A partial
-            # overlap means they describe different cohorts, and the split would then apply
-            # to some cells and silently not others -- worse than not splitting at all.
-            covered = obs.index.isin(extra_obs.index).mean()
-            if covered < 1.0:
-                print(f"ERROR: {args.split_obs_h5ad} covers only {covered*100:.1f}% of the "
-                      f"cells in {args.combined_h5ad}; they are not the same cohort.",
-                      file=sys.stderr)
-                sys.exit(1)
-            obs = obs.join(extra_obs, how="left")
+    obs = adata.obs[["flatfile_cell_id", "slide_id"]].copy()
     joined = obs.join(typed.set_index("cell")[["cell_type", "prob"]], how="left")
-    if spec is not None:
-        print(f"Applying {len(spec)} split(s) from {args.split_spec}")
-        joined["cell_type"] = apply_splits(joined["cell_type"], joined, spec)
     n_typed = int(joined["cell_type"].notna().sum())
     print(f"{n_typed:,} of {len(joined):,} cells have a typing call "
           f"({len(joined) - n_typed:,} without)")
@@ -345,14 +328,28 @@ def main() -> None:
               f"{int((~named).sum()):,} de novo")
         typed.loc[named, "cell_type"] = ""
 
+    if args.split_spec:
+        spec = load_split_spec(args.split_spec)
+        source = args.split_obs_h5ad or args.combined_h5ad
+        if source is None:
+            print("ERROR: --split-spec needs --split-obs-h5ad (or --combined-h5ad) to read "
+                  "the obs column it keys on.", file=sys.stderr)
+            sys.exit(1)
+        print(f"Applying {len(spec)} split(s) from {args.split_spec}, "
+              f"keyed on obs from {source}")
+        extra = load_split_columns(source, sorted(spec["column"].unique()))
+        aligned = extra.reindex(typed["cell"]).reset_index(drop=True)
+        unmatched = int(aligned.isna().all(axis=1).sum())
+        if unmatched:
+            print(f"ERROR: {unmatched:,} of {len(typed):,} typed cells are absent from "
+                  f"{source}; the split would apply to some cells and silently not others.",
+                  file=sys.stderr)
+            sys.exit(1)
+        typed["cell_type"] = apply_splits(typed["cell_type"], aligned, spec)
+
     if args.combined_h5ad:
         write_from_obs(args, typed)
         return
-
-    if args.split_spec:
-        print("ERROR: --split-spec needs --combined-h5ad; the flat-file path carries no "
-              "obs columns to split on.", file=sys.stderr)
-        sys.exit(1)
 
     total_written = 0
     for slide_id, grp in typed.groupby("slide_id", observed=True):

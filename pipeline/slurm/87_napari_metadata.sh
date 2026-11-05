@@ -76,11 +76,12 @@ PIPELINE_DIR="${REPO_DIR}/pipeline"
 source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 STAGE3="${STAGE3_DIR:-stage3}"
-# TWO AnnData files, because the pieces live apart: the Napari join key
-# (obs['flatfile_cell_id']) is in the stage-3a combined file, and obs['leiden'], which the
-# component splits key on, is in the stage-3c clustered one -- 3c does not carry the key
-# forward. Only passes with a split_spec need the second.
-COMBINED="${COMBINED_BASENAME:-combined_qc.h5ad}"
+# The Napari key comes from the FLAT FILES, not an AnnData. Retina's stage 1 predates
+# obs['flatfile_cell_id'], so --combined-h5ad is unavailable; --flatfiles is the documented
+# fallback for exactly that, re-joining each slide's _metadata_file.csv.gz on the same
+# (fov, cell_ID) pair flatfiles_to_anndata.py used to build the index.
+# obs['leiden'], which the component splits key on, still comes from the clustered AnnData.
+FLATFILES_PREFIX="${FLATFILES_PREFIX:?set it to the Kopah prefix holding *_metadata_file.csv.gz}"
 CLUSTERED="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 NAPARI_OUT_DIR="${NAPARI_OUT_DIR:-${HOME}/napari_metadata_out}"
 
@@ -107,8 +108,12 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging ${COMBINED} (${STAGE3}) from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${COMBINED}" "$WORK/combined.h5ad"
+mkdir -p "$WORK/flat"
+echo "Staging flat-file metadata from ${FLATFILES_PREFIX}..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${FLATFILES_PREFIX}/*_metadata_file.csv.gz" "$WORK/flat/"
+flat_count=$(find "$WORK/flat" -name '*_metadata_file.csv.gz' | wc -l)
+(( flat_count > 0 )) || { echo "ERROR: no *_metadata_file.csv.gz under ${FLATFILES_PREFIX}" >&2; exit 1; }
+echo "  ${flat_count} slide metadata file(s)"
 
 # Only fetched if some pass actually needs a split column.
 if tail -n +2 "$PASSES_CSV" | awk -F, '{print $4}' | grep -q '[^[:space:]]'; then
@@ -141,7 +146,7 @@ while IFS=, read -r column stage_dir result_basename split_spec _note; do
     uv run --no-project ${UV_DEPS} \
         python -u "${REPO_DIR}/scripts/celltypes-to-napari-metadata.py" \
             --typing-h5 "$WORK/typing_${pass_number}.h5" \
-            --combined-h5ad "$WORK/combined.h5ad" \
+            --flatfiles "$WORK/flat" \
             --column "$column" \
             --merge-into "$WORK/metadata" \
             --out-dir "$WORK/metadata" \
