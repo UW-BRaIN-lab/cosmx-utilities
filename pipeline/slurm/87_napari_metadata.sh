@@ -22,8 +22,12 @@
 # Runs under `uv run`, NOT apptainer, unlike every other stage. The colour function is
 # DuckDB's hash(), shared by six scripts so a label keeps one colour whichever wrote it, and
 # duckdb is a project dependency that the analysis containers do not carry. This script needs
-# no RAPIDS -- it reads obs backed and writes CSVs -- so the project environment is the right
-# one. Run `uv sync` once on a login node first; the job does not resolve dependencies.
+# no RAPIDS -- it reads obs backed and writes CSVs.
+#
+# It uses --no-project with an explicit dependency list rather than the project environment:
+# `uv sync` would also build napari-cosmx-fork, a GUI package irrelevant here, and a job
+# should not depend on a project env being in any particular state. Warm the cache once on a
+# login node (same command, it is cheap) so the compute node does not need to resolve.
 #
 # Required env (from pipeline/.env):
 #   KOPAH_ENDPOINT_URL, KOPAH_BUCKET, KOPAH_PREFIX,
@@ -75,18 +79,16 @@ STAGE3="${STAGE3_DIR:-stage3}"
 CLUSTERED="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 NAPARI_OUT_DIR="${NAPARI_OUT_DIR:-${HOME}/napari_metadata_out}"
 
+# What celltypes-to-napari-metadata.py imports. Deliberately unquoted below so each --with
+# is a separate word. duckdb is the one that is NOT in the analysis containers.
+UV_DEPS="--with duckdb --with pandas --with numpy --with h5py --with anndata"
+
 : "${NAPARI_PASSES:?set it to a spec CSV in pipeline/reference/}"
 : "${MERGE_INTO_DIR:?set it to the directory of existing <slide>_metadata.csv files}"
 
 PASSES_CSV="${PIPELINE_DIR}/reference/${NAPARI_PASSES}"
 [[ -f "$PASSES_CSV" ]] || { echo "ERROR: no such passes spec: $PASSES_CSV" >&2; exit 1; }
 [[ -d "$MERGE_INTO_DIR" ]] || { echo "ERROR: no such directory: $MERGE_INTO_DIR" >&2; exit 1; }
-
-if ! uv run --project "$REPO_DIR" python -c 'import duckdb, anndata, pandas' 2>/dev/null; then
-    echo "ERROR: the project environment is missing dependencies (duckdb/anndata/pandas)." >&2
-    echo "       Run 'uv sync' once on a login node -- compute nodes do not resolve." >&2
-    exit 1
-fi
 
 existing_count=$(find "$MERGE_INTO_DIR" -name '*_metadata.csv' | wc -l)
 (( existing_count > 0 )) || { echo "ERROR: no *_metadata.csv in $MERGE_INTO_DIR" >&2; exit 1; }
@@ -125,7 +127,7 @@ while IFS=, read -r column stage_dir result_basename split_spec _note; do
         echo "    applying splits from ${split_spec}"
     fi
 
-    uv run --project "$REPO_DIR" \
+    uv run --no-project ${UV_DEPS} \
         python -u "${REPO_DIR}/scripts/celltypes-to-napari-metadata.py" \
             --typing-h5 "$WORK/typing_${pass_number}.h5" \
             --combined-h5ad "$WORK/clustered.h5ad" \

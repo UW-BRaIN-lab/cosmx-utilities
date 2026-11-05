@@ -661,8 +661,15 @@ re-submitting gives you two identical jobs. Check `squeue --me` before re-runnin
 **Not every stage can use `APPTAINER_RSC`.** The colour function in the Napari metadata
 scripts is DuckDB's `hash()` — shared across six scripts so a label keeps one colour whichever
 wrote it — and `duckdb` is a project dependency that the analysis containers do not carry.
-`87_napari_metadata.sh` therefore runs under `uv run` instead. Run `uv sync` once on a login
-node; compute nodes should not be resolving dependencies.
+`87_napari_metadata.sh` therefore runs under `uv run --no-project` with an explicit
+dependency list, NOT `uv sync`: a full sync also builds `napari-cosmx-fork`, a GUI package
+with no role here, and a job should not depend on a project environment being in any
+particular state. Warm the cache once on a login node by running the same command there.
+
+**Watch where uv puts the environment.** A stray `UV_PROJECT_ENVIRONMENT` or `VIRTUAL_ENV`
+can send `uv sync` at the system interpreter — it fails with `Permission denied` on
+`/usr/local/lib/python3.9/site-packages`. Set `UV_CACHE_DIR` and `UV_PROJECT_ENVIRONMENT` to
+/gscratch paths; the defaults sit under `$HOME`, whose 10 GB quota the cache fills quickly.
 
 
 
