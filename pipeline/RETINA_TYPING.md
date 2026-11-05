@@ -594,6 +594,50 @@ parenchyma is implausible, no de novo letter is lymphoid, and the leaves are dis
 so this is cells being sent to the WRONG BRANCH at the top level. It needs its own look, not a
 relabelling.
 
+### The three cortical excitatory leaves are ONE population — merged
+
+`c`, `k` and `i` partitioned one cortical population by DEPTH, not by biology. The three de
+novo leaves hold 40,040 cells of Leiden 16 between them (87% of that cluster) and sit at 913,
+1,778 and 1,820 median counts against a cohort median of 369.
+
+| test | result |
+|---|---|
+| discriminating counts, `_2` vs `_3` | **4.0/400** — below the oligodendrocyte merge precedent |
+| `_1` vs `_3` | 20.7/400 — the same as ON/OFF midget ganglion, which we merge |
+| `_1` vs `_2` | 73.9/400, but only 11.4 of it in the top 8 genes |
+| what those genes are | TUBA1B, MAP1B, YWHAG, HSP90AA1, TUBB2A — cytoskeletal/housekeeping |
+| top-expressed genes, all three | identical: NRGN, SNAP25, UBB, BASP1, ALDOA, CALM3 |
+| every laminar marker | **0.00–0.16 counts**; all of them together total 0.5–0.8/400 |
+| CUX2, FEZF2 | **not on the panel** |
+
+So the panel cannot resolve cortical layers at all, and three numbered leaves would invite a
+reviewer to look for three populations that do not exist. Merged to one
+`denovo_cortical_excitatory`: **73 leaves**, or **70** with the lymphoid drop.
+
+### ⚠ The counts-weighted test is BLIND to low-abundance identity markers
+
+It nearly cost a correct split. `denovo_cortical_inhibitory_1` vs `_2` scores only 45.2/400
+and its top discriminating genes are ATP synthase and cytochrome oxidase subunits — which
+reads like the same technical split as the excitatory trio. It is not:
+
+| marker | `_1` | `_2` | fold |
+|---|---|---|---|
+| SST | 0.65 | 0.02 | 34x |
+| CXCL14 | 1.31 | 0.00 | 281x |
+| KIT | 0.29 | 0.01 | 35x |
+| **PVALB** | **0.04** | **1.18** | **29x** |
+
+`_1` is SST/VIP/CXCL14/KIT, `_2` is PVALB — textbook interneuron classes. The test missed it
+because those markers sit at 0.1–1.3 expected counts and it weights by abundance, so a 281x
+fold on a 1.3-count gene contributes less than a 2x fold on a 3-count housekeeping gene.
+
+**Always pair the counts test with a targeted marker check before merging.** The counts test
+answers "can the typing separate these from counts alone", which is the right question for
+whether a leaf can win cells; it does NOT answer "are these different cell types".
+
+The astrocyte (111.3, driven by SLC1A2/SLC1A3/GLUL/ATP1A2) and oligodendrocyte (113.7, driven
+by PLP1/SCD) splits pass both tests and stay.
+
 ### Lymphoid: the leaves are attractors, and a 72-leaf option drops them
 
 `Lymphoid` was the one node left suspect after the 75-leaf run — 11,910 cells, inherited 9.5x,

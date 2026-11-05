@@ -59,9 +59,7 @@
       "Allen_Deep-layer near-projecting",
       "Allen_Deep-layer corticothalamic and 6b",
       "Allen_Hippocampal CA1-3",
-      "denovo_cortical_excitatory_1",
-      "denovo_cortical_excitatory_2",
-      "denovo_cortical_excitatory_3"
+      "denovo_cortical_excitatory"
     ],
     "Inhibitory": [
       "Allen_CGE interneuron",
