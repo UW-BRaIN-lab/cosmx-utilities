@@ -13,6 +13,13 @@
 #   KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY,
 #   APPTAINER_RSC (the rapids-singlecell SIF; CPU use, no --nv).
 
+# Optional:
+#   FOV_ANNOTATIONS_BASENAME=fov_annotations.csv
+#       drop cells in FOVs the SME marked exclude=1 before the input is written. Set this
+#       whenever the cohort contains tissue no reference type covers -- otherwise those
+#       cells still reach InSituType as de novo clusters, and InSituTree, which has no de
+#       novo escape hatch, is forced to put every one of them in some leaf.
+#
 #SBATCH --job-name=cosmx-prep-insitutype
 # glioblastoma has no dedicated CPU node -> ckpt (free, preemptible). --requeue
 # restarts on preemption; the stage is idempotent (re-writes insitutype_input.h5).
@@ -42,10 +49,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Read combined_qc from the stage-3 dir; write the stage-4 input under stage-4 dir.
 STAGE3="${STAGE3_DIR:-stage3}"
@@ -65,12 +71,23 @@ echo "Staging combined_qc from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/combined_qc.h5ad" \
     "$WORK/combined_qc.h5ad"
 
+# Optional: drop FOVs the SME ruled out of analysis, so neither InSituType nor InSituTree
+# sees tissue no reference type covers. The annotations live in the repo, not on Kopah.
+FOV_ARG=()
+if [[ -n "${FOV_ANNOTATIONS_BASENAME:-}" ]]; then
+    FOV_CSV="${PIPELINE_DIR}/reference/${FOV_ANNOTATIONS_BASENAME}"
+    [[ -f "$FOV_CSV" ]] || { echo "ERROR: no such FOV annotations: $FOV_CSV" >&2; exit 1; }
+    FOV_ARG=(--fov-annotations "$FOV_CSV")
+    echo "Dropping SME-excluded FOVs per ${FOV_ANNOTATIONS_BASENAME}"
+fi
+
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
     "$APPTAINER_RSC" \
     python -u "${PIPELINE_DIR}/python/prep_insitutype_inputs.py" \
         --combined-h5ad "$WORK/combined_qc.h5ad" \
+        ${FOV_ARG[@]+"${FOV_ARG[@]}"} \
         --output "$WORK/insitutype_input.h5"
 
 echo "Uploading InSituType input to Kopah..."

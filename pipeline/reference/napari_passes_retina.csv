@@ -1,0 +1,4 @@
+column,stage_dir,result_basename,split_spec,note
+insitutree_75,stage4_insitutree_denovo_leaves,insitutree_result.h5,,the proposed fit - de novo leaves in six branches
+insitutree_66,stage4_insitutree,insitutree_result.h5,,the first fit - what 75 replaces; differs mainly in cortex and oligodendrocyte lineage
+denovo_split,stage4,insitutype_result.h5,napari_splits_retina.csv,the flat InSituType run with component 22 of `a` broken out as a_deep_retinal

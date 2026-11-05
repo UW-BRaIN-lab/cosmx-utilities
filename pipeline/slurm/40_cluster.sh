@@ -44,10 +44,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Kopah sub-prefix for Stage 3 outputs. Override (e.g. STAGE3_DIR=stage3_q100)
 # to write a parallel run without clobbering the default `stage3/` results.

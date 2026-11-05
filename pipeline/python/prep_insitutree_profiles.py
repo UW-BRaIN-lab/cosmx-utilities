@@ -106,9 +106,16 @@ def load_rename_map(annotations_path: Path, denovo_labels: list[str]) -> dict[st
     if missing:
         sys.exit(f"ERROR: kept de-novo {missing} absent from this run's de-novo {denovo_labels}. "
                  f"Wrong run, or fix the annotations CSV.")
-    dups = [n for n in set(rename.values()) if list(rename.values()).count(n) > 1]
-    if dups:
-        sys.exit(f"ERROR: duplicate new_name(s) in the rename map: {sorted(dups)}.")
+    # Several letters MAY share one new_name: that is a merge, and it is how a de-novo
+    # split that turns out to be technical rather than biological is undone. Retina's
+    # c/k/i partitioned one cortical population by depth -- their profiles differ only on
+    # cytoskeletal and housekeeping genes, and every laminar marker sits below 0.16
+    # expected counts with CUX2 and FEZF2 off-panel entirely.
+    merged = {n: sorted(l for l, v in rename.items() if v == n)
+              for n in sorted(set(rename.values()))}
+    for new_name, letters in merged.items():
+        if len(letters) > 1:
+            print(f"  MERGE de-novo {letters} -> '{new_name}'")
     return rename
 
 
@@ -161,10 +168,23 @@ def main() -> None:
         identity = ann_id.get(letter, "(no annotation)") if ann_id is not None else "(no annotation)"
         print(f"  keep de-novo '{letter}' -> '{new_name}'   [{identity}]")
     dropped = sorted(set(denovo) - set(rename))
-    print(f"  dropping de-novo {dropped} (conserved types better covered by GBmap, or junk)")
+    print(f"  dropping de-novo {dropped} (not kept; see the annotations CSV for each one's disposition)")
 
     kept = select_columns(named, rename, args.drop_named)
     out = profiles[kept].rename(columns=rename)
+    if out.columns.duplicated().any():
+        # Unweighted mean of the source columns, as merge_reference_types.py does. These
+        # come from ONE run at one scale, and the clusters being merged are of similar size
+        # (retina c/k/i: 8,282 / 7,589 / 7,481), so weighting by cell count would move the
+        # result by about 2% -- not worth a dependency on per-cell labels being present.
+        collapsed = {}
+        for new_name in dict.fromkeys(out.columns):
+            block = out.loc[:, out.columns == new_name]
+            if block.shape[1] > 1:
+                letters = sorted(l for l, v in rename.items() if v == new_name)
+                print(f"  '{new_name}': mean of {len(letters)} de-novo profiles {letters}")
+            collapsed[new_name] = block.mean(axis=1)
+        out = pd.DataFrame(collapsed, index=out.index)
 
     # Guards: renamed de-novo must not collide with any named type, and no dup columns.
     collisions = set(rename.values()) & set(named)
@@ -174,8 +194,10 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.output)
     print(f"Wrote {args.output} ({out.shape[0]:,} genes x {out.shape[1]} cell types: "
-          f"{len(kept) - len(rename)} named + {len(rename)} de-novo)")
-    print("REMINDER: add the kept new_names as leaves in insitutree_hierarchy.json (lockstep).")
+          f"{len(kept) - len(rename)} named + {len(set(rename.values()))} de-novo)")
+    print("Every kept new_name must be a leaf of the hierarchy this matrix will be "
+          "used with, and vice versa. 84_prep_insitutree_profiles.sh checks that "
+          "and fails if it does not hold.")
 
 
 if __name__ == "__main__":

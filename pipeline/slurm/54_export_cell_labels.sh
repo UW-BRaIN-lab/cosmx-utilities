@@ -41,10 +41,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 : "${RUNS:?set RUNS='name:subdir name:subdir ...'}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"

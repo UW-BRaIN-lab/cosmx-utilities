@@ -45,12 +45,10 @@ import re
 import sys
 from pathlib import Path
 
+import duckdb
 import h5py
 import numpy as np
 import pandas as pd
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # the shared colour rule sits beside the scripts
-from napari_colors import deterministic_color  # noqa: E402
 
 # Stage 1 builds the obs index as "<slide_id>_F<fov>_C<cell_ID>"; both fields are needed to
 # get back to the flat file's own cell_id. slide_id itself may contain underscores.
@@ -90,13 +88,16 @@ def parse_args() -> argparse.Namespace:
                    help="Also write a <column>_prob column. Off by default: napari-cosmx "
                         "expects every value column to have a paired _color, and a bare "
                         "numeric column has none.")
-    p.add_argument("--drop-columns", default="",
-                   help="Comma-separated columns to remove from the existing file before merging "
-                        "(needs --merge-into). For the placeholder a stitch without AtoMx typing "
-                        "writes: `cell_type` (every cell 'Unassigned') and `hex_color`. Drop BOTH: "
-                        "napari-cosmx falls back to `hex_color` for any column lacking its own "
-                        "`<name>_color`, so a surviving one-value `hex_color` paints such a column "
-                        "a single colour.")
+    p.add_argument("--split-spec", type=Path, default=None,
+                   help="CSV (label, column, values, new_name) breaking part of a call out "
+                        "as its own Napari value — e.g. the cells of one unsupervised "
+                        "cluster inside a de novo letter. Needs --combined-h5ad pointed at "
+                        "an AnnData carrying that column (cosmx_clustered.h5ad for leiden).")
+    p.add_argument("--split-obs-h5ad", type=Path, default=None,
+                   help="A second AnnData supplying the obs columns --split-spec keys on, "
+                        "joined by cell index. Needed because the Napari join key "
+                        "(flatfile_cell_id) lives in the stage-3a combined AnnData while "
+                        "obs['leiden'] lives in the stage-3c clustered one.")
     p.add_argument("--merge-into", type=Path,
                    help="Directory of existing <slide>_metadata.csv to add our column(s) "
                         "to, rather than writing a fresh file. Keeps every existing column "
@@ -128,6 +129,16 @@ def load_typing(path: Path) -> pd.DataFrame:
     df["fov"] = parts["fov"].astype(int)
     df["cell_ID"] = parts["cell"].astype(str)
     return df
+
+
+def deterministic_color(value: str) -> str:
+    """Deterministic hex colour for a label — identical to generate-slide-metadata.py.
+
+    Sharing the implementation matters: a label must keep the same colour whichever script
+    wrote the column, or the same cell type changes colour between layers.
+    """
+    return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
+                      params=[value]).fetchall()[0][0]
 
 
 def napari_frame(args, cell_ids: pd.Series, calls: pd.Series,
@@ -167,15 +178,6 @@ def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
         return len(out)
 
     existing = pd.read_csv(existing_path, dtype=str)
-    to_drop = [c.strip() for c in args.drop_columns.split(",") if c.strip()]
-    if CELL_ID_COLUMN in to_drop:
-        print(f"ERROR: --drop-columns cannot remove the join key '{CELL_ID_COLUMN}'.", file=sys.stderr)
-        sys.exit(1)
-    absent = [c for c in to_drop if c not in existing.columns]
-    if absent:
-        # Not fatal: re-running on a file that was already cleaned should still work.
-        print(f"    note: {existing_path.name} has no column(s) {absent} to drop", file=sys.stderr)
-    existing = existing.drop(columns=[c for c in to_drop if c in existing.columns])
     if CELL_ID_COLUMN not in existing.columns:
         print(f"ERROR: {existing_path} has no '{CELL_ID_COLUMN}' column to join on; "
               f"columns are {list(existing.columns)}", file=sys.stderr)
@@ -199,6 +201,82 @@ def write_slide(args, slide_id: str, out: pd.DataFrame) -> int:
           f"existing rows got a call, {len(existing.columns)} existing column(s) kept")
     merged.fillna("").to_csv(out_path, index=False)
     return len(merged)
+
+
+SPLIT_COLUMNS = ("label", "column", "values", "new_name")
+SPLIT_VALUE_SEP = ";"
+
+
+def load_split_spec(spec_path: Path) -> pd.DataFrame:
+    """Read and validate the split spec. Mirrors merge_reference_types.py's spec style."""
+    spec = pd.read_csv(spec_path, dtype=str).fillna("")
+    for col in SPLIT_COLUMNS:
+        if col not in spec.columns:
+            sys.exit(f"ERROR: split spec {spec_path} missing '{col}' column")
+    for col in SPLIT_COLUMNS:
+        spec[col] = spec[col].str.strip()
+    blank = spec[(spec == "").any(axis=1)]
+    if not blank.empty:
+        sys.exit(f"ERROR: split spec {spec_path} has blank fields in row(s) "
+                 f"{blank.index.tolist()}")
+    clash = sorted(set(spec["new_name"]) & set(spec["label"]))
+    if clash:
+        sys.exit(f"ERROR: split new_name(s) collide with a label being split: {clash}")
+    return spec
+
+
+def apply_splits(calls: pd.Series, obs: pd.DataFrame, spec: pd.DataFrame) -> pd.Series:
+    """Rename the subset of `label` whose `column` is in `values` to `new_name`.
+
+    Every clause is validated and must move at least one cell. A split that silently moves
+    nothing would leave the population it was meant to surface invisible in Napari, which
+    is the one failure the caller cannot see by looking at the output.
+    """
+    out = calls.copy()
+    for _, row in spec.iterrows():
+        label, column, new_name = row["label"], row["column"], row["new_name"]
+        values = {v.strip() for v in row["values"].split(SPLIT_VALUE_SEP) if v.strip()}
+        if column not in obs.columns:
+            sys.exit(f"ERROR: split spec names obs column '{column}', which this AnnData "
+                     f"does not have. Point --combined-h5ad at one that does "
+                     f"(cosmx_clustered.h5ad carries 'leiden'). Present: "
+                     f"{sorted(obs.columns)[:20]}")
+        present = set(obs[column].astype(str).unique())
+        unknown = sorted(values - present)
+        if unknown:
+            sys.exit(f"ERROR: split spec value(s) {unknown} absent from obs['{column}']")
+        if not (out == label).any():
+            sys.exit(f"ERROR: split spec label '{label}' matches no call")
+
+        moving = (out == label) & obs[column].astype(str).isin(values)
+        if not moving.any():
+            sys.exit(f"ERROR: split '{label}' x {column} in {sorted(values)} -> "
+                     f"'{new_name}' moves no cell; the population would be invisible")
+        out[moving] = new_name
+        print(f"  split {int(moving.sum()):,} of {int((out == label).sum()) + int(moving.sum()):,} "
+              f"'{label}' cells into '{new_name}' ({column} in {sorted(values)})")
+    return out
+
+
+def load_split_columns(h5ad_path: Path, columns: list[str]) -> pd.DataFrame:
+    """The obs columns a split keys on, indexed by the pipeline cell index.
+
+    Read separately from the Napari key so the two can come from different files: stage 3c
+    carries obs['leiden'] but not obs['flatfile_cell_id'], and stage 3a the reverse.
+    """
+    import anndata as ad
+
+    adata = ad.read_h5ad(h5ad_path, backed="r")
+    try:
+        absent = [c for c in columns if c not in adata.obs.columns]
+        if absent:
+            print(f"ERROR: {h5ad_path} obs has no {absent}. Point --split-obs-h5ad at an "
+                  f"AnnData that has them (cosmx_clustered.h5ad carries 'leiden'); present: "
+                  f"{sorted(adata.obs.columns)[:20]}", file=sys.stderr)
+            sys.exit(1)
+        return adata.obs[columns].copy()
+    finally:
+        adata.file.close()
 
 
 def write_from_obs(args, typed: pd.DataFrame) -> None:
@@ -249,6 +327,25 @@ def main() -> None:
         print(f"--denovo-only: blanking {int(named.sum()):,} named calls, keeping "
               f"{int((~named).sum()):,} de novo")
         typed.loc[named, "cell_type"] = ""
+
+    if args.split_spec:
+        spec = load_split_spec(args.split_spec)
+        source = args.split_obs_h5ad or args.combined_h5ad
+        if source is None:
+            print("ERROR: --split-spec needs --split-obs-h5ad (or --combined-h5ad) to read "
+                  "the obs column it keys on.", file=sys.stderr)
+            sys.exit(1)
+        print(f"Applying {len(spec)} split(s) from {args.split_spec}, "
+              f"keyed on obs from {source}")
+        extra = load_split_columns(source, sorted(spec["column"].unique()))
+        aligned = extra.reindex(typed["cell"]).reset_index(drop=True)
+        unmatched = int(aligned.isna().all(axis=1).sum())
+        if unmatched:
+            print(f"ERROR: {unmatched:,} of {len(typed):,} typed cells are absent from "
+                  f"{source}; the split would apply to some cells and silently not others.",
+                  file=sys.stderr)
+            sys.exit(1)
+        typed["cell_type"] = apply_splits(typed["cell_type"], aligned, spec)
 
     if args.combined_h5ad:
         write_from_obs(args, typed)

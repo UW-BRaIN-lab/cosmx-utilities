@@ -57,10 +57,9 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT overwriting what the caller passed; see slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Read per-slide inputs from the neutral stage-4a location; write per-slide results under the
 # InSituTree stage dir (mirrors 85_insitutree.sh's INPUT_DIR / STAGE4_DIR split).
