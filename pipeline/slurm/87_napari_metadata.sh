@@ -76,6 +76,11 @@ PIPELINE_DIR="${REPO_DIR}/pipeline"
 source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 STAGE3="${STAGE3_DIR:-stage3}"
+# TWO AnnData files, because the pieces live apart: the Napari join key
+# (obs['flatfile_cell_id']) is in the stage-3a combined file, and obs['leiden'], which the
+# component splits key on, is in the stage-3c clustered one -- 3c does not carry the key
+# forward. Only passes with a split_spec need the second.
+COMBINED="${COMBINED_BASENAME:-combined_qc.h5ad}"
 CLUSTERED="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 NAPARI_OUT_DIR="${NAPARI_OUT_DIR:-${HOME}/napari_metadata_out}"
 
@@ -102,8 +107,14 @@ export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
-echo "Staging ${CLUSTERED} (${STAGE3}) from Kopah..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${CLUSTERED}" "$WORK/clustered.h5ad"
+echo "Staging ${COMBINED} (${STAGE3}) from Kopah..."
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${COMBINED}" "$WORK/combined.h5ad"
+
+# Only fetched if some pass actually needs a split column.
+if tail -n +2 "$PASSES_CSV" | awk -F, '{print $4}' | grep -q '[^[:space:]]'; then
+    echo "Staging ${CLUSTERED} (${STAGE3}) for the split column(s)..."
+    s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE3}/${CLUSTERED}" "$WORK/clustered.h5ad"
+fi
 
 # Each pass merges into the previous pass's output, so the last one holds every column.
 cp -r "$MERGE_INTO_DIR" "$WORK/metadata"
@@ -123,14 +134,14 @@ while IFS=, read -r column stage_dir result_basename split_spec _note; do
     if [[ -n "${split_spec// }" ]]; then
         SPLIT_CSV="${PIPELINE_DIR}/reference/${split_spec}"
         [[ -f "$SPLIT_CSV" ]] || { echo "ERROR: no such split spec: $SPLIT_CSV" >&2; exit 1; }
-        SPLIT_ARGS=(--split-spec "$SPLIT_CSV")
+        SPLIT_ARGS=(--split-spec "$SPLIT_CSV" --split-obs-h5ad "$WORK/clustered.h5ad")
         echo "    applying splits from ${split_spec}"
     fi
 
     uv run --no-project ${UV_DEPS} \
         python -u "${REPO_DIR}/scripts/celltypes-to-napari-metadata.py" \
             --typing-h5 "$WORK/typing_${pass_number}.h5" \
-            --combined-h5ad "$WORK/clustered.h5ad" \
+            --combined-h5ad "$WORK/combined.h5ad" \
             --column "$column" \
             --merge-into "$WORK/metadata" \
             --out-dir "$WORK/metadata" \
