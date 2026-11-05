@@ -455,7 +455,7 @@ Related and also open: correcting `Region` in the pipeline at all requires re-ru
 and `--exclude-regions` drops those cells *before* QC stats, HVG and PCA, which changes the
 clustering and the fit. So it has to happen before InSituTree, not after.
 
-## Proposed: de novo leaves in the hierarchy (PREPARED, awaiting neuropathology sign-off)
+## De novo leaves in the hierarchy — RUN AND VALIDATED, awaiting neuropathology sign-off
 
 The 2026-11-04 sign-off dissolved ten de novo letters on the premise that the hierarchy would
 absorb them into the named types they resembled. The first InSituTree run shows it does not,
@@ -512,6 +512,56 @@ a type name that every downstream table would inherit as a claim.
 caveat to put to her honestly: a de novo profile wins back the cells it was fit to, so this
 re-derives the InSituType partition rather than testing it. The evidence that these are real
 populations remains the markers and regional distribution, not their size in the tree.
+
+### Result of the 75-leaf run (2026-11-05)
+
+Ran as `stage4_insitutree_denovo_leaves` so the 66-leaf result stays intact for comparison.
+**It worked, on the specific predictions:**
+
+| branch | fold before | fold after |
+|---|---|---|
+| Cortical_neuron/Excitatory | 193.5x | **2.0x** |
+| Cortical_neuron/Inhibitory | 75.9x | **1.8x** |
+| Oligodendrocyte_lineage | 16.7x | **1.5x** |
+| Vascular/Endothelial | 18.6x | **1.1x** |
+| Myeloid | 12.1x | **0.8x** |
+
+`Allen_Deep-layer near-projecting` fell from **46,975 to below 9,173**, and the three de novo
+excitatory leaves hold **46,152** between them. `Allen_Committed oligodendrocyte precursor`
+fell **83,497 -> 16,666**, a plausible size for a transitional state.
+
+**The circularity concern did NOT materialise.** Named leaves still win substantial cells in
+direct competition with de novo profiles: OPC 70,076, the two fibroblasts 53,445, rod 40,973,
+the two pericytes 28,562, Committed OPC 16,666, RPE 16,537, OFF midget ganglion 13,320,
+Oligodendrocyte 11,057, Allen_endothelial 9,173. If these had gone to zero the tree would
+have been relabelling the InSituType partition and contributing nothing.
+
+**Read the de novo leaves' own counts as circular, though.** `denovo_oligodendrocyte_1` at
+165,060 against `h`'s 157,522 in the flat run says nothing new -- a profile wins back the
+cells it was fit to. The evidence these are real populations stays the markers and regional
+distribution. The *informative* column is the named one above.
+
+### The rule for reading a high fold
+
+**A SINGLE-leaf node with a high fold is a correct absorption** -- there is no arbitrary
+choice available. `Mueller_glia` at 26.1x (19,360 cells) is Müller glia coming out of `o`, as
+§11 predicted; `n` went to `HRCA_OFF midget ganglion cell`, which AtoMx independently calls
+96% OFF-midget. **A MULTI-leaf node with a high fold is the suspect case**: the winner is
+whichever profile is least unlike, and nothing says it is right.
+
+### Report these at NODE level, not leaf
+
+No de novo letter maps to any of them, so there is nothing to add -- the fix is in reporting:
+
+- **`Lymphoid` (9.5x, 11,910 cells)** — the one still likely WRONG. T/NK/B at 1.4% of retina
+  and brain parenchyma is not real, and since no letter is lymphoid these cells are misplaced
+  at the TOP level, not mis-split within the branch. Worth its own look.
+- **`Pigmented` (7.5x, 26,628)** — RPE / pigmented epithelial / melanocyte are meaningful
+  distinctions decided among profiles that won 3,528 openly.
+- **`Diffuse_bipolar` (6.1x), `Other_bipolar` (5.6x), `Parasol_ganglion` (12.0x)** — retinal
+  subtypes among collinear profiles.
+- **`Fibroblast` (7.9x) does not matter**: its two leaves are the same cell type from two
+  atlases, so the split was never meaningful. Report the branch.
 
 ## Gotchas
 
