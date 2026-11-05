@@ -19,9 +19,17 @@
 # Then scp $HOME/napari_metadata_out back to the Mac and upload to S3 from there -- Klone has
 # Kopah credentials, not AWS ones.
 #
+# Runs under `uv run`, NOT apptainer, unlike every other stage. The colour function is
+# DuckDB's hash(), shared by six scripts so a label keeps one colour whichever wrote it, and
+# duckdb is a project dependency that the analysis containers do not carry. This script needs
+# no RAPIDS -- it reads obs backed and writes CSVs -- so the project environment is the right
+# one. Run `uv sync` once on a login node first; the job does not resolve dependencies.
+#
 # Required env (from pipeline/.env):
 #   KOPAH_ENDPOINT_URL, KOPAH_BUCKET, KOPAH_PREFIX,
-#   KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY, APPTAINER_RSC.
+#   KOPAH_ACCESS_KEY_ID, KOPAH_SECRET_ACCESS_KEY.
+# Set UV_CACHE_DIR and UV_PROJECT_ENVIRONMENT to /gscratch paths in .env: the default puts
+# both under $HOME, whose 10 GB quota the uv cache fills quickly.
 # Required args:
 #   NAPARI_PASSES                spec CSV in pipeline/reference/
 #   MERGE_INTO_DIR               directory of existing <slide>_metadata.csv to add to
@@ -49,7 +57,7 @@ if ! command -v module >/dev/null 2>&1; then
     source /etc/profile.d/lmod.sh 2>/dev/null \
         || source /usr/share/lmod/lmod/init/bash 2>/dev/null || true
 fi
-module load apptainer
+# s5cmd lives in ~/bin; no apptainer module needed, this stage runs under uv.
 export PATH="${HOME}/bin:${PATH}"
 
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
@@ -67,13 +75,18 @@ STAGE3="${STAGE3_DIR:-stage3}"
 CLUSTERED="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 NAPARI_OUT_DIR="${NAPARI_OUT_DIR:-${HOME}/napari_metadata_out}"
 
-: "${APPTAINER_RSC:?must be set in pipeline/.env}"
 : "${NAPARI_PASSES:?set it to a spec CSV in pipeline/reference/}"
 : "${MERGE_INTO_DIR:?set it to the directory of existing <slide>_metadata.csv files}"
 
 PASSES_CSV="${PIPELINE_DIR}/reference/${NAPARI_PASSES}"
 [[ -f "$PASSES_CSV" ]] || { echo "ERROR: no such passes spec: $PASSES_CSV" >&2; exit 1; }
 [[ -d "$MERGE_INTO_DIR" ]] || { echo "ERROR: no such directory: $MERGE_INTO_DIR" >&2; exit 1; }
+
+if ! uv run --project "$REPO_DIR" python -c 'import duckdb, anndata, pandas' 2>/dev/null; then
+    echo "ERROR: the project environment is missing dependencies (duckdb/anndata/pandas)." >&2
+    echo "       Run 'uv sync' once on a login node -- compute nodes do not resolve." >&2
+    exit 1
+fi
 
 existing_count=$(find "$MERGE_INTO_DIR" -name '*_metadata.csv' | wc -l)
 (( existing_count > 0 )) || { echo "ERROR: no *_metadata.csv in $MERGE_INTO_DIR" >&2; exit 1; }
@@ -112,10 +125,7 @@ while IFS=, read -r column stage_dir result_basename split_spec _note; do
         echo "    applying splits from ${split_spec}"
     fi
 
-    apptainer exec \
-        --bind "${REPO_DIR}:${REPO_DIR}" \
-        --bind "${WORK}:${WORK}" \
-        "$APPTAINER_RSC" \
+    uv run --project "$REPO_DIR" \
         python -u "${REPO_DIR}/scripts/celltypes-to-napari-metadata.py" \
             --typing-h5 "$WORK/typing_${pass_number}.h5" \
             --combined-h5ad "$WORK/clustered.h5ad" \
