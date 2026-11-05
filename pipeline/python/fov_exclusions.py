@@ -58,10 +58,14 @@ def excluded_mask(obs: pd.DataFrame, annotations_csv: Path) -> pd.Series:
         list(zip(obs[SLIDE_COL].astype(str).str.strip(), obs[FOV_COL].astype(int))),
         index=obs.index).isin(keys)
     if not mask.any():
-        sys.exit(f"ERROR: none of the {len(keys)} excluded (slide, FOV) pairs matched any "
-                 f"cell. obs slides: {sorted(obs[SLIDE_COL].astype(str).unique())[:6]}; "
-                 f"annotation slides: "
-                 f"{sorted({slide for slide, _ in keys})[:6]}")
+        sys.exit(
+            f"ERROR: none of the {len(keys)} excluded (slide, FOV) pairs matched any cell.\n"
+            f"  obs slides:        {sorted(obs[SLIDE_COL].astype(str).unique())[:6]}\n"
+            f"  annotation slides: {sorted({slide for slide, _ in keys})[:6]}\n"
+            f"  If this input was ALREADY filtered upstream -- e.g. an InSituTree result "
+            f"built from an insitutype_input.h5 that stage 70 filtered -- then there is "
+            f"nothing left to exclude and you should omit the FOV annotations. Otherwise "
+            f"the slide ids or FOV numbering disagree.")
     return mask
 
 
