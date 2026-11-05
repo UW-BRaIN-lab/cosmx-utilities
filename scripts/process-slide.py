@@ -363,9 +363,11 @@ def _detect_highest_version(ctx: SlideContext) -> tuple[str, str]:
             )
             ORDER BY CAST(Version AS INTEGER) DESC
             LIMIT 1
-        """).fetchone()
-        if result and result[0]:
-            subdir = result[0]
+        """).fetchall()
+        # fetchall gives [] where fetchone gave None, and a row where it gave a tuple, so
+        # the guard indexes one level deeper.
+        if result and result[0][0]:
+            subdir = result[0][0]
             uuid = re.sub(r"^Segmentation_", "", subdir)
             uuid = re.sub(r"_\d+$", "", uuid)
             return subdir, uuid

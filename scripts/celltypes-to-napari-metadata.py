@@ -138,7 +138,7 @@ def deterministic_color(value: str) -> str:
     wrote the column, or the same cell type changes colour between layers.
     """
     return duckdb.sql("SELECT printf('#%06X', abs(hash($1)) % 16777216)",
-                      params=[value]).fetchone()[0]
+                      params=[value]).fetchall()[0][0]
 
 
 def napari_frame(args, cell_ids: pd.Series, calls: pd.Series,
