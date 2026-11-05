@@ -648,6 +648,24 @@ taking 99.5% of a branch.
 
 ## Gotchas
 
+**`scp` no longer expands `~` on the remote side.** Recent OpenSSH runs scp over SFTP, which
+takes `~/foo` literally as a directory named `~`. Remote paths are already relative to your
+home, so write `klone:napari_metadata_out`, not `klone:~/napari_metadata_out`. The error is
+`No such file or directory`, which reads like the job failed when it did not. (Brace
+expansion does not work either — use `*`.)
+
+**`sbatch` can time out on the REPLY and still have submitted the job.** `Socket timed out on
+send/recv operation` means the request reached slurmctld but the answer did not come back, so
+re-submitting gives you two identical jobs. Check `squeue --me` before re-running.
+
+**Not every stage can use `APPTAINER_RSC`.** The colour function in the Napari metadata
+scripts is DuckDB's `hash()` — shared across six scripts so a label keeps one colour whichever
+wrote it — and `duckdb` is a project dependency that the analysis containers do not carry.
+`87_napari_metadata.sh` therefore runs under `uv run` instead. Run `uv sync` once on a login
+node; compute nodes should not be resolving dependencies.
+
+
+
 **`pipeline/.env` used to OVERWRITE variables you passed on the command line — fixed
 2026-11-04, but know the shape of it.** Every stage did `set -a; source .env; set +a`, so
 `FOO=bar sbatch stage.sh` lost to a `FOO=` line in `.env`. It cost a run: `.env` sets
