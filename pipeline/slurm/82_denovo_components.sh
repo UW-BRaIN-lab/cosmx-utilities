@@ -91,7 +91,10 @@ s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/${RESULT_BASENAME}" \
 CLUSTER_ARGS=()
 IFS=',' read -ra LABELS <<< "$DENOVO_CLUSTERS"
 for label in "${LABELS[@]}"; do
-    label="$(echo "$label" | tr -d '[:space:]')"
+    # Trim the ends only. `tr -d` would delete INTERNAL spaces too, turning a named type
+    # like "Mona_T cell" into "Mona_Tcell", which matches nothing -- and the script would
+    # then warn about a label that was never wrong.
+    label="$(echo "$label" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     [[ -n "$label" ]] && CLUSTER_ARGS+=(--cluster "$label")
 done
 echo "Decomposing: ${LABELS[*]}"
