@@ -93,6 +93,11 @@ def parse_args() -> argparse.Namespace:
                         "as its own Napari value — e.g. the cells of one unsupervised "
                         "cluster inside a de novo letter. Needs --combined-h5ad pointed at "
                         "an AnnData carrying that column (cosmx_clustered.h5ad for leiden).")
+    p.add_argument("--split-obs-h5ad", type=Path, default=None,
+                   help="A second AnnData supplying the obs columns --split-spec keys on, "
+                        "joined by cell index. Needed because the Napari join key "
+                        "(flatfile_cell_id) lives in the stage-3a combined AnnData while "
+                        "obs['leiden'] lives in the stage-3c clustered one.")
     p.add_argument("--merge-into", type=Path,
                    help="Directory of existing <slide>_metadata.csv to add our column(s) "
                         "to, rather than writing a fresh file. Keeps every existing column "
@@ -274,6 +279,37 @@ def write_from_obs(args, typed: pd.DataFrame) -> None:
     if spec is not None:
         keep_cols += [c for c in spec["column"].unique() if c in adata.obs.columns]
     obs = adata.obs[keep_cols].copy()
+
+    if spec is not None:
+        absent = [c for c in spec["column"].unique() if c not in obs.columns]
+        if absent:
+            if not args.split_obs_h5ad:
+                print(f"ERROR: --split-spec needs obs column(s) {absent}, which "
+                      f"{args.combined_h5ad} does not have. Pass --split-obs-h5ad pointing "
+                      f"at an AnnData that does (cosmx_clustered.h5ad carries 'leiden').",
+                      file=sys.stderr)
+                sys.exit(1)
+            print(f"Reading {absent} from {args.split_obs_h5ad}")
+            extra = ad.read_h5ad(args.split_obs_h5ad, backed="r")
+            try:
+                still_absent = [c for c in absent if c not in extra.obs.columns]
+                if still_absent:
+                    print(f"ERROR: {args.split_obs_h5ad} obs has no {still_absent}",
+                          file=sys.stderr)
+                    sys.exit(1)
+                extra_obs = extra.obs[absent].copy()
+            finally:
+                extra.file.close()
+            # Joined on the cell index, which both files inherit from stage 3a. A partial
+            # overlap means they describe different cohorts, and the split would then apply
+            # to some cells and silently not others -- worse than not splitting at all.
+            covered = obs.index.isin(extra_obs.index).mean()
+            if covered < 1.0:
+                print(f"ERROR: {args.split_obs_h5ad} covers only {covered*100:.1f}% of the "
+                      f"cells in {args.combined_h5ad}; they are not the same cohort.",
+                      file=sys.stderr)
+                sys.exit(1)
+            obs = obs.join(extra_obs, how="left")
     joined = obs.join(typed.set_index("cell")[["cell_type", "prob"]], how="left")
     if spec is not None:
         print(f"Applying {len(spec)} split(s) from {args.split_spec}")
