@@ -81,7 +81,12 @@ STAGE3="${STAGE3_DIR:-stage3}"
 # fallback for exactly that, re-joining each slide's _metadata_file.csv.gz on the same
 # (fov, cell_ID) pair flatfiles_to_anndata.py used to build the index.
 # obs['leiden'], which the component splits key on, still comes from the clustered AnnData.
-FLATFILES_PREFIX="${FLATFILES_PREFIX:?set it to the Kopah prefix holding *_metadata_file.csv.gz}"
+#
+# Flat-file locations come from the MANIFEST, not a hand-passed prefix: they are per-slide
+# (<...>/flatFiles/<slide_id>/) and the manifest is what every other stage already reads.
+MANIFEST_FILE="${MANIFEST:?must be set in pipeline/.env}"
+[[ -f "$MANIFEST_FILE" ]] || { echo "ERROR: no such manifest: $MANIFEST_FILE" >&2; exit 1; }
+FLAT_PREFIX_COLUMN="${FLAT_PREFIX_COLUMN:-flat_files_prefix}"
 CLUSTERED="${CLUSTERED_BASENAME:-cosmx_clustered.h5ad}"
 NAPARI_OUT_DIR="${NAPARI_OUT_DIR:-${HOME}/napari_metadata_out}"
 
@@ -109,10 +114,19 @@ export AWS_SECRET_ACCESS_KEY="$KOPAH_SECRET_ACCESS_KEY"
 export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 
 mkdir -p "$WORK/flat"
-echo "Staging flat-file metadata from ${FLATFILES_PREFIX}..."
-s5cmd cp "s3://${KOPAH_BUCKET}/${FLATFILES_PREFIX}/*_metadata_file.csv.gz" "$WORK/flat/"
+# tr -d '\r': the manifest is written by csv.DictWriter, whose CRLF leaves a trailing \r on
+# the last column -- and it has landed mid-URI before.
+column_index=$(head -1 "$MANIFEST_FILE" | tr -d '\r' | tr ',' '\n' | grep -n "^${FLAT_PREFIX_COLUMN}$" | cut -d: -f1)
+[[ -n "$column_index" ]] || { echo "ERROR: $MANIFEST_FILE has no '${FLAT_PREFIX_COLUMN}' column" >&2; exit 1; }
+echo "Staging flat-file metadata listed in $(basename "$MANIFEST_FILE") (column ${column_index})..."
+while IFS= read -r slide_prefix; do
+    [[ -n "${slide_prefix// }" ]] || continue
+    s5cmd cp "s3://${KOPAH_BUCKET}/${slide_prefix}*_metadata_file.csv.gz" "$WORK/flat/" \
+        || echo "  WARN: nothing matched under ${slide_prefix}" >&2
+done < <(tail -n +2 "$MANIFEST_FILE" | tr -d '\r' | cut -d, -f"${column_index}")
+
 flat_count=$(find "$WORK/flat" -name '*_metadata_file.csv.gz' | wc -l)
-(( flat_count > 0 )) || { echo "ERROR: no *_metadata_file.csv.gz under ${FLATFILES_PREFIX}" >&2; exit 1; }
+(( flat_count > 0 )) || { echo "ERROR: no *_metadata_file.csv.gz staged from the manifest" >&2; exit 1; }
 echo "  ${flat_count} slide metadata file(s)"
 
 # Only fetched if some pass actually needs a split column.
