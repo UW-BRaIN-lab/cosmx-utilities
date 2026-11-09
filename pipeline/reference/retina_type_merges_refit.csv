@@ -1,0 +1,65 @@
+action,source_type,merged_name,status,decided_by,note
+keep,Allen_Astrocyte,,decided,79 atlas duplicates,"REGIONAL: gray matter, concentration 0.97 (98% of its cells)"
+keep,Allen_CGE interneuron,,pending,us,"one Inhibitory neuron would follow from her excitatory ruling, but she was not asked -- Friday"
+keep,Allen_Committed oligodendrocyte precursor,,decided,78 collinearity,"nearest neighbour 0.9042, one of the most separable types in the reference"
+merge,Allen_Deep-layer corticothalamic and 6b,Excitatory neuron,decided,SME 2026-11-10,"excitatory neuron is sufficient, without the deep vs superficial labelling"
+merge,Allen_Deep-layer intratelencephalic,Excitatory neuron,decided,SME 2026-11-10,"excitatory neuron is sufficient, without the deep vs superficial labelling"
+merge,Allen_Deep-layer near-projecting,Excitatory neuron,decided,SME 2026-11-10,"excitatory neuron is sufficient, without the deep vs superficial labelling"
+drop,Allen_Eccentric medium spiny neuron,,decided,SME 2026-11-10,no basal ganglia in the blocks
+keep,Allen_Fibroblast,,decided,79 atlas duplicates,the surviving copy; Mona's collapsed
+drop,Allen_Hippocampal CA1-3,,decided,SME 2026-11-10,blocks are cortex and subcortical white matter only
+keep,Allen_LAMP5-LHX6 and Chandelier,,pending,us,"one Inhibitory neuron would follow from her excitatory ruling, but she was not asked -- Friday"
+keep,Allen_MGE interneuron,,pending,us,"one Inhibitory neuron would follow from her excitatory ruling, but she was not asked -- Friday"
+drop,Allen_Medium spiny neuron,,decided,SME 2026-11-10,no basal ganglia in the blocks
+keep,Allen_Microglia,,decided,79 atlas duplicates,the brain copy of the MIXED microglia class
+merge,Allen_Upper-layer intratelencephalic,Excitatory neuron,decided,SME 2026-11-10,"excitatory neuron is sufficient, without the deep vs superficial labelling"
+keep,Allen_endothelial cell,,pending,us,79 too few cells in the other copy; home gray matter (0.61)
+keep,Allen_pericyte,,pending,us,"79 PARTIAL: owns gray matter (0.68, 75% of its cells)"
+keep,Allen_vascular associated smooth muscle cell,,pending,us,"79 MIXED, both home adjacent soft tissue; takes 4,854 cells in tissue a cortical profile cannot be from"
+keep,HRCA_GABAergic amacrine cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_H1 horizontal cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_H2 horizontal cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_Mueller cell,,decided,79 + 77,retina-defining and uncontested
+keep,HRCA_OFF midget ganglion cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_OFF parasol ganglion cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_OFFx cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_ON midget ganglion cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_ON parasol ganglion cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_ON-blue cone bipolar cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_S cone cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_amacrine cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_astrocyte,,decided,79 atlas duplicates,"REGIONAL: retina, concentration 0.49"
+keep,HRCA_diffuse bipolar 1 cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_diffuse bipolar 2 cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_diffuse bipolar 3a cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_diffuse bipolar 3b cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_diffuse bipolar 4 cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_diffuse bipolar 6 cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_flat midget bipolar cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_giant bipolar cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_glycinergic amacrine cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_invaginating midget bipolar cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+drop,HRCA_microglial cell,,decided,79 atlas duplicates,"MIXED; this RETINA profile's home is gray matter, where it beats Allen_Microglia 1962 to 251"
+keep,HRCA_retinal bipolar neuron,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_retinal cone cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_retinal ganglion cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_retinal pigment epithelial cell,,decided,79 atlas duplicates,"2,265 cells, 91.4% in retina, concentration 0.89 -- strongest regional signal in the table"
+keep,HRCA_retinal rod cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_rod bipolar cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+keep,HRCA_starburst amacrine cell,,pending,Kathryn Pepple,"retinal granularity referred to her; cohort is central retina, so the fovea-enriched subtypes cannot be collapsed as peripheral-only"
+drop,Mona_B cell,,decided,SME 2026-11-10,no concerning inflammation on H&E in any case
+keep,Mona_Schwann cell,,pending,us,"77: 0 pinned, profile at 5.5% of scale, yet won 974 cells. PNS glia in a CNS nerve -- review before keeping"
+drop,Mona_T cell,,decided,SME 2026-11-10,no concerning inflammation on H&E in any case
+keep,Mona_astrocyte,,decided,79 atlas duplicates,"REGIONAL: optic nerve, concentration 0.50"
+keep,Mona_endothelium,,pending,us,79 too few cells to judge (164); home retina
+drop,Mona_fibroblast,,decided,79 atlas duplicates,MIXED with Allen_Fibroblast in soft tissue; 77: profile at 7.7% of scale despite 866 pinned cells
+keep,Mona_macrophage,,decided,78 collinearity,distinct from microglia at 0.9824; no duplicate
+keep,Mona_melanocyte,,pending,us,small and choroid-adjacent; decide with the pigmented epithelium rows
+keep,Mona_microglial cell,,decided,79 atlas duplicates,"owns optic nerve, concentration 0.30"
+keep,Mona_myelinating Schwann cell,,pending,us,"77: 0 pinned, profile at 9.8% of scale, yet won 675 cells -- review before keeping"
+drop,Mona_natural killer cell,,decided,SME 2026-11-10,no concerning inflammation on H&E in any case
+keep,Mona_pericyte,,pending,us,79 PARTIAL: leans optic nerve only weakly (0.16)
+keep,Mona_pigmented epithelial cell,,pending,us,"77: 0 pinned, profile at 7.1% of scale, 125 cells in adjacent soft tissue"
+keep,Mona_vascular associated smooth muscle cell,,pending,us,"79 MIXED, both home adjacent soft tissue -- which atlas should own ORBITAL soft tissue is not decidable from 79 alone"
+keep,OPC,,decided,78 collinearity,nearest neighbour 0.9666
+keep,Oligodendrocyte,,decided,78 collinearity,nearest neighbour 0.9655

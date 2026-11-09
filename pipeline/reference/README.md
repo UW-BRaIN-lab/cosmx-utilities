@@ -99,6 +99,9 @@ type names per source (`HRCA_`, `Mona_`, `Allen_`).
   panel genes are in the atlas; 68 raw types → 64).
 - `retina_type_merges.csv` — the reviewed merge/drop spec: which duplicate source types
   collapse, and which taxonomy QC categories are dropped. See the section below.
+- `retina_type_merges_refit.csv` — the SECOND spec, for the refit: the whole 64-type list
+  with every type kept, merged or dropped on the record, each row carrying who decided it
+  and why. Applied to the 64-type panel it gives **53 types**. See the section below.
 - `retina_hierarchy.json` — the InSituTree cell-type hierarchy over those 64 types
   (11 top-level branches, depth 4). Named types only — de novo leaves get added after
   triage, in lockstep with the CosMx-scale profile matrix.
@@ -183,6 +186,14 @@ and the reference alone cannot separate them. That has two consequences:
    if copy assignment tracks `Region`, the distinction is plausibly real; if it tracks
    **cell area / total counts / nuclear fraction**, it is the NEAT1 assay offset sorting
    cells by segmentation quality. Only the second failure mode looks like success.
+
+   ⚠ `79_atlas_duplicates.sh` ran the FIRST half of that test and the copies do track
+   `Region` — HRCA astrocyte 60% retina, Allen 98% gray matter, Mona 61% optic nerve
+   (2026-11-09). **The second half has not been run**, and the two are not independent here:
+   regions differ in depth (gray matter 578 median counts against retina 448), so an offset
+   that sorts cells by depth would also look regional. Test copy assignment against
+   `total_counts` and `qc_area` WITHIN one region before calling the astrocyte split
+   biology.
 2. **The regional question is better answered downstream, on our own tissue.** "Do optic
    nerve astrocytes differ from brain astrocytes?" is a differential-expression test across
    `Region` *within* the astrocyte call — which uses our tissue rather than three labs'
@@ -195,6 +206,44 @@ OFF- vs ON-midget ganglion = **0.9985**, cone vs S-cone = 0.9955, H1 vs H2 horiz
 0.9953, Allen upper- vs deep-layer IT = **0.9969**. Unlike the cross-source duplicates
 these are genuine biology from a single dataset, with no inter-atlas confound — they are
 simply hard to call on ~400 counts.
+
+### The refit spec: 64 → 53, and what is still pending
+
+`retina_type_merges_refit.csv` is applied to the already-merged 64-type panel, so the chain
+is three steps rather than two — panel-restrict, the original duplicate merges, then this:
+
+```bash
+uv run python pipeline/python/merge_reference_types.py \
+    --reference pipeline/reference/retina_combined_panel.csv \
+    --spec pipeline/reference/retina_type_merges_refit.csv \
+    --require-complete \
+    --output pipeline/reference/retina_refit_panel.csv
+```
+
+`--require-complete` is the point of the file: every one of the 64 types has a row, so a type
+cannot be forgotten, and `keep` rows record the decision to leave one alone. The extra
+`status`, `decided_by` and `note` columns are ignored by the script and carried for the reader.
+
+| decided | types | source |
+|---|---|---|
+| lymphoid dropped (T, B, NK) | 3 | SME 2026-11-10 — H&E on every case, no concerning inflammation |
+| hippocampus + both spiny-neuron types dropped | 3 | SME — blocks are cortex and subcortical white matter only |
+| 4 cortical excitatory → `Excitatory neuron` | 4→1 | SME — "excitatory neuron is sufficient, without the deep vs superficial labelling" |
+| `HRCA_microglial cell`, `Mona_fibroblast` dropped | 2 | `79_atlas_duplicates.sh` |
+
+**40 rows are still `pending`**: 27 retinal types referred to Kathryn Pepple, plus the
+cortical inhibitory trio, the two smooth-muscle copies, pericyte, endothelium, the Schwann
+pair and the Mona pigment pair. They carry `keep`, so the spec is applicable as it stands.
+
+⚠ **The unweighted mean is right for cross-atlas duplicates and biased for this merge.**
+Averaging columns is well defined when the copies are one cell type rescaled per source, which
+is what the original spec does. `Excitatory neuron` is different: it collapses four *distinct*
+Allen types with real and unequal abundances in tissue, where the correct profile is the
+abundance-weighted mean. An unweighted mean over-weights the rare class (deep-layer
+near-projecting) against the common one (upper-layer IT). The fix is to relabel upstream and
+re-derive with `getRNAprofiles()` from the raw atlas H5ADs — see RETINA_TYPING.md for where
+those live — or to pass per-source cell counts as weights. Until one of those happens, the
+merged excitatory profile is approximate, and it is the only within-source merge in the spec.
 
 ### Why the hierarchy, and what it is for
 
