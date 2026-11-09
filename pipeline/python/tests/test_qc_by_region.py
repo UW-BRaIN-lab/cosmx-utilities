@@ -105,6 +105,30 @@ def test_a_join_that_matches_nothing_is_fatal(tmp_path: Path) -> None:
     print("  a sheet that matches no cell exits rather than tabulating nothing")
 
 
+def test_cells_outside_the_sheet_do_not_break_the_mask(tmp_path: Path) -> None:
+    """The real cohort has FOVs the SME's deck never covered; the fixture must too.
+
+    A left merge against a partial sheet puts NaN in `excluded`, which makes the column
+    object dtype. `~` on an object column is bitwise negation -- -1, -2 -- and .loc then
+    reads those as row LABELS. It failed on 20,191 of 849,510 real cells and could not fail
+    here, because every fixture cell used to match.
+    """
+    cells = build_cells()
+    unannotated = cells.iloc[:10].copy()
+    unannotated["fov"] = max(f for fovs, _ in REGIONS.values() for f in fovs) + 1
+    unannotated.index = [f"outside_the_sheet_{i}" for i in range(len(unannotated))]
+    cells = pd.concat([cells, unannotated])
+
+    annotated_cells = qr.attach_regions(
+        cells, qr.load_regions(write_annotations(tmp_path / "partial.csv")))
+    assert len(annotated_cells) == len(cells) - len(unannotated)
+    assert annotated_cells["excluded"].dtype == bool, annotated_cells["excluded"].dtype
+    # The two calls that raised KeyError on the real cohort.
+    assert len(qr.by_region(annotated_cells, (50,))) == len(REGIONS)
+    assert len(qr.focus(annotated_cells, FOCUS, (50,))) == len(REGIONS)
+    print(f"  {len(unannotated)} cells outside the sheet are dropped, and the mask stays boolean")
+
+
 def test_the_cohort_yardstick_excludes_excluded_cells(tmp_path: Path) -> None:
     cohort = qr.by_region(annotated(tmp_path), (50,)).set_index("region")
     # Gray matter cohort-wide must be the peers' 800, undragged by the focus donor's 60.
@@ -218,6 +242,7 @@ def main() -> None:
         print("test_qc_by_region")
         test_region_comes_from_the_sheet_not_obs(tmp)
         test_a_join_that_matches_nothing_is_fatal(tmp)
+        test_cells_outside_the_sheet_do_not_break_the_mask(tmp)
         test_the_cohort_yardstick_excludes_excluded_cells(tmp)
         test_a_good_region_is_not_condemned_by_its_slide(tmp)
         test_a_bad_region_still_reads_as_bad(tmp)
