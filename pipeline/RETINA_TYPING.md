@@ -729,7 +729,7 @@ cells and which genes the fit sees, so they need a new fit.
 |---|---|---|
 | `uwa7761eyes` white + gray matter excluded, 100 FOVs / ~37,500 cells | SME 2026-11-06: that donor's brain is atypical, its eye is fine | InSituType estimates the platform rescaling **and** every de novo profile from the cells in the fit. Degraded cells flatten profiles and feed the attractors, so leaving them in and filtering afterwards changes nothing about the profiles they distorted. |
 | 13 corrected FOV regions, incl. the new `Choroid` value | SME rulings on the collision list | Region is a reporting label, so this one alone would not force a refit — but it must be in place before the numbers it feeds are recomputed. |
-| gene set re-derived | the cohort is changing | 73's criterion 1 compares each gene's mean against the cohort background. Drop 37,500 degraded cells and both move. |
+| gene set re-derived | the cohort is changing | 73's criterion 1 compares each gene's mean against the cohort background. Drop 37,500 cells and both move. |
 | K re-swept | the gene set is changing | InSituType's per-cluster AIC penalty is `2 × n_genes`. GBM's K moved 22 → 27 on exactly this change. |
 
 **Run 1's gene selection, for reference** (`stage4_anchor/gene_selection/`, note the prefix —
@@ -742,8 +742,15 @@ which is why the two numbers both appear in the logs and are not in conflict.
 
 **Stage 0 — annotations. DONE 2026-11-06.** `uwa7761eyes` white and gray matter FOVs carry
 `exclude=1`; the region column keeps the true anatomy so nothing about the tissue is lost.
-157 FOVs are now excluded cohort-wide (57 ciliary/cornea not in any atlas, 100 degraded
-brain). That donor keeps 22 optic nerve, 10 retina and 26 adjacent soft tissue FOVs.
+157 FOVs are now excluded cohort-wide (57 ciliary/cornea not in any atlas, 100 brain).
+
+**Say why, precisely: the brain FOVs are excluded on CELL-TYPE IMPLAUSIBILITY, not on RNA
+quality.** The SME's reason was composition — implausible T-cell abundance, more OPCs than
+any other donor's brain. Depth does not support a quality claim: against the other eleven
+donors in the same region, that donor's gray matter and white matter are near-normal, and
+it is the kept `Adjacent soft tissue` that stands out. Writing "degraded" in the record
+would be a quality claim the data does not make, and it is the kind of thing a reviewer
+checks. Confirm the numbers with `21_qc_by_region.sh` before the exclusion is final. That donor keeps 22 optic nerve, 10 retina and 26 adjacent soft tissue FOVs.
 
 Check the branch before every submit — a Klone worktree can be taken over by another
 session, and `git pull` alone would then build someone else's tree:
