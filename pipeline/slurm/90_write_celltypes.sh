@@ -6,6 +6,12 @@
 #   sbatch pipeline/slurm/90_write_celltypes.sh
 #
 # Produces stage4/cosmx_typed.h5ad (cosmx_clustered + obs cell_type/insitutype_prob)
+#
+# Also writes back an InSituTree typing -- concat_typing_results.py emits the same
+# /cell_id,/cell_type,/prob schema, so no code change is needed, only names that do not
+# collide with the InSituType run's:
+#   RESULT_BASENAME=insitutree_result.h5 TYPED_BASENAME=cosmx_typed_tree.h5ad \
+#       QC_SUBDIR=qc_plots_tree sbatch pipeline/slurm/90_write_celltypes.sh
 # and a UMAP-by-cell_type QC plot. To render the marker heatmap BY CELL TYPE afterwards:
 #   STAGE3_DIR=stage4 GROUP_KEY=cell_type CLUSTERED_BASENAME=cosmx_typed.h5ad \
 #       sbatch pipeline/slurm/50_marker_heatmap.sh
@@ -61,6 +67,10 @@ STAGE4="${STAGE4_DIR:-stage4}"
 # (STAGE4_DIR=stage4_insitutree) overrides RESULT_BASENAME=insitutree_result.h5. Both h5s
 # carry the same /cell_id, /cell_type, /prob datasets write_celltypes.py expects.
 RESULT_BASENAME="${RESULT_BASENAME:-insitutype_result.h5}"
+# The InSituTree calls are a SECOND typing of the same cells, so they must not land on
+# the InSituType run's file. Name the output and the QC sub-dir per typing.
+TYPED_BASENAME="${TYPED_BASENAME:-cosmx_typed.h5ad}"
+QC_SUBDIR="${QC_SUBDIR:-qc_plots}"
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
@@ -93,15 +103,15 @@ apptainer exec \
     python -u "${PIPELINE_DIR}/python/write_celltypes.py" \
         --clustered-h5ad "$WORK/cosmx_clustered.h5ad" \
         --insitutype-h5 "$WORK/typing_result.h5" \
-        --output "$WORK/cosmx_typed.h5ad" \
+        --output "$WORK/${TYPED_BASENAME}" \
         --qc-plots-dir "$WORK/qc_plots" \
         "${EXTRA_ARGS[@]}"
 
 echo "Uploading typed AnnData + QC plot to s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/ ..."
-s5cmd cp "$WORK/cosmx_typed.h5ad" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/cosmx_typed.h5ad"
+s5cmd cp "$WORK/${TYPED_BASENAME}" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/${TYPED_BASENAME}"
 s5cmd cp "$WORK/qc_plots/*" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/qc_plots/" \
+    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${STAGE4}/${QC_SUBDIR}/" \
     || echo "WARN: no QC plots to upload"
 
 echo "Done: stage 4c"
