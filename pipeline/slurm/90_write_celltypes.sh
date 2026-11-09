@@ -49,10 +49,10 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT letting the ambient shell override the study's identity; see
+# slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Read cosmx_clustered from the stage-3 dir; write the typed AnnData under stage-4 dir.
 STAGE3="${STAGE3_DIR:-stage3}"
