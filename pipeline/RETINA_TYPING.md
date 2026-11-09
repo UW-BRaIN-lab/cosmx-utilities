@@ -515,28 +515,42 @@ populations remains the markers and regional distribution, not their size in the
 
 ### Which hierarchy is which
 
-Three leaf sets exist and the numbers get mixed up, so count them from the file rather
+Four leaf sets now exist and the numbers get mixed up, so count them from the file rather
 than from memory. **Only two have ever been fitted.**
 
 | name | file | leaves | de novo leaves | fitted? |
 |---|---|---|---|---|
 | **66** | `reference/retina_hierarchy.json` | 66 | 2 (the astrocyte split) | **yes** — Napari column `insitutree_66` |
-| **75** | *(not in the repo in its as-run form — see below)* | 75 | 11 | **yes** — Napari column `insitutree_75`, the one the SME prefers |
+| **75** | `reference/retina_hierarchy_75_as_run.json` | 75 | 11 | **yes** — Napari column `insitutree_75`, the one the SME prefers |
 | **73** | `reference/retina_hierarchy_denovo_leaves.json` | 73 | 9 | no — 75 with the three excitatory leaves merged to one |
 | **70** | `reference/retina_hierarchy_denovo_leaves_no_lymphoid.json` | 70 | 9 | no — 73 with the Lymphoid branch removed |
+
+**66 → 75 is purely additive: +9 leaves, 0 removed, 0 moved to a different parent.** Every
+one of the 66 leaves survives in the same place. The nine are
+`denovo_cortical_excitatory_1/_2/_3` under `Cortical_neuron/Excitatory`,
+`denovo_cortical_inhibitory_1/_2` under `Cortical_neuron/Inhibitory`, `denovo_microglia`
+under `Myeloid`, `denovo_oligodendrocyte_1/_2` under `Oligodendrocyte_lineage`, and
+`denovo_endothelium` under `Vascular/Endothelial`. So "66 vs 75" is not a different tree —
+it is the same tree asked whether nine brain populations the references do not carry should
+exist. All nine are brain, none retinal, which is why the retina looks near-identical in
+Napari between the two columns and the brain does not.
 
 73 and 70 are proposals built from what the 75-leaf run showed. 70 is the candidate for
 the refit: it carries both corrections the review earned (merge the excitatory trio the
 panel cannot resolve, drop the lymphoid attractors), and it is what "70 leaves" in the
 rebuild plan means. It has never been run.
 
-**The 75-leaf run's own hierarchy is not recoverable from the repo.** The
-`_denovo_leaves` files are untracked and were edited in place when the excitatory trio was
-merged, so the file that produced `insitutree_75` no longer exists — the current one is
-its 73-leaf successor. The structure is reconstructible (split
-`denovo_cortical_excitatory` back into `_1`/`_2`/`_3` under the same parent, which is what
-the Napari column's 75 labels show), but it should not have to be. Commit the leaf sets
-alongside any run that is going to be reviewed.
+**`retina_hierarchy_75_as_run.json` is RECONSTRUCTED, not recovered.** The `_denovo_leaves`
+file was edited in place when the excitatory trio was merged, so the file that actually
+produced `insitutree_75` was destroyed. This one is the 73-leaf successor with
+`denovo_cortical_excitatory` split back into `_1`/`_2`/`_3` under the same parent, and it
+is verified: its 75 leaves match the 75 distinct labels in the Napari `insitutree_75`
+column exactly. Commit the leaf set alongside any run that is going to be reviewed, so the
+next one does not need this.
+
+Three labels in both Napari columns are branch names rather than leaf names — `Rod_bipolar`,
+`Other_ganglion`, `Mueller_glia`. Those are the three singleton branches; InSituTree reports
+the branch. It happens identically in both runs and is not a difference between them.
 
 ### Result of the 75-leaf run (2026-11-05)
 
