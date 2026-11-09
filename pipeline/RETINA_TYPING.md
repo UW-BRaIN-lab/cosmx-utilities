@@ -718,9 +718,21 @@ which is why the two numbers both appear in the logs and are not in conflict.
 157 FOVs are now excluded cohort-wide (57 ciliary/cornea not in any atlas, 100 degraded
 brain). That donor keeps 22 optic nerve, 10 retina and 26 adjacent soft tissue FOVs.
 
+Check the branch before every submit — a Klone worktree can be taken over by another
+session, and `git pull` alone would then build someone else's tree:
+
 ```bash
-cd ~/cosmx-utilities-retina && git pull && FOV_ANNOTATIONS_BASENAME=fov_annotations.csv sbatch pipeline/slurm/70_prep_insitutype.sh
+cd ~/cosmx-utilities-retina && git fetch origin && git checkout retina-fov-exclusion-rebuild && git pull
 ```
+
+```bash
+cd ~/cosmx-utilities-retina && FOV_ANNOTATIONS_BASENAME=fov_annotations.csv sbatch pipeline/slurm/70_prep_insitutype.sh
+```
+
+**Read the first two lines of 70's log before letting anything follow it.** They must say
+`NOTE: ignoring inherited KOPAH_PREFIX ...` and `Using KOPAH_PREFIX=cosmx-retina`. That is
+the proof the job is pointed at this study and not at whichever one the login shell's
+`kopah` helper last exported.
 
 Then gene selection. Read `gene_selection_summary.txt` and resubmit with different
 `BG_MULT` / `REF_QUANTILE` if the union leaves the 3,000–5,000 band. Starting from run 1's
@@ -734,14 +746,16 @@ Then the K sweep on the pruned panel. Confirm the minimum is **interior**, not `
 a range edge:
 
 ```bash
-cd ~/cosmx-utilities-retina && INPUT_KEY=stage4/insitutype_input.h5 KEEP_GENES=stage4/gene_selection/kept_genes.txt K_SWEEP_OUT=k_sweep_pruned sbatch pipeline/slurm/74_choose_k.sh
+cd ~/cosmx-utilities-retina && INPUT_KEY=stage4/insitutype_input.h5 KEEP_GENES=stage4/gene_selection/kept_genes.txt K_SWEEP_OUT=k_sweep_pruned sbatch --account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1 pipeline/slurm/74_choose_k.sh
 ```
 
 Then the fit itself, with the pruned panel and the swept K, followed by the triage section
 above — markers, component decomposition, and the SME naming round — before 84 and 85.
 
 **Partitions.** 74, 80 and 85 all take hours, so every one of them carries
-`--account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1` on the first submit.
+`--account=glioblastoma --partition=gpu-l40s --qos=normal --gres=gpu:1` on the first submit,
+as the 74 command above does — never as a follow-up once a job has already been preempted.
+74 carries no `--requeue`, so a preemption cancels the sweep outright with nothing written.
 See Gotchas for why a CPU job goes on the GPU slice and why tying it up is the right trade.
 
 ### What the refit invalidates
