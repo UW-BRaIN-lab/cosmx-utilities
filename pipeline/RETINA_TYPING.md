@@ -833,6 +833,66 @@ against 77: a copy with no pinned cells is not earning its column.
 cd ~/cosmx-utilities-retina && sbatch pipeline/slurm/79_atlas_duplicates.sh
 ```
 
+**What the triage measured, 2026-11-09** (jobs 43080883 / 43080890 / 43080895, run 1 in
+`stage4/`, tables under `stage4/reference_triage/`).
+
+*77.* **22 of 64 types were calibrated**, and `0 were never called at all` — every one of the
+42 uncalibrated types still won cells. `Mona_B cell` took 820, `Mona_Schwann cell` 974,
+`Mona_myelinating Schwann cell` 675, each on a profile at 3–10% of the de novo median (792.7).
+An uncalibrated type that claims a thousand cells is the dangerous case, not the harmless one:
+absence is visible, a thousand calls on a profile fitted to nothing look like a result.
+
+Two types were pinned and *still* collapsed — `Mona_fibroblast` (866 pinned, profile at 7.7%)
+and `Mona_astrocyte` (42 pinned, 7.0%). The pinning step found "best matching" cells for them
+and the match pulled the profile **down**, which means the cells it chose were shallow. A
+looser pinning threshold would therefore make this worse, not better. The lever is the type
+list and the cohort.
+
+The four largest de novo clusters carry the four smallest profiles — `h` 157,522 cells at
+256.7, `o` 120,906 at 147.0, `m` 111,723 at 140.9, `a` 102,468 at 87.8 — so 59% of the cohort
+sits in flat attractors while `p` holds 9 cells at 2,803. The de novo median is held up by the
+small clusters; it is the right yardstick for "a profile fitted to data", not for a typical
+cell.
+
+*Within every collinear pair, one arm captured the calibration and the other starved.*
+
+| pair | cosine | pinned | called |
+|---|---|---|---|
+| `HRCA_OFF midget ganglion cell` | 0.9985 | **927** | 1,517 |
+| `HRCA_ON midget ganglion cell` | | 0 | 117 |
+| `HRCA_H1 horizontal cell` | 0.9953 | **33** | 4,390 |
+| `HRCA_H2 horizontal cell` | | 0 | 679 |
+| `HRCA_ON parasol ganglion cell` | 0.9923 | **46** | 98 |
+| `HRCA_OFF parasol ganglion cell` | | 0 | 88 |
+| `Allen_CGE interneuron` | 0.9909 | **146** | 173 |
+| `Allen_MGE interneuron` | | 0 | 35 |
+
+No pair has both arms pinned, and every bipolar, every amacrine and both cones have none. So
+"it attracted pinned cells, therefore it was separable" is **wrong** as a merge veto: inside a
+collinear pair the pinning picks a winner. 927 of OFF midget's 1,517 cells ARE its pinned
+cells, assigned by the overwrite rather than by the likelihoods. The ON/OFF split in run 1 is
+an artifact of which arm captured the tuning.
+
+*79,* on 777,408 cells (849,510 less the 51,911 in excluded FOVs), with the regions near
+balanced — white matter 23.3%, retina 22.0%, optic nerve 21.6%, gray matter 21.0%, adjacent
+soft tissue 12.0%, choroid 0.1%.
+
+| class | verdict | reading |
+|---|---|---|
+| astrocyte | PARTIAL **by 0.01** | each owns its tissue — HRCA retina 0.49 / 60%, Allen gray matter **0.97 / 98%**, Mona optic nerve 0.50 / 61%. Treat as REGIONAL: keep all three. |
+| pericyte | PARTIAL | Allen owns gray matter (0.68, 75%); Mona leans optic nerve weakly (0.16) |
+| endothelium | too few cells | distinct homes (Mona retina 0.40, Allen gray matter 0.61) but Mona has 164 cells |
+| pigmented epithelium | too few cells | `HRCA_retinal pigment epithelial cell` is the strongest regional signal in the table — 2,265 cells, **91.4% in retina**, 0.89. RPE needs no rescue. `Mona_pigmented epithelial cell` has 125 cells, 0 pinned, a collapsed profile |
+| microglia | MIXED | HRCA and Allen both home gray matter, and the **retina** profile outnumbers the brain one there 1,962 to 251 |
+| fibroblast | MIXED | both home adjacent soft tissue; `Mona_fibroblast` is one of the collapsed profiles |
+| smooth muscle | MIXED | both home adjacent soft tissue; `Allen_…smooth muscle cell` takes 4,854 cells there |
+
+So the duplicates are not one phenomenon. Astrocytes divide the tissue cleanly and all three
+stay. Microglia, fibroblast and smooth muscle compete for the same tissue and want one copy
+each. Twice a reference type wins tissue it has no business in — a retinal microglia profile
+in gray matter, a cortical smooth-muscle profile in orbital soft tissue — which is what the
+single shared rescaling term predicts when the atlases disagree.
+
 **Applying a merge: relabel upstream, do not average columns.** Averaging two columns of the
 built reference gets the cell weighting wrong and quietly favours the rarer subtype. The merge
 belongs in the profile builders in `~/keene-lab/retina-brain`, where `getRNAprofiles()`
