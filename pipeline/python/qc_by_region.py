@@ -112,7 +112,11 @@ def attach_regions(obs: pd.DataFrame, regions: pd.DataFrame) -> pd.DataFrame:
 
     out = obs.loc[matched].copy()
     out[REGION_COL] = joined.loc[matched, REGION_COL].to_numpy()
-    out["excluded"] = joined.loc[matched, "excluded"].to_numpy()
+    # Cast, do not inherit: the left merge above leaves NaN in `excluded` wherever the sheet
+    # has no row, which makes the whole column object dtype. `~` on an object column is
+    # bitwise negation -- -1, -2 -- and .loc then reads those as row LABELS and raises.
+    # Matched rows are never NaN, so this is safe as well as necessary.
+    out["excluded"] = joined.loc[matched, "excluded"].to_numpy(dtype=bool)
     return out
 
 

@@ -99,6 +99,32 @@ Two of those needed a judgement beyond the token itself:
   assignment. Both FOVs already had primary rows (8 = Optic nerve, 19 = Adjacent soft tissue);
   those are unchanged and `mixed_adjacent` went 0 → 1.
 
+**46 FOVs are in the data but NOT in this sheet — 21,331 cells, found 2026-11-08.** Stage 21
+reported 20,191 such cells on the QC cohort and named the worst slides; the FOV identities
+below come from the stitched Napari files. These are not excluded and not mislabelled: a FOV
+absent from the sheet keeps whatever `Region` the AtoMx export gave it, which is the stale
+annotation this file exists to correct. They are simply unruled.
+
+| slide | FOVs | n | cells |
+|---|---|---|---|
+| `UWA7689eyes` | 86–102 | 17 | 10,512 |
+| `uwa7753eyes` | 110–113, 116–117, 193–194, 196–197 | 10 | 6,419 |
+| `UWA7740eyes` | 36–40, 43–46 | 9 | 1,774 |
+| `UWA7697eyes` | 45–46, 69, 134 | 4 | 905 |
+| `eyes7597` | 57, 206 | 2 | 1,042 |
+| `uwa7611eyes` | 82 | 1 | 285 |
+| `uwa7509eyes` | 73 | 1 | 171 |
+| `UWA7575eyes` | 49 | 1 | 168 |
+| `eyes7517` | 81 | 1 | 55 |
+
+⚠ **`UWA7689eyes` 86–102 looks like a dropped half of a resolved token, not a true gap.**
+That slide's Retina row carried `86-102226`. The 2026-09-01 resolution read the tail as
+`226`/`227` and added **only** 226 — the `86-102` half was never written. Retina on that
+slide is 60–80 and 226–227, with 86–102 sitting in an unlabelled hole between
+`Adjacent soft tissue` 81–83 and 103–107. It is 10,512 cells, half of this entire list, and
+it should be confirmed rather than assumed. `uwa7753eyes` 193–197 is the same shape: a hole
+inside `White matter` 192, 195, 198–209.
+
 Gap-fill sanity: every added FOV was **absent** from the CSV, never an overwrite, and each new
 range abuts a compatible neighbour — `eyes7597` 188-197 runs straight into 198-199 which were
 already White matter; `UWA7740eyes` 169-174 sits in a Gray matter surround, which is what makes
