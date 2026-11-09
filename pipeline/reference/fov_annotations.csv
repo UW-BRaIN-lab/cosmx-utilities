@@ -234,7 +234,7 @@ eyes7517,4,Optic nerve,1,0
 eyes7517,5,Optic nerve,1,0
 eyes7517,6,Adjacent soft tissue,1,0
 eyes7517,7,Adjacent soft tissue,0,0
-eyes7517,8,Optic nerve,0,0
+eyes7517,8,Optic nerve,1,0
 eyes7517,9,Optic nerve,0,0
 eyes7517,10,Optic nerve,0,0
 eyes7517,11,Optic nerve,0,0
@@ -245,7 +245,7 @@ eyes7517,15,Optic nerve,0,0
 eyes7517,16,Optic nerve,0,0
 eyes7517,17,Optic nerve,0,0
 eyes7517,18,Optic nerve,0,0
-eyes7517,19,Adjacent soft tissue,0,0
+eyes7517,19,Adjacent soft tissue,1,0
 eyes7517,20,Optic nerve,0,0
 eyes7517,21,Optic nerve,0,0
 eyes7517,22,Optic nerve,0,0
@@ -824,6 +824,16 @@ eyes7597,184,Gray matter,1,0
 eyes7597,185,Gray matter,0,0
 eyes7597,186,Gray matter,0,0
 eyes7597,187,Gray matter,1,0
+eyes7597,188,White matter,0,0
+eyes7597,189,White matter,0,0
+eyes7597,190,White matter,0,0
+eyes7597,191,White matter,0,0
+eyes7597,192,White matter,0,0
+eyes7597,193,White matter,0,0
+eyes7597,194,White matter,0,0
+eyes7597,195,White matter,0,0
+eyes7597,196,White matter,0,0
+eyes7597,197,White matter,0,0
 eyes7597,198,White matter,0,0
 eyes7597,199,White matter,0,0
 eyes7597,200,White matter,0,0
@@ -1070,16 +1080,16 @@ uwa7634eyes,25,Adjacent soft tissue,0,0
 uwa7634eyes,26,Adjacent soft tissue,0,0
 uwa7634eyes,27,Adjacent soft tissue,0,0
 uwa7634eyes,28,Adjacent soft tissue,0,0
-uwa7634eyes,29,Optic nerve,0,0
+uwa7634eyes,29,Adjacent soft tissue,1,0
 uwa7634eyes,30,Optic nerve,0,0
 uwa7634eyes,31,Optic nerve,0,0
 uwa7634eyes,32,Optic nerve,0,0
 uwa7634eyes,33,Optic nerve,0,0
 uwa7634eyes,34,Optic nerve,0,0
 uwa7634eyes,35,Optic nerve,1,0
-uwa7634eyes,36,Optic nerve,0,0
-uwa7634eyes,37,Optic nerve,0,0
-uwa7634eyes,38,Optic nerve,0,0
+uwa7634eyes,36,Adjacent soft tissue,0,0
+uwa7634eyes,37,Adjacent soft tissue,0,0
+uwa7634eyes,38,Adjacent soft tissue,1,0
 uwa7634eyes,39,Optic nerve,0,0
 uwa7634eyes,40,Optic nerve,0,0
 uwa7634eyes,41,Optic nerve,0,0
@@ -1211,10 +1221,10 @@ uwa7634eyes,166,Gray matter,0,0
 uwa7634eyes,167,White matter,0,0
 uwa7634eyes,168,White matter,0,0
 uwa7634eyes,169,White matter,0,0
-uwa7634eyes,170,White matter,1,0
+uwa7634eyes,170,White matter,0,0
 uwa7634eyes,171,White matter,1,0
-uwa7634eyes,172,White matter,0,0
-uwa7634eyes,173,White matter,0,0
+uwa7634eyes,172,White matter,1,0
+uwa7634eyes,173,White matter,1,0
 uwa7634eyes,174,White matter,0,0
 uwa7634eyes,175,White matter,0,0
 uwa7634eyes,176,White matter,0,0
@@ -1537,9 +1547,9 @@ UWA7689eyes,44,Adjacent soft tissue,0,0
 UWA7689eyes,45,Adjacent soft tissue,0,0
 UWA7689eyes,46,Adjacent soft tissue,0,0
 UWA7689eyes,47,Adjacent soft tissue,1,0
-UWA7689eyes,48,Optic nerve,1,0
-UWA7689eyes,49,Optic nerve,1,0
-UWA7689eyes,50,Optic nerve,1,0
+UWA7689eyes,48,Optic nerve,0,0
+UWA7689eyes,49,Optic nerve,0,0
+UWA7689eyes,50,Optic nerve,0,0
 UWA7689eyes,51,Optic nerve,1,0
 UWA7689eyes,52,Adjacent soft tissue,0,0
 UWA7689eyes,53,Adjacent soft tissue,0,0
@@ -1698,6 +1708,7 @@ UWA7689eyes,222,Gray matter,0,0
 UWA7689eyes,223,Gray matter,0,0
 UWA7689eyes,224,Gray matter,0,0
 UWA7689eyes,225,Gray matter,0,0
+UWA7689eyes,226,Retina,0,0
 UWA7689eyes,227,Retina,0,0
 UWA7697eyes,1,Adjacent soft tissue,0,0
 UWA7697eyes,2,Adjacent soft tissue,0,0
@@ -1731,7 +1742,7 @@ UWA7697eyes,29,Adjacent soft tissue,0,0
 UWA7697eyes,30,Optic nerve,0,0
 UWA7697eyes,31,Adjacent soft tissue,0,0
 UWA7697eyes,32,Retina,0,0
-UWA7697eyes,33,Optic nerve,0,0
+UWA7697eyes,33,Optic nerve,1,0
 UWA7697eyes,34,Optic nerve,0,0
 UWA7697eyes,35,Optic nerve,1,0
 UWA7697eyes,36,Optic nerve,1,0
@@ -1775,8 +1786,8 @@ UWA7697eyes,76,Retina,0,0
 UWA7697eyes,77,Retina,0,0
 UWA7697eyes,78,Retina,0,0
 UWA7697eyes,79,Retina,0,0
-UWA7697eyes,80,Retina,0,0
-UWA7697eyes,81,Retina,0,0
+UWA7697eyes,80,Choroid,0,0
+UWA7697eyes,81,Choroid,0,0
 UWA7697eyes,82,Adjacent soft tissue,0,0
 UWA7697eyes,83,Optic nerve,1,0
 UWA7697eyes,84,Optic nerve,0,0
@@ -2083,6 +2094,12 @@ UWA7740eyes,165,Gray matter,0,0
 UWA7740eyes,166,Gray matter,0,0
 UWA7740eyes,167,Gray matter,0,0
 UWA7740eyes,168,Gray matter,1,0
+UWA7740eyes,169,White matter,0,0
+UWA7740eyes,170,White matter,0,0
+UWA7740eyes,171,White matter,0,0
+UWA7740eyes,172,White matter,0,0
+UWA7740eyes,173,White matter,0,0
+UWA7740eyes,174,White matter,0,0
 UWA7740eyes,175,Gray matter,1,0
 UWA7740eyes,176,Gray matter,0,0
 UWA7740eyes,177,Gray matter,0,0
@@ -2222,6 +2239,9 @@ uwa7753eyes,108,Adjacent soft tissue,0,0
 uwa7753eyes,109,Adjacent soft tissue,0,0
 uwa7753eyes,114,Retina,0,0
 uwa7753eyes,115,Retina,0,0
+uwa7753eyes,118,Optic nerve,0,0
+uwa7753eyes,119,Optic nerve,0,0
+uwa7753eyes,120,Optic nerve,0,0
 uwa7753eyes,121,Adjacent soft tissue,0,0
 uwa7753eyes,122,Adjacent soft tissue,0,0
 uwa7753eyes,123,Adjacent soft tissue,0,0
@@ -2232,6 +2252,7 @@ uwa7753eyes,127,Retina,0,0
 uwa7753eyes,128,Retina,0,0
 uwa7753eyes,129,Adjacent soft tissue,0,0
 uwa7753eyes,130,Adjacent soft tissue,0,0
+uwa7753eyes,131,Optic nerve,0,0
 uwa7753eyes,132,Optic nerve,1,0
 uwa7753eyes,133,Retina,1,0
 uwa7753eyes,134,Retina,1,0
@@ -2427,103 +2448,103 @@ uwa7761eyes,112,Adjacent soft tissue,0,0
 uwa7761eyes,113,Adjacent soft tissue,0,0
 uwa7761eyes,114,Adjacent soft tissue,0,0
 uwa7761eyes,115,Adjacent soft tissue,0,0
-uwa7761eyes,116,Gray matter,0,0
-uwa7761eyes,117,Gray matter,0,0
-uwa7761eyes,118,Gray matter,0,0
-uwa7761eyes,119,Gray matter,0,0
-uwa7761eyes,120,Gray matter,0,0
-uwa7761eyes,121,Gray matter,1,0
-uwa7761eyes,122,White matter,0,0
-uwa7761eyes,123,White matter,0,0
-uwa7761eyes,124,White matter,0,0
-uwa7761eyes,125,White matter,0,0
-uwa7761eyes,126,White matter,0,0
-uwa7761eyes,127,White matter,0,0
-uwa7761eyes,128,White matter,0,0
-uwa7761eyes,129,White matter,0,0
-uwa7761eyes,130,White matter,0,0
-uwa7761eyes,131,Gray matter,1,0
-uwa7761eyes,132,Gray matter,0,0
-uwa7761eyes,133,Gray matter,0,0
-uwa7761eyes,134,Gray matter,0,0
-uwa7761eyes,135,Gray matter,0,0
-uwa7761eyes,136,Gray matter,0,0
-uwa7761eyes,137,Gray matter,0,0
-uwa7761eyes,138,Gray matter,0,0
-uwa7761eyes,139,Gray matter,0,0
-uwa7761eyes,140,Gray matter,0,0
-uwa7761eyes,141,Gray matter,0,0
-uwa7761eyes,142,Gray matter,0,0
-uwa7761eyes,143,Gray matter,0,0
-uwa7761eyes,144,Gray matter,0,0
-uwa7761eyes,145,Gray matter,0,0
-uwa7761eyes,146,Gray matter,1,0
-uwa7761eyes,147,White matter,0,0
-uwa7761eyes,148,White matter,0,0
-uwa7761eyes,149,White matter,0,0
-uwa7761eyes,150,White matter,0,0
-uwa7761eyes,151,White matter,0,0
-uwa7761eyes,152,White matter,0,0
-uwa7761eyes,153,White matter,0,0
-uwa7761eyes,154,White matter,0,0
-uwa7761eyes,155,Gray matter,1,0
-uwa7761eyes,156,Gray matter,0,0
-uwa7761eyes,157,Gray matter,0,0
-uwa7761eyes,158,Gray matter,0,0
-uwa7761eyes,159,Gray matter,0,0
-uwa7761eyes,160,Gray matter,0,0
-uwa7761eyes,161,Gray matter,0,0
-uwa7761eyes,162,Gray matter,0,0
-uwa7761eyes,163,Gray matter,0,0
-uwa7761eyes,164,Gray matter,0,0
-uwa7761eyes,165,Gray matter,0,0
-uwa7761eyes,166,Gray matter,0,0
-uwa7761eyes,167,Gray matter,0,0
-uwa7761eyes,168,Gray matter,0,0
-uwa7761eyes,169,Gray matter,0,0
-uwa7761eyes,170,Gray matter,0,0
-uwa7761eyes,171,Gray matter,0,0
-uwa7761eyes,172,Gray matter,1,0
-uwa7761eyes,173,White matter,0,0
-uwa7761eyes,174,White matter,0,0
-uwa7761eyes,175,White matter,0,0
-uwa7761eyes,176,White matter,0,0
-uwa7761eyes,177,White matter,0,0
-uwa7761eyes,178,White matter,0,0
-uwa7761eyes,179,White matter,0,0
-uwa7761eyes,180,Gray matter,1,0
-uwa7761eyes,181,Gray matter,0,0
-uwa7761eyes,182,Gray matter,0,0
-uwa7761eyes,183,Gray matter,0,0
-uwa7761eyes,184,Gray matter,0,0
-uwa7761eyes,185,Gray matter,0,0
-uwa7761eyes,186,Gray matter,0,0
-uwa7761eyes,187,Gray matter,0,0
-uwa7761eyes,188,Gray matter,0,0
-uwa7761eyes,189,Gray matter,0,0
-uwa7761eyes,190,Gray matter,0,0
-uwa7761eyes,191,Gray matter,0,0
-uwa7761eyes,192,Gray matter,0,0
-uwa7761eyes,193,Gray matter,0,0
-uwa7761eyes,194,Gray matter,0,0
-uwa7761eyes,195,Gray matter,0,0
-uwa7761eyes,196,Gray matter,0,0
-uwa7761eyes,197,Gray matter,0,0
-uwa7761eyes,198,Gray matter,0,0
-uwa7761eyes,199,Gray matter,0,0
-uwa7761eyes,200,Gray matter,1,0
-uwa7761eyes,201,White matter,0,0
-uwa7761eyes,202,White matter,0,0
-uwa7761eyes,203,White matter,0,0
-uwa7761eyes,204,White matter,0,0
-uwa7761eyes,205,White matter,0,0
-uwa7761eyes,206,White matter,0,0
-uwa7761eyes,207,White matter,0,0
-uwa7761eyes,208,Gray matter,1,0
-uwa7761eyes,209,Gray matter,0,0
-uwa7761eyes,210,Gray matter,0,0
-uwa7761eyes,211,Gray matter,0,0
-uwa7761eyes,212,Gray matter,0,0
-uwa7761eyes,213,Gray matter,0,0
-uwa7761eyes,214,Gray matter,0,0
-uwa7761eyes,215,Gray matter,0,0
+uwa7761eyes,116,Gray matter,0,1
+uwa7761eyes,117,Gray matter,0,1
+uwa7761eyes,118,Gray matter,0,1
+uwa7761eyes,119,Gray matter,0,1
+uwa7761eyes,120,Gray matter,0,1
+uwa7761eyes,121,Gray matter,1,1
+uwa7761eyes,122,White matter,0,1
+uwa7761eyes,123,White matter,0,1
+uwa7761eyes,124,White matter,0,1
+uwa7761eyes,125,White matter,0,1
+uwa7761eyes,126,White matter,0,1
+uwa7761eyes,127,White matter,0,1
+uwa7761eyes,128,White matter,0,1
+uwa7761eyes,129,White matter,0,1
+uwa7761eyes,130,White matter,0,1
+uwa7761eyes,131,Gray matter,1,1
+uwa7761eyes,132,Gray matter,0,1
+uwa7761eyes,133,Gray matter,0,1
+uwa7761eyes,134,Gray matter,0,1
+uwa7761eyes,135,Gray matter,0,1
+uwa7761eyes,136,Gray matter,0,1
+uwa7761eyes,137,Gray matter,0,1
+uwa7761eyes,138,Gray matter,0,1
+uwa7761eyes,139,Gray matter,0,1
+uwa7761eyes,140,Gray matter,0,1
+uwa7761eyes,141,Gray matter,0,1
+uwa7761eyes,142,Gray matter,0,1
+uwa7761eyes,143,Gray matter,0,1
+uwa7761eyes,144,Gray matter,0,1
+uwa7761eyes,145,Gray matter,0,1
+uwa7761eyes,146,Gray matter,1,1
+uwa7761eyes,147,White matter,0,1
+uwa7761eyes,148,White matter,0,1
+uwa7761eyes,149,White matter,0,1
+uwa7761eyes,150,White matter,0,1
+uwa7761eyes,151,White matter,0,1
+uwa7761eyes,152,White matter,0,1
+uwa7761eyes,153,White matter,0,1
+uwa7761eyes,154,White matter,0,1
+uwa7761eyes,155,Gray matter,1,1
+uwa7761eyes,156,Gray matter,0,1
+uwa7761eyes,157,Gray matter,0,1
+uwa7761eyes,158,Gray matter,0,1
+uwa7761eyes,159,Gray matter,0,1
+uwa7761eyes,160,Gray matter,0,1
+uwa7761eyes,161,Gray matter,0,1
+uwa7761eyes,162,Gray matter,0,1
+uwa7761eyes,163,Gray matter,0,1
+uwa7761eyes,164,Gray matter,0,1
+uwa7761eyes,165,Gray matter,0,1
+uwa7761eyes,166,Gray matter,0,1
+uwa7761eyes,167,Gray matter,0,1
+uwa7761eyes,168,Gray matter,0,1
+uwa7761eyes,169,Gray matter,0,1
+uwa7761eyes,170,Gray matter,0,1
+uwa7761eyes,171,Gray matter,0,1
+uwa7761eyes,172,Gray matter,1,1
+uwa7761eyes,173,White matter,0,1
+uwa7761eyes,174,White matter,0,1
+uwa7761eyes,175,White matter,0,1
+uwa7761eyes,176,White matter,0,1
+uwa7761eyes,177,White matter,0,1
+uwa7761eyes,178,White matter,0,1
+uwa7761eyes,179,White matter,0,1
+uwa7761eyes,180,Gray matter,1,1
+uwa7761eyes,181,Gray matter,0,1
+uwa7761eyes,182,Gray matter,0,1
+uwa7761eyes,183,Gray matter,0,1
+uwa7761eyes,184,Gray matter,0,1
+uwa7761eyes,185,Gray matter,0,1
+uwa7761eyes,186,Gray matter,0,1
+uwa7761eyes,187,Gray matter,0,1
+uwa7761eyes,188,Gray matter,0,1
+uwa7761eyes,189,Gray matter,0,1
+uwa7761eyes,190,Gray matter,0,1
+uwa7761eyes,191,Gray matter,0,1
+uwa7761eyes,192,Gray matter,0,1
+uwa7761eyes,193,Gray matter,0,1
+uwa7761eyes,194,Gray matter,0,1
+uwa7761eyes,195,Gray matter,0,1
+uwa7761eyes,196,Gray matter,0,1
+uwa7761eyes,197,Gray matter,0,1
+uwa7761eyes,198,Gray matter,0,1
+uwa7761eyes,199,Gray matter,0,1
+uwa7761eyes,200,Gray matter,1,1
+uwa7761eyes,201,White matter,0,1
+uwa7761eyes,202,White matter,0,1
+uwa7761eyes,203,White matter,0,1
+uwa7761eyes,204,White matter,0,1
+uwa7761eyes,205,White matter,0,1
+uwa7761eyes,206,White matter,0,1
+uwa7761eyes,207,White matter,0,1
+uwa7761eyes,208,Gray matter,1,1
+uwa7761eyes,209,Gray matter,0,1
+uwa7761eyes,210,Gray matter,0,1
+uwa7761eyes,211,Gray matter,0,1
+uwa7761eyes,212,Gray matter,0,1
+uwa7761eyes,213,Gray matter,0,1
+uwa7761eyes,214,Gray matter,0,1
+uwa7761eyes,215,Gray matter,0,1

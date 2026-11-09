@@ -40,32 +40,73 @@ FOVs 1–215 and carries the exclusion. The older table (slide 16) covers only 4
 
 ## ⚠ Open items for the SME
 
-**28 FOVs are claimed by two primary rows.** Not silently resolved — the first assignment
-wins in the CSV and every collision is listed below. Most are boundary cases of exactly the
-kind the `(… + adjacent)` rows express, so the likely intent is "both".
+**28 FOVs were claimed by two primary rows — 21 RESOLVED by the SME 2026-11-06, 7 still
+open.** The first assignment used to win by default; the resolved rows now carry her call,
+with `mixed_adjacent=1` reserved for FOVs she described as genuinely holding both tissues.
+
+| slide | FOVs | conflict | SME's ruling | applied as |
+|---|---|---|---|---|
+| uwa7634eyes | 29 | Optic nerve vs Adjacent soft tissue | mostly soft tissue, some optic nerve | **Adjacent soft tissue**, mixed |
+| uwa7634eyes | 36, 37 | Optic nerve vs Adjacent soft tissue | soft tissue | **Adjacent soft tissue** |
+| uwa7634eyes | 38 | Optic nerve vs Adjacent soft tissue | mostly soft tissue, some optic nerve | **Adjacent soft tissue**, mixed |
+| uwa7634eyes | 170 | White matter vs Gray matter | pretty much all white matter | White matter, no longer mixed |
+| uwa7634eyes | 171 | White matter vs Gray matter | white + gray | White matter, mixed (unchanged) |
+| uwa7634eyes | 172, 173 | White matter vs Gray matter | white + gray | White matter, now mixed |
+| UWA7689eyes | 42 | Optic nerve vs Adjacent soft tissue | optic nerve | Optic nerve (unchanged) |
+| UWA7689eyes | 43, 51 | Optic nerve vs Adjacent soft tissue | optic nerve + soft tissue | Optic nerve, mixed (unchanged) |
+| UWA7689eyes | 48 | Optic nerve vs Adjacent soft tissue | almost entirely optic nerve, 3–4 other cells | Optic nerve, no longer mixed |
+| UWA7689eyes | 49, 50 | Optic nerve vs Adjacent soft tissue | optic nerve | Optic nerve, no longer mixed |
+| UWA7697eyes | 33 | Optic nerve vs Retina | right at the optic nerve head + retina | Optic nerve, now mixed |
+| UWA7697eyes | 34 | Optic nerve vs Retina | almost all optic nerve, a few retinal cells | Optic nerve (unchanged) |
+| UWA7697eyes | 80, 81 | Retina vs Adjacent soft tissue | **choroid** | **Choroid** — a new region value |
+
+`Choroid` is the sixth region in the vocabulary (with Retina, Optic nerve, White matter,
+Gray matter, Adjacent soft tissue). Two FOVs is too few to support a cohort-wide statement,
+but it does give the "RPE scattered into choroid" question a denominator on this slide, and it
+is where the SME placed the unnamed deep population `a_deep_retinal`.
+
+**Still open — 7 FOVs the SME did not reach.** Deferred to the next round of InSituTree
+review; until then the first assignment still wins and `mixed_adjacent` is unchanged.
 
 | slide | FOVs | conflict |
 |---|---|---|
-| uwa7634eyes | 170–173, 178, 179 | White matter vs Gray matter |
-| uwa7634eyes | 29, 36, 37, 38 | Optic nerve vs Adjacent soft tissue |
+| uwa7634eyes | 178, 179 | White matter vs Gray matter — the rest of the 170–179 run |
 | uwa7634eyes | 135 | Retina vs Adjacent soft tissue |
-| UWA7689eyes | 42, 43, 48, 49, 50, 51 | Optic nerve vs Adjacent soft tissue |
-| UWA7697eyes | 33, 34 | Optic nerve vs Retina |
-| UWA7697eyes | 80, 81 | Retina vs Adjacent soft tissue |
 | uwa7509eyes | 94 | Optic nerve vs Adjacent soft tissue |
 | uwa7509eyes | 104 | Optic nerve vs Retina |
 | uwa7509eyes | 217 | White matter vs Gray matter |
 | eyes7597 | 67 | Optic nerve vs Retina |
 
-**5 unparseable FOV tokens** — transcription typos, left out of the CSV rather than guessed:
+**5 unparseable FOV tokens — RESOLVED by the SME 2026-09-01.** All five are now in the CSV
+(2,528 → 2,549 rows). Two of our guesses were wrong, which is why they were left out:
 
-| slide | row | token | likely intent |
-|---|---|---|---|
-| UWA7740eyes | White matter | `179-174` | reversed range → `174-179` |
-| uwa7753eyes | Optic nerve | `118-120131` | missing comma → `118-120, 131` |
-| UWA7689eyes | Retina | `86-102226` | missing comma, but `226` exceeds the FOV count |
-| eyes7517 | (Optic nerve + adjacent) | `819` | ambiguous — `8, 19`? `81, 9`? |
-| eyes7597 | White matter | `188-197?` | the SME's own question mark |
+| slide | row | token | our guess | SME's answer | applied as |
+|---|---|---|---|---|---|
+| UWA7740eyes | White matter | `179-174` | `174-179` ✗ | **`169-174`** — typo from 179 | 6 new rows, White matter |
+| uwa7753eyes | Optic nerve | `118-120131` | `118-120, 131` ✓ | `118-120, 131` | 4 new rows, Optic nerve |
+| UWA7689eyes | Retina | `86-102226` | `226` exceeds FOV count ✗ | fuzzy labels, "`227` and either `226` or `228`, keep with retina" | 1 new row: **226**, Retina |
+| eyes7517 | (Optic nerve + adjacent) | `819` | `8, 19`? `81, 9`? | **`8, 19`** | flag only — see below |
+| eyes7597 | White matter | `188-197?` | her own question mark | **`188-197` confirmed** | 10 new rows, White matter |
+
+Two of those needed a judgement beyond the token itself:
+
+- **`UWA7689eyes` 226 vs 228.** The SME could not read which of the pair it was, and the note
+  above that `226` exceeds the FOV count was **wrong**. The slide carries exactly 227 FOVs
+  (verified from `cell_ID` in the Napari metadata: 226 present, 228 absent), so the pair is
+  226 + 227. `227` was already Retina; only `226` needed adding.
+- **`eyes7517` 8 and 19 got no new region.** That row is parenthesised — `(Optic nerve +
+  adjacent)` — so by this file's own convention it is a `mixed_adjacent` flag, not a competing
+  assignment. Both FOVs already had primary rows (8 = Optic nerve, 19 = Adjacent soft tissue);
+  those are unchanged and `mixed_adjacent` went 0 → 1.
+
+Gap-fill sanity: every added FOV was **absent** from the CSV, never an overwrite, and each new
+range abuts a compatible neighbour — `eyes7597` 188-197 runs straight into 198-199 which were
+already White matter; `UWA7740eyes` 169-174 sits in a Gray matter surround, which is what makes
+a distinct White matter band there plausible.
+
+⚠ **Stage 1 must be re-run for these to reach the data.** The 21 new rows change region
+assignments for cells that currently carry the stale AtoMx `Region`, and §05-style per-region
+figures computed before this date do not include them.
 
 ## Regenerating
 
