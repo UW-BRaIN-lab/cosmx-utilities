@@ -41,10 +41,10 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT letting the ambient shell override the study's identity; see
+# slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 : "${RUNS:?set RUNS='name:subdir name:subdir ...'}"
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"

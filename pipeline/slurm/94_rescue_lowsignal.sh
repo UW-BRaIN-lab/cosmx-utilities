@@ -46,10 +46,10 @@ else
     PIPELINE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 fi
 
-set -a
+# Loads .env WITHOUT letting the ambient shell override the study's identity; see
+# slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 INPUT_DIR="${INPUT_DIR:-stage4}"
 STAGE4="${STAGE4_DIR:-stage4_insitutree}"

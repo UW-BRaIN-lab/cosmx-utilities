@@ -50,10 +50,10 @@ else
 fi
 MANIFEST="${MANIFEST:-${PIPELINE_DIR}/manifest.csv}"
 
-set -a
+# Loads .env WITHOUT letting the ambient shell override the study's identity; see
+# slurm/_load_env.sh.
 # shellcheck disable=SC1091
-source "${PIPELINE_DIR}/.env"
-set +a
+source "${PIPELINE_DIR}/slurm/_load_env.sh"
 
 # Manifest columns (kept in sync with SlideManifestRow in build_manifest.py):
 #   1 export_batch
