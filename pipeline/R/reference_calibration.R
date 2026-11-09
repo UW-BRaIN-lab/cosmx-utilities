@@ -160,10 +160,11 @@ cat(sprintf("\n%d of %d reference types received pinned cells; %d were never cal
 degenerate <- rows[source == "reference" & !is.na(profile_sum_vs_denovo) &
                      profile_sum_vs_denovo < 0.1]
 if (nrow(degenerate)) {
-  cat(sprintf("\n%d reference profile%s below a TENTH of the de novo median -- %s cannot win\n",
-              nrow(degenerate), if (nrow(degenerate) == 1) " sits" else "s sit",
-              if (nrow(degenerate) == 1) "it" else "they"))
-  cat("a cell against a de novo cluster whatever the biology:\n")
+  cat(sprintf("\n%d reference profile%s below a TENTH of the de novo median. Measured on the\n",
+              nrow(degenerate), if (nrow(degenerate) == 1) " sits" else "s sit"))
+  cat("retina run these still WIN cells, so read n_called beside the sum rather than assuming\n")
+  cat("a collapsed profile is inert -- an uncalibrated profile that claims cells is worse than\n")
+  cat("one that claims none, because the calls look like findings:\n")
   print(degenerate[, .(type, n_pinned, n_called,
                        profile_sum = round(profile_sum_fitted, 1),
                        vs_denovo = round(profile_sum_vs_denovo, 3))], nrows = 100)
@@ -177,4 +178,7 @@ if (!is.null(out_csv)) {
 cat("\nREAD: a type with n_pinned = 0 was never calibrated. If those types are also the ones\n",
     "with a collapsed profile_sum, the breadth problem is the pinning step, and the lever is\n",
     "either a looser pinning threshold or a reference whose types are far enough apart to\n",
-    "attract distinct cells -- NOT a different K.\n", sep = "")
+    "attract distinct cells -- NOT a different K.\n\n",
+    "An uncalibrated type with n_called > 0 is the case to chase: its profile was never\n",
+    "anchored to this platform, so whatever it claimed, it claimed on a profile fitted to\n",
+    "nothing. Check the depth of those cells before reporting any of them.\n", sep = "")
