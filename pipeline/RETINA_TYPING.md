@@ -744,13 +744,29 @@ which is why the two numbers both appear in the logs and are not in conflict.
 `exclude=1`; the region column keeps the true anatomy so nothing about the tissue is lost.
 157 FOVs are now excluded cohort-wide (57 ciliary/cornea not in any atlas, 100 brain).
 
-**Say why, precisely: the brain FOVs are excluded on CELL-TYPE IMPLAUSIBILITY, not on RNA
-quality.** The SME's reason was composition — implausible T-cell abundance, more OPCs than
-any other donor's brain. Depth does not support a quality claim: against the other eleven
-donors in the same region, that donor's gray matter and white matter are near-normal, and
-it is the kept `Adjacent soft tissue` that stands out. Writing "degraded" in the record
-would be a quality claim the data does not make, and it is the kind of thing a reviewer
-checks. Confirm the numbers with `21_qc_by_region.sh` before the exclusion is final. That donor keeps 22 optic nerve, 10 retina and 26 adjacent soft tissue FOVs.
+That donor keeps 22 optic nerve, 10 retina and 26 adjacent soft tissue FOVs.
+
+**Say why, precisely — and note that composition and degradation are ONE hypothesis here,
+not two.** The exclusion rests on cell-type implausibility, and the implausibility has the
+shape loss of transcriptional specificity produces. In `insitutree_75`, that donor's white
+matter is **39.5% OPC against a cohort 16.8%** while `denovo_oligodendrocyte_1` collapses
+from the cohort's 45.7% to **7.7%**; gray matter is 31.2% OPC against 8.1%. `Mona_T cell`
+runs 7–11× the cohort and `HRCA_amacrine cell` — a retinal type — is called at 2.6% of
+white matter against 0.32%. Mature oligodendrocyte giving way to its own progenitor is
+exactly what a cell that keeps its molecules but loses the ones distinguishing two related
+types looks like from the typing side, so the SME's composition objection and the August
+"this brain may be degraded" reading are the same observation reached twice. The August
+numbers were the other half of it: worst-in-cohort unnamed fraction (WM 88.6%, GM 76.8%)
+and sink (WM 78%, GM 66%) in the K=5/K=19 InSituType run.
+
+**What is NOT established is low depth.** Measured against the other eleven donors in the
+same region, that donor's gray and white matter pass the counts floor at near-normal rates,
+and it is the **kept** `Adjacent soft tissue` that stands out instead. So if this is
+degradation it is not the kind that costs molecules. The measurement that separates the two
+is **genes detected per 100 counts within one region** — normal depth with low complexity is
+degradation, low depth with normal complexity is thin tissue or undersegmentation — and
+`21_qc_by_region.sh` reports it per (donor, region). Run it before the exclusion is final.
+Either way the FOVs go; what changes is what we are entitled to write down about why.
 
 Check the branch before every submit — a Klone worktree can be taken over by another
 session, and `git pull` alone would then build someone else's tree:
@@ -831,12 +847,21 @@ Each of these would otherwise force another pass:
 - **That donor's optic nerve QC** — the region she proposed keeping, and the rebuild bakes
   the decision in before producing the number. `21_qc_by_region.sh` answers it:
 
+  The stage lives on `retina-fov-exclusion-rebuild`, so check the branch out first — on
+  `main` the submit fails with `Unable to open file`:
+
+  ```bash
+  cd ~/cosmx-utilities-retina && git fetch origin && git checkout retina-fov-exclusion-rebuild && git pull --ff-only
+  ```
+
   ```bash
   cd ~/cosmx-utilities-retina && FOCUS_SLIDE=uwa7761eyes sbatch pipeline/slurm/21_qc_by_region.sh
   ```
 
-  It compares each of that donor's regions against the OTHER donors' cells in the SAME
-  region, which is the only comparison that means anything here: optic nerve is sparser
+  Read `genes_per_100_counts` beside `ratio_to_others`: the first says whether the cells
+  are thin, the second whether they are indistinct, and only the second would support
+  calling that brain degraded. It compares each of that donor's regions against the OTHER
+  donors' cells in the SAME region, which is the only comparison that means anything here: optic nerve is sparser
   than retina in every donor, so measuring it against a cohort-wide or slide-wide median
   would call it degraded wherever the eye is good. Its own excluded gray and white matter
   are the control in the same table — if they are visibly worse than the optic nerve and
