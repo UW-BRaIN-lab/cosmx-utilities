@@ -513,6 +513,31 @@ caveat to put to her honestly: a de novo profile wins back the cells it was fit 
 re-derives the InSituType partition rather than testing it. The evidence that these are real
 populations remains the markers and regional distribution, not their size in the tree.
 
+### Which hierarchy is which
+
+Three leaf sets exist and the numbers get mixed up, so count them from the file rather
+than from memory. **Only two have ever been fitted.**
+
+| name | file | leaves | de novo leaves | fitted? |
+|---|---|---|---|---|
+| **66** | `reference/retina_hierarchy.json` | 66 | 2 (the astrocyte split) | **yes** — Napari column `insitutree_66` |
+| **75** | *(not in the repo in its as-run form — see below)* | 75 | 11 | **yes** — Napari column `insitutree_75`, the one the SME prefers |
+| **73** | `reference/retina_hierarchy_denovo_leaves.json` | 73 | 9 | no — 75 with the three excitatory leaves merged to one |
+| **70** | `reference/retina_hierarchy_denovo_leaves_no_lymphoid.json` | 70 | 9 | no — 73 with the Lymphoid branch removed |
+
+73 and 70 are proposals built from what the 75-leaf run showed. 70 is the candidate for
+the refit: it carries both corrections the review earned (merge the excitatory trio the
+panel cannot resolve, drop the lymphoid attractors), and it is what "70 leaves" in the
+rebuild plan means. It has never been run.
+
+**The 75-leaf run's own hierarchy is not recoverable from the repo.** The
+`_denovo_leaves` files are untracked and were edited in place when the excitatory trio was
+merged, so the file that produced `insitutree_75` no longer exists — the current one is
+its 73-leaf successor. The structure is reconstructible (split
+`denovo_cortical_excitatory` back into `_1`/`_2`/`_3` under the same parent, which is what
+the Napari column's 75 labels show), but it should not have to be. Commit the leaf sets
+alongside any run that is going to be reviewed.
+
 ### Result of the 75-leaf run (2026-11-05)
 
 Ran as `stage4_insitutree_denovo_leaves` so the 66-leaf result stays intact for comparison.
@@ -659,7 +684,9 @@ enormous likelihood ratio toward it. Microglia placing second throughout explain
 microglia and lymphocytes share PTPRC, CTSS and the rest, so a faint myeloid cell's few
 informative counts fit both, and the sharper profile wins.
 
-**Prepared: `retina_hierarchy_denovo_leaves_no_lymphoid.json`, 72 leaves**, lockstep verified.
+**Prepared: `retina_hierarchy_denovo_leaves_no_lymphoid.json`, 70 leaves**, lockstep verified.
+(72 was this file before the excitatory merge: 75 less the three lymphoid. After the merge
+it is 73 less three. Counted from the file, not carried forward.)
 The Lymphoid branch is removed entirely, since dropping all three leaves would leave a
 competition with no candidates. Those 11,910 cells then go to `Myeloid`, which is what they
 resemble. Precedent for dropping an attractor type is in `merge_reference_types.py`, which
@@ -692,7 +719,7 @@ taking 99.5% of a branch.
 
 ## Rebuild 2 — the refit that run 1's review earned
 
-Run 1 (K=19, 3,390 kept genes, 70-leaf InSituTree) is reviewed and signed off in part. Four
+Run 1 (K=19, 3,390 kept genes, **75-leaf** InSituTree) is reviewed and signed off in part. Four
 things the review established cannot be applied to it by editing output; they change which
 cells and which genes the fit sees, so they need a new fit.
 
@@ -770,7 +797,7 @@ letters. These all have to be rebuilt afterwards and none of them survives:
 
 The compute is not the expensive part. The annotation cycle is — marker heatmaps, naming the
 letters, SME sign-off — and it runs again from scratch. So batch every pending change into
-this one rebuild rather than iterating, and keep run 1's 70-leaf result as the working
+this one rebuild rather than iterating, and keep run 1's 75-leaf result as the working
 deliverable meanwhile; it is good enough to keep reviewing against.
 
 ### Do not build the choroid splitter yet
@@ -794,8 +821,19 @@ Each of these would otherwise force another pass:
 - **`uwa7761eyes` adjacent soft tissue** — 26 FOVs, 2,540 cells, currently kept. The SME
   named "the brain"; adjacent soft tissue on an eye slide is more likely orbital than
   brain-adjacent, hence kept, but it was not asked about directly.
-- **That donor's optic nerve QC** was never computed — it is the region she proposed keeping,
-  and the rebuild bakes the decision in before producing the number.
+- **That donor's optic nerve QC** — the region she proposed keeping, and the rebuild bakes
+  the decision in before producing the number. `21_qc_by_region.sh` answers it:
+
+  ```bash
+  cd ~/cosmx-utilities-retina && FOCUS_SLIDE=uwa7761eyes sbatch pipeline/slurm/21_qc_by_region.sh
+  ```
+
+  It compares each of that donor's regions against the OTHER donors' cells in the SAME
+  region, which is the only comparison that means anything here: optic nerve is sparser
+  than retina in every donor, so measuring it against a cohort-wide or slide-wide median
+  would call it degraded wherever the eye is good. Its own excluded gray and white matter
+  are the control in the same table — if they are visibly worse than the optic nerve and
+  retina, the exclusion was drawn in the right place. Minutes, obs-only, `ckpt` is fine.
 
 
 ## Gotchas
