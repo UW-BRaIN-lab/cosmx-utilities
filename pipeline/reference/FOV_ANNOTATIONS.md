@@ -117,12 +117,34 @@ annotation this file exists to correct. They are simply unruled.
 | `UWA7575eyes` | 49 | 1 | 168 |
 | `eyes7517` | 81 | 1 | 55 |
 
+The nearest labelled FOV on each side, which is what an SME needs to place them in Napari:
+
+| slide | FOVs | below | above |
+|---|---|---|---|
+| `UWA7689eyes` | 86–102 | 84–85 Optic nerve | 103–107 Adjacent soft tissue |
+| `uwa7753eyes` | 110–113 | 109 Adjacent soft tissue | 114 Retina |
+| `uwa7753eyes` | 116–117 | 115 Retina | 118 Optic nerve |
+| `uwa7753eyes` | 193–194 | 192 White matter | 195 White matter |
+| `uwa7753eyes` | 196–197 | 195 White matter | 198 White matter |
+| `UWA7740eyes` | 36–40 | 35 Adjacent soft tissue | 41 Retina |
+| `UWA7740eyes` | 43–46 | 42 Retina | 47 Retina |
+| `UWA7697eyes` | 45–46 | 44 Retina | 47 Optic nerve |
+| `UWA7697eyes` | 69 | 68 Optic nerve | 70 Adjacent soft tissue |
+| `UWA7697eyes` | 134 | 133 Adjacent soft tissue | 135 Retina |
+| `eyes7597` | 57 | 56 Retina | 58 Adjacent soft tissue |
+| `eyes7597` | 206 | 205 White matter | none — the sheet ends at 205 |
+| `uwa7611eyes` | 82 | 81 Optic nerve | 83 Retina |
+| `uwa7509eyes` | 73 | 72 Optic nerve | 74 Adjacent soft tissue |
+| `UWA7575eyes` | 49 | 48 Optic nerve | 50 Adjacent soft tissue |
+| `eyes7517` | 81 | 80 Retina | 82 Optic nerve |
+
 ⚠ **`UWA7689eyes` 86–102 looks like a dropped half of a resolved token, not a true gap.**
 That slide's Retina row carried `86-102226`. The 2026-09-01 resolution read the tail as
 `226`/`227` and added **only** 226 — the `86-102` half was never written. Retina on that
-slide is 60–80 and 226–227, with 86–102 sitting in an unlabelled hole between
-`Adjacent soft tissue` 81–83 and 103–107. It is 10,512 cells, half of this entire list, and
-it should be confirmed rather than assumed. `uwa7753eyes` 193–197 is the same shape: a hole
+slide is 60–80 and 226–227, with 86–102 sitting in an unlabelled hole between `Optic nerve`
+84–85 and `Adjacent soft tissue` 103–107. It is 10,512 cells, half of this entire list, and
+it should be confirmed rather than assumed — the token says retina but the neighbourhood
+does not corroborate it, so this is not a gap to fill by inference. `uwa7753eyes` 193–197 is the same shape: a hole
 inside `White matter` 192, 195, 198–209.
 
 Gap-fill sanity: every added FOV was **absent** from the CSV, never an overwrite, and each new
