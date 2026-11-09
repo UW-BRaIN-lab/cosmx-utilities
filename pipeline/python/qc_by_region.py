@@ -29,7 +29,9 @@ Reads:
 Writes (--output-dir):
   qc_by_region.csv        every (slide, region): n, count/gene quantiles, floor failures
   qc_region_summary.csv   per region: the cohort distribution each donor is judged against
-  qc_focus_<slide>.csv    --focus-slide only: that donor's regions vs the other donors'
+  qc_focus_<slide>.csv    --focus-slide only: that donor's regions vs the other donors',
+                          carrying both depth (counts) and complexity (genes per 100 counts)
+                          because a region can be normal on one and not the other
 
 Usage:
     python pipeline/python/qc_by_region.py \\
@@ -54,6 +56,9 @@ REGION_COL = "region"
 COUNT_COL = "qc_gene_counts"
 GENES_COL = "qc_genes_detected"
 NEGPROP_COL = "qc_negprobe_prop"
+# Genes detected per 100 panel counts -- the measure that separates "fewer molecules"
+# from "less distinguishable molecules". See describe().
+COMPLEXITY_COL = "genes_per_100_counts"
 # The Stage-3a floor this cohort was QC'd at, plus the candidates a re-QC would consider.
 DEFAULT_FLOORS = (50, 100, 150, 200)
 QUANTILES = (0.25, 0.5, 0.75)
@@ -118,7 +123,16 @@ def describe(group: pd.DataFrame, floors: tuple[int, ...]) -> dict:
     for q in QUANTILES:
         row[f"counts_q{int(q * 100)}"] = float(np.quantile(counts, q))
     if GENES_COL in group:
-        row["genes_median"] = float(np.median(group[GENES_COL].to_numpy()))
+        genes = group[GENES_COL].to_numpy()
+        row["genes_median"] = float(np.median(genes))
+        # Transcriptional complexity at fixed depth. Degradation shows up HERE before it
+        # shows up in counts: a cell can keep its depth and still lose the specificity that
+        # separates a mature oligodendrocyte from an OPC, which is what a brain full of
+        # implausible OPCs looks like from the typing side. The ratio saturates, so it falls
+        # as depth rises -- compare it within ONE region across donors, never across regions.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(counts > 0, genes / np.maximum(counts, 1) * 100, np.nan)
+        row[COMPLEXITY_COL] = float(np.nanmedian(ratio))
     if NEGPROP_COL in group:
         row["negprobe_prop_median"] = float(np.median(group[NEGPROP_COL].to_numpy()))
     for floor in floors:
@@ -171,6 +185,13 @@ def focus(cells: pd.DataFrame, slide: str, floors: tuple[int, ...]) -> pd.DataFr
                                       if len(others) else float("nan")}
         row["ratio_to_others"] = (row["counts_median"] / row["other_counts_median"]
                                   if row["other_counts_median"] else float("nan"))
+
+        # Depth and complexity can disagree, and which one is off changes the diagnosis:
+        # normal counts with low complexity is degradation, low counts with normal
+        # complexity is thin tissue or undersegmentation.
+        row[COMPLEXITY_COL] = describe(group, ())[COMPLEXITY_COL]
+        row[f"other_{COMPLEXITY_COL}"] = (describe(others, ())[COMPLEXITY_COL]
+                                          if len(others) else float("nan"))
 
         # Rank among the per-donor medians, so one donor's extreme tail cannot set the bar.
         per_donor = others.groupby(SLIDE_COL, observed=True)[COUNT_COL].median()

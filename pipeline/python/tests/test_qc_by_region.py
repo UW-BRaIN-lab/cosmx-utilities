@@ -44,6 +44,11 @@ REGIONS = {
     "Gray matter": ((5, 6), 800),
 }
 FOCUS_DEPTH = {"Retina": 900, "Optic nerve": 300, "Gray matter": 60}
+# Genes detected per count. The focus donor's RETINA is the degradation case the counts
+# alone cannot see: full depth, a third of the complexity. Everyone else detects 1 gene
+# per 3 counts everywhere.
+COUNTS_PER_GENE = 3
+FOCUS_COUNTS_PER_GENE = {"Retina": 9}
 EXCLUDED = {(FOCUS, 5), (FOCUS, 6)}  # the degraded brain, as the SME ruled
 
 
@@ -52,11 +57,13 @@ def build_cells() -> pd.DataFrame:
     for slide in (FOCUS, *PEERS):
         for region, (fovs, depth) in REGIONS.items():
             counts = FOCUS_DEPTH[region] if slide == FOCUS else depth
+            per_gene = (FOCUS_COUNTS_PER_GENE.get(region, COUNTS_PER_GENE)
+                        if slide == FOCUS else COUNTS_PER_GENE)
             for fov in fovs:
                 for cell in range(N_PER_FOV):
                     rows.append({"slide_id": slide, "fov": fov,
                                  "qc_gene_counts": counts,
-                                 "qc_genes_detected": counts // 3,
+                                 "qc_genes_detected": counts // per_gene,
                                  "qc_negprobe_prop": 0.01,
                                  "cell": f"{slide}_F{fov}_C{cell}"})
     return pd.DataFrame(rows).set_index("cell")
@@ -139,6 +146,25 @@ def test_a_bad_region_still_reads_as_bad(tmp_path: Path) -> None:
           f"separable from the regions kept on the same slide")
 
 
+def test_complexity_catches_what_depth_misses(tmp_path: Path) -> None:
+    """Normal counts, a third of the genes: the counts column alone calls this region fine.
+
+    This is the shape degraded RNA takes when depth survives -- the cell still has molecules,
+    it just no longer has the ones that tell two related types apart.
+    """
+    table = qr.focus(annotated(tmp_path), FOCUS, (50,)).set_index("region")
+    retina = table.loc["Retina"]
+    assert retina["ratio_to_others"] == 1.0, "fixture: depth must look perfectly normal"
+    mine, theirs = retina[qr.COMPLEXITY_COL], retina[f"other_{qr.COMPLEXITY_COL}"]
+    assert mine < theirs / 2, (mine, theirs)
+    # The region whose depth IS degraded keeps its normal complexity, so the two columns
+    # genuinely measure different things rather than tracking each other.
+    gray = table.loc["Gray matter"]
+    assert abs(gray[qr.COMPLEXITY_COL] - gray[f"other_{qr.COMPLEXITY_COL}"]) < 1.0
+    print(f"  retina: depth 1.00x but complexity {mine:.1f} vs {theirs:.1f} genes/100 counts "
+          f"-- caught only by the complexity column")
+
+
 def test_rank_is_over_donor_medians(tmp_path: Path) -> None:
     table = qr.focus(annotated(tmp_path), FOCUS, (50,)).set_index("region")
     optic = table.loc["Optic nerve"]
@@ -195,6 +221,7 @@ def main() -> None:
         test_the_cohort_yardstick_excludes_excluded_cells(tmp)
         test_a_good_region_is_not_condemned_by_its_slide(tmp)
         test_a_bad_region_still_reads_as_bad(tmp)
+        test_complexity_catches_what_depth_misses(tmp)
         test_rank_is_over_donor_medians(tmp)
         test_an_unknown_focus_slide_is_fatal(tmp)
         test_end_to_end_writes_the_three_tables(tmp)
