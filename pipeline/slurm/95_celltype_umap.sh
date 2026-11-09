@@ -15,7 +15,8 @@
 #       sbatch pipeline/slurm/95_celltype_umap.sh
 #
 # Knobs: TYPED_BASENAME, COLOR_KEY (obs column, default cell_type), OUTPUT_BASENAME, TITLE,
-# NAPARI_COLORS (default true -- the same hash colours as the Napari columns),
+# NAPARI_COLORS (default true -- the same colours as the Napari columns, read from
+#   reference/napari_label_colors.csv; COLOR_TABLE_BASENAME overrides that file),
 # PANELS_OUTPUT (a second PNG, one small panel per label).
 #
 # ANNOTATION_TABLE overrides the RUN-derived table name. Needed when two studies share a
@@ -79,6 +80,15 @@ fi
 # `set -e` that kills the job. Always use an if-block here.
 if [[ "${NAPARI_COLORS:-true}" == "true" ]]; then
     PLOT_ARGS+=(--napari-colors)
+    # The published table, not the rule: the Napari columns were written before
+    # legible_color, so re-deriving would give 14 of the 75 leaves a different colour from
+    # the viewer. It also means the container needs no duckdb.
+    COLOR_TABLE="${PIPELINE_DIR}/reference/${COLOR_TABLE_BASENAME:-napari_label_colors.csv}"
+    if [[ -f "$COLOR_TABLE" ]]; then
+        PLOT_ARGS+=(--color-table "$COLOR_TABLE")
+    else
+        echo "NOTE: no ${COLOR_TABLE}; colours will be re-derived (needs duckdb)"
+    fi
 fi
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
