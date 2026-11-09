@@ -21,15 +21,20 @@ mildly desirable on its own terms: source-level assay offsets (e.g. NEAT1, which
 nuclear-retained and so runs high in single-nucleus atlases) partially cancel, and CosMx
 is neither assay, so an intermediate profile is no worse a target than either extreme.
 
+KEEP is an explicit no-op. A spec that names every type in the reference -- each one kept,
+merged or dropped on the record, with the reason beside it -- is reviewable in a way that a
+spec listing only the changes is not, and `--require-complete` enforces that property. Extra
+columns (status, decided_by, note) are ignored by this script and carried for the reader.
+
 DROP removes a column outright. Use it for taxonomy QC categories rather than cell types
 -- the Allen taxonomy's `Splatter` (low-quality/doublet dump) and `Miscellaneous` sit at
 cosine 0.98-0.99 against every cortical neuron type, which makes them generic-neuron
 attractors that would soak up real cells from other tissues.
 
 Spec CSV columns:
-  action        merge | drop
+  action        merge | drop | keep
   source_type   an existing column of --reference
-  merged_name   the output column name (merge only; blank for drop)
+  merged_name   the output column name (merge only; blank for drop and keep)
 
 Usage:
     uv run python pipeline/python/merge_reference_types.py \\
@@ -46,7 +51,7 @@ from pathlib import Path
 
 import pandas as pd
 
-VALID_ACTIONS = ("merge", "drop")
+VALID_ACTIONS = ("merge", "drop", "keep")
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,10 +63,14 @@ def parse_args() -> argparse.Namespace:
                    help="Merge/drop spec CSV (action, source_type, merged_name).")
     p.add_argument("--output", type=Path, required=True,
                    help="Output CSV. May be the same path as --reference.")
+    p.add_argument("--require-complete", action="store_true",
+                   help="Every column of --reference must appear in the spec. Use it when the "
+                        "spec is meant to be the whole type list rather than a changelist.")
     return p.parse_args()
 
 
-def load_spec(spec_path: Path, columns: pd.Index) -> tuple[dict[str, list[str]], list[str]]:
+def load_spec(spec_path: Path, columns: pd.Index,
+              require_complete: bool = False) -> tuple[dict[str, list[str]], list[str]]:
     """Return ({merged_name: [source columns]}, [columns to drop]), fully validated."""
     spec = pd.read_csv(spec_path, dtype=str).fillna("")
     for col in ("action", "source_type", "merged_name"):
@@ -79,6 +88,12 @@ def load_spec(spec_path: Path, columns: pd.Index) -> tuple[dict[str, list[str]],
     if absent:
         sys.exit(f"ERROR: spec source_type(s) absent from the reference: {absent}")
 
+    if require_complete:
+        unlisted = [c for c in columns if c not in set(spec["source_type"])]
+        if unlisted:
+            sys.exit(f"ERROR: --require-complete and {len(unlisted)} reference column(s) have "
+                     f"no spec row: {unlisted}")
+
     # Each source type may be spoken for once, or the intent is ambiguous.
     dupes = spec["source_type"][spec["source_type"].duplicated()].tolist()
     if dupes:
@@ -91,9 +106,15 @@ def load_spec(spec_path: Path, columns: pd.Index) -> tuple[dict[str, list[str]],
         merges.setdefault(row["merged_name"], []).append(row["source_type"])
 
     drops = spec.loc[spec["action"] == "drop", "source_type"].tolist()
-    for _, row in spec[spec["action"] == "drop"].iterrows():
-        if row["merged_name"]:
-            sys.exit(f"ERROR: drop row for '{row['source_type']}' must not set merged_name")
+    for action in ("drop", "keep"):
+        for _, row in spec[spec["action"] == action].iterrows():
+            if row["merged_name"]:
+                sys.exit(f"ERROR: {action} row for '{row['source_type']}' must not set "
+                         f"merged_name")
+
+    n_keep = int((spec["action"] == "keep").sum())
+    if n_keep:
+        print(f"  {n_keep} type(s) explicitly kept unchanged")
 
     # A single-source "merge" is a rename, which is legal but almost always a typo in a
     # duplicate-collapsing spec, so say so rather than silently renaming.
@@ -102,8 +123,9 @@ def load_spec(spec_path: Path, columns: pd.Index) -> tuple[dict[str, list[str]],
             print(f"WARN: merge '{name}' has only one source ({sources[0]}) — "
                   f"this is a rename, not a merge", file=sys.stderr)
 
-    # A merged name must not collide with a column that survives untouched.
-    consumed = set(spec["source_type"])
+    # A merged name must not collide with a column that survives untouched. A `keep` row is
+    # a no-op, so its type survives and still counts as untouched here.
+    consumed = set(spec.loc[spec["action"] != "keep", "source_type"])
     survivors = set(columns) - consumed
     clash = sorted(set(merges) & survivors)
     if clash:
@@ -119,7 +141,7 @@ def main() -> None:
     ref = pd.read_csv(args.reference, index_col=0)
     print(f"  {ref.shape[0]:,} genes x {ref.shape[1]} cell types")
 
-    merges, drops = load_spec(args.spec, ref.columns)
+    merges, drops = load_spec(args.spec, ref.columns, args.require_complete)
 
     out = ref.copy()
     for merged_name, sources in merges.items():
