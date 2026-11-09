@@ -782,6 +782,73 @@ degradation, low depth with normal complexity is thin tissue or undersegmentatio
 `21_qc_by_region.sh` reports it per (donor, region). Run it before the exclusion is final.
 Either way the FOVs go; what changes is what we are entitled to write down about why.
 
+### Reference triage — settle the TYPE list before 73 runs
+
+Run 1 asked InSituType to choose between 64 reference types and **42 of them never received
+a pinned cell**, so the platform rescaling was estimated from a fifth of the reference while
+the rest went into the fit uncalibrated. That is not a K problem and no gene set fixes it.
+It has to be settled before 73, not after: 73's criterion 2 scores each gene against the
+**reference profiles**, so changing the type list changes the gene set, which changes K.
+
+Three stages measure it. All three are minutes on `ckpt`; none of them needs a refit.
+
+**77 — which types were actually calibrated.** Reads the full `.rds` 80 saves (`clust`,
+`profiles`, `anchors`) and reports, per reference type, the cells pinned to it and the total
+expected counts of its fitted profile. A type with `n_pinned = 0` was never calibrated; if its
+`profile_sum` has also collapsed against the de novo median, it could not win a cell whatever
+the biology, which is why it appears nowhere in the output.
+
+```bash
+cd ~/cosmx-utilities-retina && sbatch pipeline/slurm/77_reference_calibration.sh
+```
+
+**78 — how far apart the types are, on the genes the fit sees.** Two profiles that are nearly
+identical split a cell's evidence and both lose. Measured on the full panel 2026-11-09:
+**29 of 2,016 pairs sit at cosine ≥ 0.99, 131 at ≥ 0.98, 488 at ≥ 0.96**, and the ≥ 0.99 graph
+has eight components — ganglion (5), ON-blue/giant/invaginating-midget/diffuse-4/generic
+bipolar (5), deep + upper IT (3), amacrine (3), CGE+MGE, H1+H2, cone+S-cone, and a **chained
+7** across the diffuse bipolars and OFFx that needs a manual cut. Collapsing each group to one
+type takes 64 → roughly 45. Run it again with `KEEP_GENES` once 73 has run on the new cohort:
+the pruned panel is what the fit sees, and a pair separable only through dropped genes is not
+separable at all.
+
+```bash
+cd ~/cosmx-utilities-retina && sbatch pipeline/slurm/78_reference_collinearity.sh
+```
+
+**79 — are the cross-atlas duplicates biology or atlas signature?** The reference holds three
+astrocytes, three microglia and two each of endothelium, pericyte, smooth muscle, fibroblast
+and pigmented epithelium. Measured, these are the *most separable* pairs in the whole
+reference — Mona vs Allen pericyte 0.84, endothelium 0.85, smooth muscle 0.88 — which is not
+plausible biology for two endothelial profiles and points at the atlases disagreeing with each
+other. That matters twice over: InSituType estimates ONE platform-rescaling term, and it
+cannot fit three atlases that far apart simultaneously. 79 cross-tabulates run 1's calls
+against the FOV sheet's region (not `obs['Region']`, which is stale on a pre-rebuild AnnData)
+and reports concentration — the type's share of a region normalised against that region's
+share of the cohort, because raw percentages put nearly every type's mode in whichever region
+is largest. `REGIONAL` keeps all copies, `MIXED` keeps one per class, `PARTIAL` is decided
+against 77: a copy with no pinned cells is not earning its column.
+
+```bash
+cd ~/cosmx-utilities-retina && sbatch pipeline/slurm/79_atlas_duplicates.sh
+```
+
+**Applying a merge: relabel upstream, do not average columns.** Averaging two columns of the
+built reference gets the cell weighting wrong and quietly favours the rarer subtype. The merge
+belongs in the profile builders in `~/keene-lab/retina-brain`, where `getRNAprofiles()`
+re-derives the merged profile from the cells themselves. Those builders read raw atlas H5ADs
+that are **not** in this repo and not on Kopah: they live on a stopped `cosmx-retina` EC2
+instance in us-west-2 (instance id in `fargate/.env`, never committed), on a 512 GiB data
+volume whose `DeleteOnTermination` is **true** — snapshot it, or copy the H5ADs off, before
+the merge work depends on it.
+
+The decisions themselves belong in a committed merge map (`source type → kept name | DROP`)
+so the diff between two runs says exactly what changed. Every merge then has to land in three
+places or `insitutree_typing.R:144` fails: the reference columns, the hierarchy JSON leaves,
+and `prep_insitutree_profiles.py --drop-named`. And the trade is permanent — merging ON/OFF
+midget means nobody can report that distinction from this dataset later, which is why the
+list goes past the SME before it is applied.
+
 Check the branch before every submit — a Klone worktree can be taken over by another
 session, and `git pull` alone would then build someone else's tree:
 
