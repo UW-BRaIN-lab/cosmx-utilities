@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import colorsys
 
-import duckdb
-
 HEX_DIGITS_PER_CHANNEL = 2
 MAX_CHANNEL = 255
 COLOR_SPACE = 16777216  # 2**24 hex colours
@@ -70,6 +68,12 @@ def legible_color(hex_color: str, min_contrast: float = MIN_CONTRAST_AGAINST_BLA
 
 def hash_color(value: str) -> str:
     """The raw hash colour, before the legibility rule (DuckDB's hash, as every writer used)."""
+    # Imported here, not at module scope: the colour RULE is duckdb's hash, so only this
+    # function needs it. Everything else (legible_color, the contrast maths) is pure Python,
+    # and the rapids SIF has no duckdb -- a module-level import made the whole module
+    # unusable there, which broke plotting in the container.
+    import duckdb
+
     return duckdb.sql(f"SELECT printf('#%06X', abs(hash($1)) % {COLOR_SPACE})",
                       params=[value]).fetchone()[0]
 

@@ -57,6 +57,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--umap-key", default="X_umap", help="obsm key with the 2D embedding.")
     p.add_argument("--title", default=None, help="Plot title.")
     p.add_argument("--point-size", type=float, default=1.0)
+    p.add_argument("--color-table", type=Path, default=None,
+                   help="CSV with label,hex_color -- the colours the Napari columns actually "
+                        "carry. Used with --napari-colors, and preferred over re-deriving them.")
     p.add_argument("--napari-colors", action="store_true",
                    help="Colour each label as Napari does (shared hash colour, lightened if too dark for black).")
     p.add_argument("--dark", action="store_true", help="Black background with light text.")
@@ -106,14 +109,42 @@ def draw_panels(xy: np.ndarray, codes: np.ndarray, labels: list[str], colors: np
     plt.close(fig)
 
 
-def category_colors(labels: list[str], napari: bool) -> np.ndarray:
+def load_color_table(path: Path) -> dict[str, str]:
+    """{label -> hex} as published, which is not always what the rule would compute today.
+
+    The Napari columns on S3 were written before `legible_color` lightened the near-black
+    colours, so 14 of the 75 InSituTree leaves carry the raw hash there. A figure is meant to
+    match the viewer someone is holding, so the published table wins over re-deriving.
+    """
+    table = pd.read_csv(path, dtype=str)
+    missing = {"label", "hex_color"} - set(table.columns)
+    if missing:
+        sys.exit(f"ERROR: {path} has no {sorted(missing)} column(s)")
+    return dict(zip(table["label"].str.strip(), table["hex_color"].str.strip()))
+
+
+def category_colors(labels: list[str], napari: bool, color_table: Path | None = None) -> np.ndarray:
     """RGBA per label: Napari's colour for the label, or three tab20 maps combined (up to 60 distinct)."""
     import matplotlib.pyplot as plt
     from matplotlib.colors import to_rgba
     if napari:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-        from napari_colors import deterministic_color
-        return np.array([to_rgba(deterministic_color(label)) for label in labels])
+        published = load_color_table(color_table) if color_table else {}
+        unknown = [label for label in labels if label not in published]
+        if published and not unknown:
+            return np.array([to_rgba(published[label]) for label in labels])
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+            from napari_colors import deterministic_color
+            if unknown and published:
+                print(f"NOTE: {len(unknown)} label(s) absent from {color_table.name}; "
+                      f"hashing those: {unknown[:4]}", file=sys.stderr)
+            return np.array([to_rgba(published.get(label) or deterministic_color(label))
+                             for label in labels])
+        except ImportError as exc:
+            # duckdb supplies the hash and the rapids SIF has none. Fall back LOUDLY: silently
+            # different colours between this figure and Napari is the worse failure.
+            print(f"WARN: cannot compute Napari colours ({exc}); falling back to tab20. "
+                  f"Colours will NOT match the Napari columns.", file=sys.stderr)
     base = []
     for name in ("tab20", "tab20b", "tab20c"):
         base += [plt.get_cmap(name)(i) for i in range(20)]
@@ -148,7 +179,7 @@ def main() -> None:
     labels = list(s.cat.categories)
     counts = Counter(s)
 
-    colors = category_colors(labels, args.napari_colors)
+    colors = category_colors(labels, args.napari_colors, args.color_table)
     point_colors = colors[codes]
     text_color = "white" if args.dark else "black"
 

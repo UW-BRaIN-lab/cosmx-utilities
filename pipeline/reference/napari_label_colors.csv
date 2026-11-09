@@ -1,0 +1,104 @@
+label,hex_color
+Adjacent soft tissue,#1A651F
+Allen_Astrocyte,#6FF55E
+Allen_CGE interneuron,#313B5F
+Allen_Committed oligodendrocyte precursor,#E96BFC
+Allen_Deep-layer corticothalamic and 6b,#BBE3B6
+Allen_Deep-layer intratelencephalic,#9C31FF
+Allen_Deep-layer near-projecting,#92ECBB
+Allen_Eccentric medium spiny neuron,#973D1D
+Allen_Fibroblast,#BD57A2
+Allen_Hippocampal CA1-3,#FE9336
+Allen_LAMP5-LHX6 and Chandelier,#B1375F
+Allen_MGE interneuron,#B3F3A1
+Allen_Medium spiny neuron,#D42DCA
+Allen_Microglia,#156C34
+Allen_Upper-layer intratelencephalic,#36C867
+Allen_endothelial cell,#0E18CD
+Allen_pericyte,#BCFFFF
+Allen_vascular associated smooth muscle cell,#CFB6DF
+Gray matter,#50C005
+HRCA_GABAergic amacrine cell,#F04D2B
+HRCA_H1 horizontal cell,#318963
+HRCA_H2 horizontal cell,#949BD9
+HRCA_Mueller cell,#D6A41E
+HRCA_OFF midget ganglion cell,#6E065C
+HRCA_OFF parasol ganglion cell,#181C90
+HRCA_OFFx cell,#E4ED1E
+HRCA_ON midget ganglion cell,#513E4D
+HRCA_ON parasol ganglion cell,#598F52
+HRCA_ON-blue cone bipolar cell,#890B50
+HRCA_S cone cell,#8D903E
+HRCA_amacrine cell,#7B1CCE
+HRCA_astrocyte,#C0F154
+HRCA_diffuse bipolar 1 cell,#A60F2A
+HRCA_diffuse bipolar 2 cell,#07BF09
+HRCA_diffuse bipolar 3a cell,#7879F0
+HRCA_diffuse bipolar 3b cell,#5DCA41
+HRCA_diffuse bipolar 4 cell,#16C4F9
+HRCA_diffuse bipolar 6 cell,#DBA6B6
+HRCA_flat midget bipolar cell,#B03182
+HRCA_giant bipolar cell,#4FBC2D
+HRCA_glycinergic amacrine cell,#E0E06C
+HRCA_invaginating midget bipolar cell,#EAB670
+HRCA_microglial cell,#1F2C7F
+HRCA_retinal bipolar neuron,#C6AF93
+HRCA_retinal cone cell,#BB112B
+HRCA_retinal ganglion cell,#AE04F1
+HRCA_retinal pigment epithelial cell,#464861
+HRCA_retinal rod cell,#C510B3
+HRCA_rod bipolar cell,#1EC3F5
+HRCA_starburst amacrine cell,#DE9E65
+Mona_B cell,#B89233
+Mona_Schwann cell,#38E8A6
+Mona_T cell,#43278D
+Mona_astrocyte,#EA7468
+Mona_endothelium,#D7B9AA
+Mona_fibroblast,#17D809
+Mona_macrophage,#0C964A
+Mona_melanocyte,#7FCC84
+Mona_microglial cell,#CF682D
+Mona_myelinating Schwann cell,#9A72A0
+Mona_natural killer cell,#735307
+Mona_pericyte,#73099F
+Mona_pigmented epithelial cell,#4E9348
+Mona_vascular associated smooth muscle cell,#13B5F2
+Mueller_glia,#4B45B8
+OPC,#4A623F
+Oligodendrocyte,#706F30
+Optic nerve,#719FB1
+Other_ganglion,#97E00E
+Retina,#7D5B86
+Rod_bipolar,#57D3C3
+White matter,#41F7EE
+a,#30CEC7
+a_deep_retinal,#C9932A
+b,#A65CE9
+c,#19E0D5
+d,#5E6C54
+denovo_astrocyte_1,#D907A8
+denovo_astrocyte_2,#AE5A4C
+denovo_cortical_excitatory_1,#6EDB17
+denovo_cortical_excitatory_2,#B15771
+denovo_cortical_excitatory_3,#1FCBDE
+denovo_cortical_inhibitory_1,#1F7400
+denovo_cortical_inhibitory_2,#06D511
+denovo_endothelium,#D954BE
+denovo_microglia,#5E663E
+denovo_oligodendrocyte_1,#7062D8
+denovo_oligodendrocyte_2,#F4E533
+e,#1DAE39
+f,#F6852A
+g,#C95A99
+h,#760550
+i,#5A8A95
+j,#881797
+k,#496A98
+l,#B423E9
+m,#0081CD
+n,#DB2FAD
+o,#221A47
+p,#3B1959
+q,#6B2A43
+r,#B1C794
+s,#EE2074

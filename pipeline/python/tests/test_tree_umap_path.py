@@ -15,6 +15,7 @@ Two things it guards that are easy to lose:
 Runnable under pytest or directly:
     uv run python pipeline/python/tests/test_tree_umap_path.py
 """
+import os
 import subprocess
 import sys
 import tempfile
@@ -56,11 +57,26 @@ def _build(tmp_path: Path, n_typed: int = N_CELLS) -> tuple[Path, Path]:
     return clustered, result
 
 
-def _run(script: str, *args: str) -> None:
+def _run(script: str, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     done = subprocess.run([sys.executable, str(_PY_DIR / script), *args],
-                          capture_output=True, text=True, cwd=_PY_DIR)
+                          capture_output=True, text=True, cwd=_PY_DIR,
+                          env={**os.environ, **(env or {})})
     if done.returncode:
         raise AssertionError(f"{script} failed:\n{done.stdout[-2000:]}\n{done.stderr[-2000:]}")
+    return done
+
+
+def _without_duckdb(tmp_path: Path) -> dict:
+    """Env where importing duckdb fails, as in the rapids SIF on Klone.
+
+    The Mac venv HAS duckdb, so every local run took the happy path and the container-only
+    failure reached a real job instead. Simulating the absent module is the only way a test
+    on this machine can speak to that environment.
+    """
+    stub = tmp_path / "no_duckdb"
+    stub.mkdir(exist_ok=True)
+    (stub / "duckdb.py").write_text('raise ImportError("no duckdb in this environment")\n')
+    return {"PYTHONPATH": str(stub)}
 
 
 def test_stage90_writes_tree_calls_and_keeps_the_umap(tmp_path: Path) -> None:
@@ -114,12 +130,48 @@ def test_cells_the_tree_never_typed_do_not_break_the_figure(tmp_path: Path) -> N
     print(f"  untyped: {N_CELLS - n_typed} cells carry no call; the figure still draws")
 
 
+def test_published_colours_need_no_duckdb(tmp_path: Path) -> None:
+    """The colour table must carry the figure where the container cannot hash.
+
+    duckdb supplies the hash that defines a Napari colour and the rapids SIF has none, so
+    --napari-colors crashed there. With every label in the published table the hash is never
+    needed; without it the fall-back must be loud, because a figure whose colours silently
+    disagree with the viewer is worse than an ugly one.
+    """
+    clustered, result = _build(tmp_path)
+    typed_path = tmp_path / "cosmx_typed_tree.h5ad"
+    _run("write_celltypes.py", "--clustered-h5ad", str(clustered),
+         "--insitutype-h5", str(result), "--output", str(typed_path))
+
+    table = tmp_path / "colors.csv"
+    pd.DataFrame({"label": list(LEAVES),
+                  "hex_color": ["#6E065C", "#43278D", "#73099F", "#1A651F", "#881797"]}
+                 ).to_csv(table, index=False)
+    no_duckdb = _without_duckdb(tmp_path)
+
+    complete = tmp_path / "complete.png"
+    done = _run("plot_celltype_umap.py", "--h5ad", str(typed_path), "--color-key", "cell_type",
+                "--napari-colors", "--color-table", str(table), "--output", str(complete),
+                env=no_duckdb)
+    assert complete.stat().st_size > 5000
+    assert "falling back to tab20" not in done.stderr, done.stderr
+
+    # No table, no duckdb: must still produce a figure, and must say the colours are wrong.
+    fallback = tmp_path / "fallback.png"
+    done = _run("plot_celltype_umap.py", "--h5ad", str(typed_path), "--color-key", "cell_type",
+                "--napari-colors", "--output", str(fallback), env=no_duckdb)
+    assert fallback.stat().st_size > 5000
+    assert "will NOT match the Napari columns" in done.stderr, done.stderr
+    print("  no duckdb: the published table draws silently; without it the warning is loud")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as d:
         print("test_tree_umap_path")
         for name, case in (("a", test_stage90_writes_tree_calls_and_keeps_the_umap),
                            ("b", test_stage95_draws_without_an_annotation_table),
-                           ("c", test_cells_the_tree_never_typed_do_not_break_the_figure)):
+                           ("c", test_cells_the_tree_never_typed_do_not_break_the_figure),
+                           ("d", test_published_colours_need_no_duckdb)):
             # pytest's tmp_path already exists; make one per case so direct runs match.
             case_dir = Path(d) / name
             case_dir.mkdir()
