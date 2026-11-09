@@ -76,7 +76,9 @@
   "Astrocyte": [
     "HRCA_astrocyte",
     "Mona_astrocyte",
-    "Allen_Astrocyte"
+    "Allen_Astrocyte",
+    "denovo_astrocyte_1",
+    "denovo_astrocyte_2"
   ],
   "Oligodendrocyte_lineage": [
     "Oligodendrocyte",
