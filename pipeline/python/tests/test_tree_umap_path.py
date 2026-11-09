@@ -33,7 +33,7 @@ LEAVES = ("denovo_oligodendrocyte_1", "OPC", "HRCA_retinal rod cell",
           "denovo_astrocyte_1", "Mueller_glia")
 
 
-def _build(tmp_path: Path) -> tuple[Path, Path]:
+def _build(tmp_path: Path, n_typed: int = N_CELLS) -> tuple[Path, Path]:
     rng = np.random.default_rng(0)
     cells = [f"c_1_{i // CELLS_PER_FOV + 1}_{i % CELLS_PER_FOV}" for i in range(N_CELLS)]
     obs = pd.DataFrame({"slide_id": "s1",
@@ -48,11 +48,11 @@ def _build(tmp_path: Path) -> tuple[Path, Path]:
 
     result = tmp_path / "insitutree_result.h5"
     with h5py.File(result, "w") as f:
-        for name, values in (("cell_id", cells),
-                             ("cell_type", [LEAVES[i % len(LEAVES)] for i in range(N_CELLS)])):
+        for name, values in (("cell_id", cells[:n_typed]),
+                             ("cell_type", [LEAVES[i % len(LEAVES)] for i in range(n_typed)])):
             f.create_dataset(name, data=np.asarray(values, dtype=object),
                              dtype=h5py.string_dtype("utf-8"))
-        f.create_dataset("prob", data=rng.uniform(0.8, 1.0, N_CELLS))
+        f.create_dataset("prob", data=rng.uniform(0.8, 1.0, n_typed))
     return clustered, result
 
 
@@ -92,11 +92,34 @@ def test_stage95_draws_without_an_annotation_table(tmp_path: Path) -> None:
     print("  95: drew the UMAP and the per-label panels with Napari colours, no mapping")
 
 
+def test_cells_the_tree_never_typed_do_not_break_the_figure(tmp_path: Path) -> None:
+    """The tree typed 835,077 of the cohort's 849,510 cells, so NaNs are the normal case.
+
+    The 14,433 difference is the ciliary/cornea block, excluded before typing. A label
+    column with NaNs is the shape stage 95 will actually be handed, and an NA category
+    rendering as a 15th "cell type" would be worse than it being dropped.
+    """
+    n_typed = N_CELLS - 100
+    clustered, result = _build(tmp_path, n_typed=n_typed)
+    typed_path = tmp_path / "cosmx_typed_tree.h5ad"
+    _run("write_celltypes.py", "--clustered-h5ad", str(clustered),
+         "--insitutype-h5", str(result), "--output", str(typed_path))
+
+    typed = ad.read_h5ad(typed_path)
+    assert int(pd.isna(typed.obs["cell_type"]).sum()) == N_CELLS - n_typed
+    umap = tmp_path / "umap.png"
+    _run("plot_celltype_umap.py", "--h5ad", str(typed_path), "--color-key", "cell_type",
+         "--napari-colors", "--output", str(umap))
+    assert umap.stat().st_size > 5000
+    print(f"  untyped: {N_CELLS - n_typed} cells carry no call; the figure still draws")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as d:
         print("test_tree_umap_path")
         for name, case in (("a", test_stage90_writes_tree_calls_and_keeps_the_umap),
-                           ("b", test_stage95_draws_without_an_annotation_table)):
+                           ("b", test_stage95_draws_without_an_annotation_table),
+                           ("c", test_cells_the_tree_never_typed_do_not_break_the_figure)):
             # pytest's tmp_path already exists; make one per case so direct runs match.
             case_dir = Path(d) / name
             case_dir.mkdir()
