@@ -893,6 +893,35 @@ each. Twice a reference type wins tissue it has no business in — a retinal mic
 in gray matter, a cortical smooth-muscle profile in orbital soft tissue — which is what the
 single shared rescaling term predicts when the atlases disagree.
 
+**What the SME settled, 2026-11-10** (full wording in `reference/FOV_ANNOTATIONS.md`).
+The type list goes **64 -> 55** on her answers alone, before any retina decision:
+
+| change | types | left |
+|---|---|---|
+| lymphoid out — she reviewed the H&E on every case and saw no concerning inflammation | -3 | 61 |
+| hippocampus + both spiny-neuron types out — the brain blocks are cortex and subcortical white matter only | -3 | 58 |
+| cortical excitatory -> ONE type: "excitatory neuron is sufficient, without the deep vs superficial labelling" (Upper IT, Deep IT, Deep NP, Deep CT/6b) | -3 | 55 |
+| 79's MIXED classes, one copy each: microglia, fibroblast, smooth muscle | -3 | 52 |
+
+Astrocytes keep all three copies (79: each owns its tissue). Pericyte, endothelium and
+pigmented epithelium are undecided and small. **Every retina merge is parked** — she referred
+retinal granularity to Kathryn Pepple rather than ruling on it.
+
+⚠ **The retina is almost all CENTRAL (near macula); `uwa7761eyes` is the exception.** That
+kills the plan to collapse the fovea-enriched HRCA subtypes as peripheral-only — the opposite
+holds, and midget/foveal types are the ones the cohort is made of. It also leaves one
+anatomically peripheral retina among eleven central ones, in the donor whose brain we already
+excluded: a confound for any retina comparison, and not a quality problem.
+
+**Still open on granularity:** she ruled on excitatory neurons but was not asked about the
+cortical inhibitory classes (`Allen_CGE interneuron`, `Allen_MGE interneuron`,
+`Allen_LAMP5-LHX6 and Chandelier`, mutually 0.985-0.991). By the same logic one
+`Inhibitory neuron` would follow, but that is an inference, not her answer — ask on Friday.
+
+**The FOV questions are NOT answered.** She takes the 7 collisions and the 46 unruled FOVs in
+Napari on **Friday 2026-11-13 from about noon**, so the cohort is not final until then and
+stage 70 does not run before it.
+
 **Applying a merge: relabel upstream, do not average columns.** Averaging two columns of the
 built reference gets the cell weighting wrong and quietly favours the rarer subtype. The merge
 belongs in the profile builders in `~/keene-lab/retina-brain`, where `getRNAprofiles()`
