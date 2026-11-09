@@ -81,14 +81,18 @@ def load_regions(annotations_csv: Path) -> pd.DataFrame:
     })
 
 
-def attach_regions(obs: pd.DataFrame, regions: pd.DataFrame) -> pd.DataFrame:
+def attach_regions(obs: pd.DataFrame, regions: pd.DataFrame,
+                   require: tuple[str, ...] = (COUNT_COL,)) -> pd.DataFrame:
     """obs with region/excluded joined on (slide, FOV). Exits if the join matches nothing.
 
     A join that matches nothing means the slide ids or FOV numbering disagree, and every
     table downstream would then be empty or silently partial -- the same failure mode
     fov_exclusions.py guards, for the same reason.
+
+    `require` is what the CALLER needs beyond the join keys: QC needs the counts column, a
+    caller counting labels needs its label column instead. The join itself needs neither.
     """
-    missing = [c for c in (SLIDE_COL, FOV_COL, COUNT_COL) if c not in obs.columns]
+    missing = [c for c in (SLIDE_COL, FOV_COL, *require) if c not in obs.columns]
     if missing:
         sys.exit(f"ERROR: obs is missing {missing}; is this a stage-3 combined_qc.h5ad?")
 

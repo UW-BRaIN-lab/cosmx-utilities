@@ -1,0 +1,17 @@
+class,type,note
+astrocyte,HRCA_astrocyte,retina
+astrocyte,Allen_Astrocyte,cortex and white matter
+astrocyte,Mona_astrocyte,optic nerve head
+microglia,HRCA_microglial cell,retina
+microglia,Allen_Microglia,cortex and white matter
+microglia,Mona_microglial cell,optic nerve head
+endothelium,Mona_endothelium,optic nerve head
+endothelium,Allen_endothelial cell,cortex and white matter
+pericyte,Mona_pericyte,optic nerve head
+pericyte,Allen_pericyte,cortex and white matter
+smooth_muscle,Mona_vascular associated smooth muscle cell,optic nerve head
+smooth_muscle,Allen_vascular associated smooth muscle cell,cortex and white matter
+fibroblast,Mona_fibroblast,optic nerve head
+fibroblast,Allen_Fibroblast,cortex and white matter
+pigmented_epithelium,HRCA_retinal pigment epithelial cell,RPE
+pigmented_epithelium,Mona_pigmented epithelial cell,not strictly the same cell -- here for the RPE-into-choroid question
