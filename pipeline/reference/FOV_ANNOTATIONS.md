@@ -38,6 +38,39 @@ throughout. The detailed tables remain in the deck if a sub-analysis of those tw
 `uwa7761eyes` has two tables; this file uses the one marked **NEW** (slide 15), which covers
 FOVs 1–215 and carries the exclusion. The older table (slide 16) covers only 40–215.
 
+## SME rulings, 2026-11-10
+
+Answers to the five asks sent after the 2026-11-09 meeting. The FOV questions (the 7
+collisions and the 46 unruled FOVs) are **not** here: she takes those in Napari on Friday
+2026-11-13 from about noon.
+
+**Adjacent soft tissue on `uwa7761eyes` — EXCLUDED.** Her ruling was conditional: *"if the
+soft tissue also has very low quality, it can be excluded."* Stage 21 (job 43071516) measured
+it as the worst region of any donor in the cohort — median 101 panel counts against 191 for
+other donors' adjacent soft tissue, 0.53x, rank 12 of 12, with 49.4% of its cells under 100
+counts. The condition is met, so the 26 FOVs (1, 69-75, 79, 80, 86, 87, 93, 94, 100-103,
+108-115) now carry `exclude=1`. **183 FOVs are excluded cohort-wide**: 57 ciliary/cornea not
+in any atlas, 100 brain, 26 soft tissue.
+
+That donor keeps 22 optic nerve and 10 retina FOVs, both of which measured above the cohort
+average.
+
+**Retina is almost all CENTRAL (near macula) — `uwa7761eyes` is the exception, peripheral.**
+This kills the standing plan to collapse the fovea-enriched HRCA subtypes on the grounds that
+the cohort is peripheral-only; the opposite is true. It also means the one donor whose retina
+we kept after excluding its brain is anatomically different from the other eleven, which is a
+confound for any retina comparison and is not a quality problem.
+
+**Retinal granularity goes to Kathryn Pepple.** Our neuropathologist asked for her perspective
+rather than giving one, so every retina merge is parked until then.
+
+**Brain granularity — settled.** `Excitatory neuron` is sufficient, *without* the deep vs
+superficial labelling. The brain blocks are cortex and subcortical white matter only, so
+**hippocampus and the basal-ganglia spiny neurons are excluded**.
+
+**Lymphocytes — out.** Not on our detection argument, which was the weaker one: she reviewed
+the H&E on all of these cases and saw no concerning inflammation.
+
 ## ⚠ Open items for the SME
 
 **28 FOVs were claimed by two primary rows — 21 RESOLVED by the SME 2026-11-06, 7 still
