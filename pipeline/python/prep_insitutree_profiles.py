@@ -196,7 +196,7 @@ def main() -> None:
     print(f"Wrote {args.output} ({out.shape[0]:,} genes x {out.shape[1]} cell types: "
           f"{len(kept) - len(rename)} named + {len(set(rename.values()))} de-novo)")
     print("Every kept new_name must be a leaf of the hierarchy this matrix will be "
-          "used with, and vice versa. 84_prep_insitutree_profiles.sh checks that "
+          "used with, and vice versa. 83_prep_insitutree_profiles.sh checks that "
           "and fails if it does not hold.")
 
 
