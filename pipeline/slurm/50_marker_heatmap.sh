@@ -11,7 +11,7 @@
 # columns = the bare GROUP_KEY values):
 #   STAGE3_DIR=stage4_insitutree CLUSTERED_BASENAME=cosmx_typed.h5ad \
 #   OUTPUT_SUBDIR=synaptic_heatmap REGION_KEY=none \
-#   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
+#   GENES_CSV=pipeline/reference/gbm_synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
 #       sbatch pipeline/slurm/50_marker_heatmap.sh
 #
 # Cross any two obs columns by using REGION_KEY as the sub-split and REGIONS to
@@ -21,7 +21,7 @@
 #   STAGE3_DIR=stage4_insitutree CLUSTERED_BASENAME=cosmx_typed.h5ad \
 #   GROUP_KEY=Case REGION_KEY=leiden REGIONS=1 MIN_GROUP_N=200 \
 #   OUTPUT_SUBDIR=synaptic_by_donor_cl1 \
-#   GENES_CSV=pipeline/reference/synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
+#   GENES_CSV=pipeline/reference/gbm_synaptic_channel_genes.csv GENE_GROUP_COLUMN=module \
 #       sbatch pipeline/slurm/50_marker_heatmap.sh
 # REGIONS is space-separated and deliberately unquoted below so multiple values work.
 #
