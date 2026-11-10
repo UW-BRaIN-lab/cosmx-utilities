@@ -45,6 +45,7 @@ flowchart TD
 | Anchor cohort | `71_prep_anchor.sh` | Subsample stratified by Leiden cluster, so rare populations reach the fit |
 | Tuning | `73_select_genes.sh`, `74_choose_k.sh` | Prune the panel to informative genes; choose the number of de novo clusters |
 | Reference fit | `72_anchor_typing.sh` | Semi-supervised [InSituType](https://github.com/Nanostring-Biostats/InSituType) against [GBmap](https://www.gbmap.org/), plus de novo clusters for off-reference tumour states |
+| Reference build | `83_prep_insitutree_profiles.sh` | Named profile matrix and type hierarchy from the fit, checked to agree with each other |
 | Full-cohort typing | `84` → `85b` → `85c` | [InSituTree](https://github.com/Nanostring-Biostats/CosMx-Analysis-Scratch-Space) hierarchical typing of every cell against the fixed profiles, one job per slide |
 | Write-back | `90_write_celltypes.sh` | Labels and posteriors onto the clustered AnnData |
 
