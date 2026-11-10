@@ -74,9 +74,11 @@ flowchart LR
 ```
 
 ```bash
-uv sync --extra gui                                                     # install, with the Napari GUI
-uv run python scripts/process-slides.py s3://bucket/study/ --whatif     # preview Fargate tasks
-uv run python scripts/process-slides.py s3://bucket/study/              # one task per slide
+# install, with the Napari GUI
+uv sync --extra gui
+# preview, then launch one Fargate task per slide
+uv run python scripts/process-slides.py s3://bucket/study/ --whatif
+uv run python scripts/process-slides.py s3://bucket/study/
 ```
 
 The full guide is [`docs/napari.md`](docs/napari.md): carrying annotations into Napari, 3D segmentation, viewing on EC2 or your own machine, and infrastructure setup ([`fargate/FARGATE-SETUP.md`](fargate/FARGATE-SETUP.md)). Container images are published on [GHCR](https://github.com/UW-BRaIN-lab/cosmx-utilities/pkgs/container/cosmx-utilities).
