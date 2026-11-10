@@ -10,30 +10,23 @@ The repository has two parts:
 ## Cell-typing pipeline
 
 ```mermaid
-flowchart TD
+flowchart TB
     classDef data fill:#e8e1cc,stroke:#85754d,color:#32006e
     classDef step fill:#4b2e83,stroke:none,color:#ffffff
     classDef typing fill:#ffc700,stroke:none,color:#32006e
 
-    flat[/"CosMx flat files"/]:::data
-    h5ad["Per-slide AnnData"]:::step
-    qc["Merge slides + QC"]:::step
-    pca["Pearson-residual PCA<br/>batch-corrected by patient"]:::step
-    leiden["Leiden clustering + UMAP"]:::step
-    anchor["Leiden-stratified<br/>anchor cohort"]:::step
-    gbmap[/"GBmap reference"/]:::data
-    fit["InSituType fit<br/>named + de novo types"]:::typing
-    ref[/"Reference profiles<br/>+ type hierarchy"/]:::data
-    tree["InSituTree typing<br/>every cell, per slide"]:::typing
-    typed[/"Typed AnnData"/]:::data
-    viz["Marker heatmaps<br/>+ Napari labels"]:::step
+    subgraph prep["1. Preprocess"]
+        direction LR
+        flat[/"Flat files"/]:::data --> h5ad["AnnData"]:::step --> qc["QC"]:::step --> pca["Pearson PCA<br/>by patient"]:::step --> leiden["Leiden"]:::step
+    end
 
-    flat --> h5ad --> qc --> pca --> leiden --> anchor --> fit
-    gbmap --> fit
-    fit --> ref --> tree
-    qc --> tree
-    tree --> typed
-    typed --> viz
+    subgraph typing["2. Type cells"]
+        direction LR
+        anchor["Anchor<br/>cohort"]:::step --> fit["InSituType<br/>fit"]:::typing --> ref[/"Profiles +<br/>hierarchy"/]:::data --> tree["InSituTree<br/>per slide"]:::typing --> typed[/"Typed<br/>AnnData"/]:::data
+        gbmap[/"GBmap"/]:::data --> fit
+    end
+
+    prep --> typing
 ```
 
 | Step | Script (`pipeline/slurm/`) | What it does |
