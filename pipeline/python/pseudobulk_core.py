@@ -23,11 +23,14 @@ import scipy.sparse as sp
 DEFAULT_SCALE_FACTOR = 10_000.0
 
 
-def log_normalize(counts: sp.csr_matrix, scale_factor: float = DEFAULT_SCALE_FACTOR
-                  ) -> sp.csr_matrix:
+def log_normalize(counts: sp.csr_matrix, scale_factor: float = DEFAULT_SCALE_FACTOR,
+                  totals: np.ndarray | None = None) -> sp.csr_matrix:
     """log1p(counts / per-cell total * scale_factor), sparse (Seurat LogNormalize)."""
     counts = counts.tocsr().astype(np.float64)
-    totals = np.asarray(counts.sum(axis=1)).ravel()
+    # `totals` supplies the per-cell denominator when `counts` is only a column
+    # subset, so the divisor stays the FULL gene total rather than the subset's.
+    if totals is None:
+        totals = np.asarray(counts.sum(axis=1)).ravel()
     # Guard the division itself rather than np.where'ing after it: np.where evaluates both
     # branches, so an empty cell would warn about dividing by zero even though 0.0 wins.
     inv = np.divide(scale_factor, totals, out=np.zeros_like(totals, dtype=np.float64),

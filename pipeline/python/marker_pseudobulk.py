@@ -169,20 +169,24 @@ def main() -> None:
 
     gene_mask = (adata.var["probe_type"] == "gene").to_numpy()
     genes = adata.var_names[gene_mask].to_numpy()
-    print(f"Log-normalizing {int(gene_mask.sum())} gene probes")
-    norm = log_normalize(adata.X.tocsr()[:, gene_mask], args.scale_factor)
+    counts = adata.X.tocsr()[:, gene_mask]
 
-    # Per-cluster mean log-norm profile (genes x clusters).
     cl_oh, cl_labels = onehot(cluster)
-    profile = group_means(norm, cl_oh).T          # genes x clusters
-    profile = pd.DataFrame(profile, index=genes, columns=cl_labels)
-
     # Order clusters numerically when they look like integers (leiden), else lexically.
     try:
         cl_order = [str(c) for c in sorted(cl_labels, key=lambda x: int(x))]
     except ValueError:
         cl_order = sorted(cl_labels)
-    profile = profile[cl_order]
+
+    # A curated list needs NO marker selection, so it needs no all-gene profile and no
+    # all-gene normalization -- only its own columns, divided by the full gene total. That
+    # is what keeps this tractable at cohort scale: tens of float64 columns, not ~6,000.
+    profile = None
+    if not args.genes_csv:
+        print(f"Log-normalizing {int(gene_mask.sum())} gene probes")
+        norm_all = log_normalize(counts, args.scale_factor)
+        profile = pd.DataFrame(group_means(norm_all, cl_oh).T,
+                               index=genes, columns=cl_labels)[cl_order]
 
     # Which clusters to select markers for / show. The differential is always computed
     # against ALL clusters (profile keeps every column); --clusters only narrows which
@@ -228,6 +232,15 @@ def main() -> None:
     # Pseudobulk the marker genes by cluster x Region, over the selected clusters' cells.
     sel_mask = np.isin(cluster, select_order)
     marker_idx = pd.Index(genes).get_indexer(ordered_markers)
+    if profile is None:
+        # Curated path: normalize only the marker columns, against the FULL gene total.
+        print(f"Log-normalizing {len(marker_idx)} curated columns "
+              f"(of {int(gene_mask.sum())} gene probes)")
+        totals = np.asarray(counts.sum(axis=1)).ravel()
+        norm = log_normalize(counts[:, marker_idx], args.scale_factor, totals=totals)
+        marker_idx = np.arange(len(marker_idx))
+    else:
+        norm = norm_all
     group = cluster[sel_mask].astype(str)
     if by_region:
         group = np.char.add(np.char.add(group, " | "), region[sel_mask].astype(str))
