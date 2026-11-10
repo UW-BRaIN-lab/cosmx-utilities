@@ -11,14 +11,9 @@
 #   STAGE4_DIR=stage4_insitutree RESULT_BASENAME=insitutree_result.h5 \
 #       sbatch --dependency=afterok:$jid pipeline/slurm/90_write_celltypes.sh
 #
-# Prerequisite: build the profile matrix once and put it on Kopah reference/:
-#   s5cmd cp s3://$KOPAH_BUCKET/$KOPAH_PREFIX/stage4/insitutype_result.h5 .   # Core-L4 rescale run
-#   uv run python pipeline/python/prep_insitutree_profiles.py \
-#       --profiles-h5 insitutype_result.h5 \
-#       --annotations pipeline/reference/denovo_annotations/stage4.csv \
-#       --output pipeline/reference/insitutree_profiles.csv
-#   s5cmd cp pipeline/reference/insitutree_profiles.csv \
-#       s3://$KOPAH_BUCKET/$KOPAH_PREFIX/reference/insitutree_profiles.csv
+# Prerequisite: 84_prep_insitutree_profiles.sh builds the profile matrix, checks it is in
+# lockstep with the hierarchy, and uploads it to Kopah reference/. Pass its
+# TREE_PROFILES_BASENAME here.
 # The hierarchy JSON is read straight from the repo checkout (bind-mounted), not Kopah.
 #
 # Required env (from pipeline/.env):
@@ -68,7 +63,10 @@ STAGE4="${STAGE4_DIR:-stage4_insitutree}"
 # Where to READ insitutype_input.h5 from — defaults to the shared `stage4` prefix so the
 # multi-GB input is not duplicated (same pattern as 80_insitutype.sh's INPUT_DIR).
 INPUT_DIR="${INPUT_DIR:-stage4}"
-REFERENCE_BASENAME="${REFERENCE_BASENAME:-insitutree_profiles.csv}"
+# NOT called REFERENCE_BASENAME: that name means the ATLAS reference in stages 0/4b and is
+# set in .env. This is the InSituTree profile matrix 84 builds -- a different object, in
+# CosMx scale, whose columns must match the hierarchy leaves exactly.
+: "${TREE_PROFILES_BASENAME:?set it to the profile matrix 84 built and uploaded}"
 HIERARCHY_BASENAME="${HIERARCHY_BASENAME:-insitutree_hierarchy.json}"
 
 : "${APPTAINER_INSITUTYPE:?must be set in pipeline/.env}"
@@ -84,7 +82,7 @@ export S3_ENDPOINT_URL="$KOPAH_ENDPOINT_URL"
 echo "Staging InSituTree input (from ${INPUT_DIR}) + profile matrix from Kopah..."
 s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${INPUT_DIR}/insitutype_input.h5" \
     "$WORK/insitutype_input.h5"
-s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${REFERENCE_BASENAME}" \
+s5cmd cp "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/reference/${TREE_PROFILES_BASENAME}" \
     "$WORK/reference.csv"
 
 apptainer exec \
