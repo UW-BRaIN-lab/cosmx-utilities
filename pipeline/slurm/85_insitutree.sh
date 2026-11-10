@@ -11,7 +11,7 @@
 #   STAGE4_DIR=stage4_insitutree RESULT_BASENAME=insitutree_result.h5 \
 #       sbatch --dependency=afterok:$jid pipeline/slurm/90_write_celltypes.sh
 #
-# Prerequisite: 84_prep_insitutree_profiles.sh builds the profile matrix, checks it is in
+# Prerequisite: 83_prep_insitutree_profiles.sh builds the profile matrix, checks it is in
 # lockstep with the hierarchy, and uploads it to Kopah reference/. Pass its
 # TREE_PROFILES_BASENAME here.
 # The hierarchy JSON is read straight from the repo checkout (bind-mounted), not Kopah.
@@ -64,9 +64,9 @@ STAGE4="${STAGE4_DIR:-stage4_insitutree}"
 # multi-GB input is not duplicated (same pattern as 80_insitutype.sh's INPUT_DIR).
 INPUT_DIR="${INPUT_DIR:-stage4}"
 # NOT called REFERENCE_BASENAME: that name means the ATLAS reference in stages 0/4b and is
-# set in .env. This is the InSituTree profile matrix 84 builds -- a different object, in
+# set in .env. This is the InSituTree profile matrix 83 builds -- a different object, in
 # CosMx scale, whose columns must match the hierarchy leaves exactly.
-: "${TREE_PROFILES_BASENAME:?set it to the profile matrix 84 built and uploaded}"
+: "${TREE_PROFILES_BASENAME:?set it to the profile matrix 83 built and uploaded}"
 HIERARCHY_BASENAME="${HIERARCHY_BASENAME:-insitutree_hierarchy.json}"
 
 : "${APPTAINER_INSITUTYPE:?must be set in pipeline/.env}"

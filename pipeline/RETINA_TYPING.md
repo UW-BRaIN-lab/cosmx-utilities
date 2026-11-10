@@ -495,7 +495,7 @@ alone so the 66-leaf run stays reproducible. The proposal is a parallel pair:
 DENOVO_ANNOTATIONS=retina_stage4_denovo_leaves.csv \
   HIERARCHY_BASENAME=retina_hierarchy_denovo_leaves.json \
   TREE_PROFILES_BASENAME=retina_insitutree_profiles_denovo_leaves.csv \
-  sbatch pipeline/slurm/84_prep_insitutree_profiles.sh
+  sbatch pipeline/slurm/83_prep_insitutree_profiles.sh
 ```
 
 then 85 with the same `HIERARCHY_BASENAME` and that `TREE_PROFILES_BASENAME`. **76 leaves,
@@ -711,7 +711,7 @@ DENOVO_ANNOTATIONS=retina_stage4_denovo_leaves.csv \
   HIERARCHY_BASENAME=retina_hierarchy_denovo_leaves_no_lymphoid.json \
   TREE_PROFILES_BASENAME=retina_insitutree_profiles_72.csv \
   DROP_NAMED="Mona_T cell,Mona_natural killer cell,Mona_B cell" \
-  sbatch pipeline/slurm/84_prep_insitutree_profiles.sh
+  sbatch pipeline/slurm/83_prep_insitutree_profiles.sh
 ```
 
 then 85 with that hierarchy and profile matrix, and `STAGE4_DIR=stage4_insitutree_72` so the

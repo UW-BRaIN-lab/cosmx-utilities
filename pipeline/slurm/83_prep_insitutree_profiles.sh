@@ -10,9 +10,9 @@
 # Submit:
 #   DENOVO_ANNOTATIONS=retina_stage4.csv HIERARCHY_BASENAME=retina_hierarchy.json \
 #     TREE_PROFILES_BASENAME=retina_insitutree_profiles.csv \
-#     sbatch pipeline/slurm/84_prep_insitutree_profiles.sh
+#     sbatch pipeline/slurm/83_prep_insitutree_profiles.sh
 # Then chain the fit off it:
-#   jid=$(sbatch --parsable pipeline/slurm/84_prep_insitutree_profiles.sh)
+#   jid=$(sbatch --parsable pipeline/slurm/83_prep_insitutree_profiles.sh)
 #   sbatch --dependency=afterok:$jid pipeline/slurm/85_insitutree.sh
 #
 # Required env (from pipeline/.env):
