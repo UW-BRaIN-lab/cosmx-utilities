@@ -17,7 +17,19 @@
 # Knobs: TYPED_BASENAME, COLOR_KEY (obs column, default cell_type), OUTPUT_BASENAME, TITLE,
 # NAPARI_COLORS (default true -- the same colours as the Napari columns, read from
 #   reference/napari_label_colors.csv; COLOR_TABLE_BASENAME overrides that file),
-# PANELS_OUTPUT (a second PNG, one small panel per label).
+# PANELS_OUTPUT (a second PNG, one small panel per label), MIN_PANEL_CELLS (labels with fewer
+#   cells get no panel; default 0), POINT_SIZE (scatter marker size, default 1.0; full-cohort runs
+#   want ~0.2), DARK (default false; true draws on black, the background Napari colours were made
+#   legible against).
+#
+# InSituTree runs with a hierarchy: HIERARCHY_BASENAME (a file in pipeline/reference/) colours the
+# main PNG by top-level branch (Low_signal grey underneath) and adds <stem>_counts.csv; with Napari
+# colours also <stem>_celltypes.png (legend grouped by branch) and <stem>_celltypes_white.png (on
+# white, no branch names). Every file the plot writes is uploaded. The k=27 full cohort:
+#   RUN=stage4_insitutree_k27 HIERARCHY_BASENAME=insitutree_hierarchy_k27.json \
+#       COLOR_TABLE_BASENAME=insitutree_k27_label_colors.csv DARK=true POINT_SIZE=0.2 \
+#       OUTPUT_BASENAME=umap_cell_type_hierarchy.png PANELS_OUTPUT=umap_cell_type_hierarchy_leaves.png \
+#       MIN_PANEL_CELLS=1000 sbatch pipeline/slurm/95_celltype_umap.sh
 #
 # ANNOTATION_TABLE overrides the RUN-derived table name. Needed when two studies share a
 # sub-prefix: the retina cohort's typing also lives under stage4/, so RUN=stage4 alone would
@@ -90,14 +102,23 @@ if [[ "${NAPARI_COLORS:-true}" == "true" ]]; then
         echo "NOTE: no ${COLOR_TABLE}; colours will be re-derived (needs duckdb)"
     fi
 fi
+if [[ -n "${HIERARCHY_BASENAME:-}" ]]; then
+    HIERARCHY="${PIPELINE_DIR}/reference/${HIERARCHY_BASENAME}"
+    [[ -f "$HIERARCHY" ]] || { echo "ERROR: no hierarchy $HIERARCHY" >&2; exit 1; }
+    PLOT_ARGS+=(--hierarchy "$HIERARCHY")
+fi
+if [[ "${DARK:-false}" == "true" ]]; then
+    PLOT_ARGS+=(--dark)
+fi
 
 : "${APPTAINER_RSC:?must be set in pipeline/.env}"
 
 WORK="${SLURM_TMPDIR:-/tmp}/cosmx_umap_${SLURM_JOB_ID:-local}"
+OUT="$WORK/out"
 if [[ -n "${PANELS_OUTPUT:-}" ]]; then
-    PLOT_ARGS+=(--panels-output "$WORK/${PANELS_OUTPUT}")
+    PLOT_ARGS+=(--panels-output "$OUT/${PANELS_OUTPUT}" --min-panel-cells "${MIN_PANEL_CELLS:-0}")
 fi
-mkdir -p "$WORK"
+mkdir -p "$OUT"
 trap 'rm -rf "$WORK"' EXIT
 
 export AWS_ACCESS_KEY_ID="$KOPAH_ACCESS_KEY_ID"
@@ -114,16 +135,17 @@ apptainer exec \
     python -u "${PIPELINE_DIR}/python/plot_celltype_umap.py" \
         --h5ad "$WORK/typed.h5ad" \
         --color-key "$COLOR_KEY" \
-        --output "$WORK/${OUTPUT_BASENAME}" \
+        --output "$OUT/${OUTPUT_BASENAME}" \
         --title "${TITLE}" \
+        --point-size "${POINT_SIZE:-1.0}" \
         ${PLOT_ARGS[@]+"${PLOT_ARGS[@]}"}
 
-echo "Uploading annotated UMAP to Kopah..."
-s5cmd cp "$WORK/${OUTPUT_BASENAME}" \
-    "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${RUN}/qc_plots/${OUTPUT_BASENAME}"
-if [[ -n "${PANELS_OUTPUT:-}" ]]; then
-    s5cmd cp "$WORK/${PANELS_OUTPUT}" \
-        "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${RUN}/qc_plots/${PANELS_OUTPUT}"
-fi
+# Everything the plot wrote: the hierarchy mode adds <stem>_counts.csv and the per-type figures, and a
+# panel grid is skipped when no label reaches MIN_PANEL_CELLS.
+echo "Uploading cell-type UMAP outputs to Kopah..."
+for OUTPUT_FILE in "$OUT"/*; do
+    echo "  $(basename "$OUTPUT_FILE")"
+    s5cmd cp "$OUTPUT_FILE" "s3://${KOPAH_BUCKET}/${KOPAH_PREFIX}/${RUN}/qc_plots/$(basename "$OUTPUT_FILE")"
+done
 
 echo "Done: annotated cell-type UMAP for ${RUN}"
