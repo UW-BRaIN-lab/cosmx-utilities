@@ -64,7 +64,7 @@ flowchart LR
     classDef viewer fill:#ffc700,stroke:none,color:#32006e
 
     export[/"AtoMx export<br/>on S3"/]:::data
-    stitch["Fargate, per slide:<br/>stitch, decode, metadata"]:::step
+    stitch["Stitch slides<br/>on Fargate"]:::step
     out[/"Napari-ready<br/>slides on S3"/]:::data
     viewer["Napari on EC2<br/>or locally"]:::viewer
     labels[/"Cell types<br/>from Hyak"/]:::data
