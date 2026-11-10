@@ -26,7 +26,6 @@ flowchart TD
     ref[/"Reference profiles<br/>+ type hierarchy"/]:::data
     tree["InSituTree typing<br/>every cell, per slide"]:::typing
     typed[/"Typed AnnData"/]:::data
-    cnv["InSituCNV<br/>copy number"]:::step
     viz["Marker heatmaps<br/>+ Napari labels"]:::step
 
     flat --> h5ad --> qc --> pca --> leiden --> anchor --> fit
@@ -34,7 +33,6 @@ flowchart TD
     fit --> ref --> tree
     qc --> tree
     tree --> typed
-    typed --> cnv
     typed --> viz
 ```
 
@@ -49,7 +47,6 @@ flowchart TD
 | Reference fit | `72_anchor_typing.sh` | Semi-supervised [InSituType](https://github.com/Nanostring-Biostats/InSituType) against [GBmap](https://www.gbmap.org/), plus de novo clusters for off-reference tumour states |
 | Full-cohort typing | `84` → `85b` → `85c` | [InSituTree](https://github.com/Nanostring-Biostats/CosMx-Analysis-Scratch-Space) hierarchical typing of every cell against the fixed profiles, one job per slide |
 | Write-back | `90_write_celltypes.sh` | Labels and posteriors onto the clustered AnnData |
-| Copy number | `86`–`88` | [InSituCNV](https://github.com/Moldia/InSituCNV-manuscript) per tissue section, to separate malignant from normal cells ([methods](pipeline/INSITUCNV_METHODS.md)) |
 
 Why the two-stage typing: InSituType's de novo EM does not scale to a full cohort (~7.5M cells), so the reference is fitted once on the anchor cohort. Typing every cell against fixed profiles is then independent per cell, which lets InSituTree run slide by slide in parallel.
 
