@@ -36,6 +36,7 @@ Behaviour worth knowing:
 - **Uploads replace** the previous output rather than merging into it, so stale zarr chunks never survive. Pass `--no-replace-output` when running locally without delete permission.
 - **The S3 URI** may be a whole study or a single AtoMx run. Use one run when two studies cover the same slides with different flags (e.g. a 3D resegmentation).
 - **Task-definition drift:** launching refuses if the registered Fargate task definition no longer matches `fargate/fargate-task-process-slide.json`. Re-register with `./fargate/register-task-defs.sh`, or pass `--allow-taskdef-drift`.
+- **Task size:** each slide launches at the task definition's default (4 vCPU / 30 GB) unless its transcript file (`flatFiles/<slide>/<slide>_tx_file.csv.gz`) is 2.5 GB or larger, which gets 16 vCPU / 120 GB; at the default, transcript decoding runs out of memory on those slides. `--cpu`/`--memory` always win, `--no-auto-size` turns this off, and an unreadable transcript file keeps the default.
 
 Each Fargate task runs `process-slide.py`, which:
 1. Queries segmentation manifests in S3 via DuckDB to find the correct segmentation version
