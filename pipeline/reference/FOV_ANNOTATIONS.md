@@ -16,6 +16,7 @@ slide** — on `uwa7761eyes` it labels all 67 FOVs from 2–68 as `Retina`, wher
 | `region` | canonical tissue: `Retina`, `Optic nerve`, `Gray matter`, `White matter`, `Adjacent soft tissue`, or `EXCLUDE_not_in_atlas` |
 | `mixed_adjacent` | 1 if the FOV straddles a boundary (the deck's parenthesised `(… + adjacent)` rows) |
 | `exclude` | 1 if the SME ruled it out of analysis |
+| `region_mixture` | the tissues the SME named, ` + `-joined, where she called an FOV mixed. Blank otherwise. `region` is always one of them |
 
 The parenthesised rows are recorded as a **flag, not a competing assignment** — they
 overlap the primary rows by design, marking FOVs that contain two tissues.
@@ -71,7 +72,85 @@ superficial labelling. The brain blocks are cortex and subcortical white matter 
 **Lymphocytes — out.** Not on our detection argument, which was the weaker one: she reviewed
 the H&E on all of these cases and saw no concerning inflammation.
 
-## ⚠ Open items for the SME
+## FOV rulings, 2026-11-16 — the list is CLOSED
+
+She worked through both remaining lists in Napari. **46 FOVs gained a first annotation and 3
+collisions changed**; the sheet went 2,549 -> 2,595 rows. Nothing about the FOVs is open now.
+
+**Most of her answers are mixtures**, which this file's one-region-per-FOV schema cannot hold,
+so `region_mixture` was added to carry her full answer verbatim while `region` stays the
+single primary every consumer reads. The rule for choosing the primary, applied uniformly:
+
+1. She named ONE tissue -> that becomes `region`, and `mixed_adjacent` goes to 0.
+2. She named several AND the FOV already had a primary from her deck that is one of them ->
+   **keep it**. The mixture is new information about the FOV, not a reassignment of it.
+3. She named several and the FOV had no prior primary -> the first tissue she named.
+
+Rule 2 is why `uwa7753eyes` 117 and 132 carry the same three-way mixture under different
+primaries: 132 came from her deck as `Optic nerve` and keeps it, while 117 is new and takes
+her first-named `Adjacent soft tissue`. That is deliberate, and it is the one place the
+primaries are not comparable with each other.
+
+⚠ **Any region-specific claim should filter on `mixed_adjacent == 0`.** 567 FOVs are flagged
+mixed, 37 of them now with the constituent tissues named. A mixed FOV's cells are a blend, so
+its single `region` is partly wrong by construction — fine for reporting, wrong for a
+statement about one tissue.
+
+### The 7 collisions
+
+| slide | FOV | her ruling | applied as |
+|---|---|---|---|
+| uwa7634eyes | 135 | adjacent soft tissue | **Adjacent soft tissue**, no longer Retina, no longer mixed |
+| uwa7634eyes | 178, 179 | white matter | White matter, **no longer mixed** |
+| uwa7509eyes | 94 | mixed optic nerve and soft tissue | Optic nerve, mixed |
+| uwa7509eyes | 104 | mixed soft tissue + retina + optic nerve | Optic nerve (rule 2), mixed |
+| uwa7509eyes | 217 | mixed white and gray matter | White matter, mixed |
+| eyes7597 | 67 | optic nerve | Optic nerve, unchanged |
+
+### The 46 that were in no table
+
+`UWA7689eyes` **86-102 is not retina**, which is why it was worth asking: 86 and 102 are soft
+tissue and 87-101 are soft tissue mixed with retina. The token `86-102226` sat in her Retina
+row, and the neighbourhood (optic nerve below, soft tissue above) did not support it either.
+
+| slide | FOVs | her ruling |
+|---|---|---|
+| `UWA7689eyes` | 86, 102 | adjacent soft tissue |
+| `UWA7689eyes` | 87-101 | soft tissue + retina |
+| `uwa7753eyes` | 110-113, 116 | soft tissue + retina |
+| `uwa7753eyes` | 117 | soft tissue + retina + optic nerve |
+| `uwa7753eyes` | 193-194, 196-197 | white matter |
+| `UWA7740eyes` | 37-39 | optic nerve |
+| `UWA7740eyes` | 36, 40, 43-46 | optic nerve + soft tissue |
+| `UWA7697eyes` | 45 | retina |
+| `UWA7697eyes` | 46 | retina + soft tissue + optic nerve |
+| `UWA7697eyes` | 69 | optic nerve + soft tissue |
+| `UWA7697eyes` | 134 | **could not locate the FOV** |
+| `eyes7597` | 57 | optic nerve |
+| `eyes7597` | 206 | white matter |
+| `uwa7611eyes` | 82 | optic nerve + soft tissue |
+| `uwa7509eyes` | 73 | soft tissue + optic nerve |
+| `UWA7575eyes` | 49 | optic nerve + soft tissue |
+| `eyes7517` | 81 | optic nerve + soft tissue |
+
+### Three readings of her reply, and one volunteered fact
+
+Each is an interpretation rather than a transcription, so each is recorded to be checked:
+
+- **`UWA7740eyes` "43-36 optic nerve + soft tissue"** read as **43-46**. The row is headed
+  43-46 and 36 is already answered separately on the line above.
+- **`UWA7697eyes` "45 retina, 45 retina + soft tissue + optic nerve"** — 45 appears twice on
+  a row headed 45-46, so the second was read as **46**. If it was 45 both times, then 45 is
+  the three-way mixture and 46 has no answer.
+- **`UWA7697eyes` 134** carries the new region value **`Unlocated`** with `exclude=1`. She
+  could not find it, so no one has verified what it is; leaving it out of the sheet would
+  have let it keep the stale AtoMx label instead. `exclude=1` is the only setting here that
+  is ours rather than hers, and it is one FOV.
+- **`uwa7753eyes` 132** was not on either list — she volunteered that it is the same
+  three-way mixture as 117. It was already `Optic nerve` from her deck and keeps that
+  primary; only the mixture is new.
+
+## Open items for the SME — HISTORY (all closed 2026-11-16)
 
 **28 FOVs were claimed by two primary rows — 21 RESOLVED by the SME 2026-11-06, 7 still
 open.** The first assignment used to win by default; the resolved rows now carry her call,
@@ -98,8 +177,8 @@ Gray matter, Adjacent soft tissue). Two FOVs is too few to support a cohort-wide
 but it does give the "RPE scattered into choroid" question a denominator on this slide, and it
 is where the SME placed the unnamed deep population `a_deep_retinal`.
 
-**Still open — 7 FOVs the SME did not reach.** Deferred to the next round of InSituTree
-review; until then the first assignment still wins and `mixed_adjacent` is unchanged.
+**RESOLVED 2026-11-16** — all 7 are ruled above. The table below records what the conflict
+was; the ruling is in the section above this one.
 
 | slide | FOVs | conflict |
 |---|---|---|
