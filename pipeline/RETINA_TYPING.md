@@ -918,9 +918,21 @@ cortical inhibitory classes (`Allen_CGE interneuron`, `Allen_MGE interneuron`,
 `Allen_LAMP5-LHX6 and Chandelier`, mutually 0.985-0.991). By the same logic one
 `Inhibitory neuron` would follow, but that is an inference, not her answer — ask on Friday.
 
-**The FOV questions are NOT answered.** She takes the 7 collisions and the 46 unruled FOVs in
-Napari on **Friday 2026-11-13 from about noon**, so the cohort is not final until then and
-stage 70 does not run before it.
+**The FOV questions are ANSWERED (2026-11-16) and the cohort is final.** She ruled on all 7
+collisions and all 46 unruled FOVs in Napari; the sheet is 2,595 rows with **184 FOVs
+excluded**. Full rulings in `reference/FOV_ANNOTATIONS.md`, pinned by
+`tests/test_fov_annotations_sme_rulings.py`. Two consequences for the refit:
+
+- `UWA7689eyes` **86-102 is not retina** — 86 and 102 are adjacent soft tissue and 87-101 are
+  soft tissue mixed with retina. The run-1 cells there carried the stale AtoMx label.
+- Most of her answers are **mixtures**, now carried verbatim in a new `region_mixture` column
+  while `region` stays the single primary. 567 FOVs are flagged `mixed_adjacent=1`, so any
+  statement about ONE tissue should filter on `mixed_adjacent == 0` — a mixed FOV's cells are
+  a blend and its single region label is partly wrong by construction. That applies to
+  `21_qc_by_region.sh` and to 79's concentration table, neither of which filters today.
+
+Nothing from the neuropathologist blocks stage 70 now. The remaining block is the type list:
+27 retinal rows in `reference/retina_type_merges_refit.csv` wait on Kathryn Pepple.
 
 **Applying a merge: relabel upstream, do not average columns.** Averaging two columns of the
 built reference gets the cell weighting wrong and quietly favours the rarer subtype. The merge
@@ -1009,20 +1021,14 @@ else. Build the splitter only if it is still buried.
 
 Each of these would otherwise force another pass:
 
-- **7 FOV collisions** still unruled — `uwa7634eyes` 135, 178, 179; `uwa7509eyes` 94, 104,
-  217; `eyes7597` 67. See `reference/FOV_ANNOTATIONS.md`.
-- **`uwa7761eyes` adjacent soft tissue** — 26 FOVs, 2,540 cells, currently kept. The SME
-  named "the brain"; adjacent soft tissue on an eye slide is more likely orbital than
-  brain-adjacent, hence kept, but it was not asked about directly.
-- **That donor's optic nerve QC** — the region she proposed keeping, and the rebuild bakes
-  the decision in before producing the number. `21_qc_by_region.sh` answers it:
-
-  The stage lives on `retina-fov-exclusion-rebuild`, so check the branch out first — on
-  `main` the submit fails with `Unable to open file`:
-
-  ```bash
-  cd ~/cosmx-utilities-retina && git fetch origin && git checkout retina-fov-exclusion-rebuild && git pull --ff-only
-  ```
+- ~~**7 FOV collisions** unruled~~ — **DONE 2026-11-16**, with the other 46. See
+  `reference/FOV_ANNOTATIONS.md`.
+- ~~**`uwa7761eyes` adjacent soft tissue** — 26 FOVs, currently kept~~ — **EXCLUDED
+  2026-11-10** on her conditional ruling, the condition being the stage-21 measurement
+  (101 median counts against 191, rank 12 of 12).
+- ~~**That donor's optic nerve QC**~~ — **MEASURED** (job 43071516): 1.30x the other donors'
+  optic nerve, rank 2 of 12, so keeping it is well supported. `21_qc_by_region.sh` is on
+  `main` now; re-run it after stage 1 to pick up the new annotations:
 
   ```bash
   cd ~/cosmx-utilities-retina && FOCUS_SLIDE=uwa7761eyes sbatch pipeline/slurm/21_qc_by_region.sh
