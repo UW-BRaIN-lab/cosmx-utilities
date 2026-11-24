@@ -56,3 +56,10 @@ Canonical_slide_name,AtoMx_export_name,Name_matches_canonical,AtoMx_flatfile_fol
 8157 A23 8157 G7,8157 A23 8157 G7,yes,8157A238157G7,Wenyu-cohort part2 (4.29.26),
 8157 A7 7488 A3,8157 A7 7488 A3,yes,8157A77488A3,Wenyu-cohort part2 (4.29.26),
 Uwa 7522 G2 G5 Glioblastoma,UWA 7522 G2 G5 Glioblastoma,no,UWA7522G2G5Glioblastoma,Wenyu-cohort part2 (4.29.26),Export uses uppercase UWA; canonical is Uwa
+NP17-01317 A2 NP19-00472 A3,NP17-01317 A2 NP19-00472 A3,yes,NP1701317A2NP1900472A3,Remaining-cohort part4 (11.22.26),
+NP19-00737 A2 NP20-00960 B1,NP19-00737 A2 NP20-00960 B1,yes,NP1900737A2NP2000960B1,Remaining-cohort part4 (11.22.26),
+NP19-00306 B1 NP19-00537 C1,NP19-00306 B1 NP19-00537 C1,yes,NP1900306B1NP1900537C1,Remaining-cohort part4 (11.22.26),
+7706-A7 plus nerves,7706-A7 plus nerves,yes,7706A7plusnerves,Remaining-cohort part4 (11.22.26),
+NP19.02212.B1 NP23.00712.D8,NP19.02212.B1 NP23.00712.D8,yes,NP1902212B1NP2300712D8,Remaining-cohort part4 (11.22.26),
+NP19-00413 A2 NP20-01336 A2,NP19-00413 A2 NP20-01336 A2,yes,NP1900413A2NP2001336A2,Remaining-cohort part4 (11.22.26),
+NP21.11263.E3 NP21.11311.A3,NP21.11263.E3  NP21.11311.A3,no,NP2111263E3NP2111311A3,Remaining-cohort part4 (11.22.26),Export has a double space

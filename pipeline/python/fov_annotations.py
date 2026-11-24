@@ -43,8 +43,10 @@ def load_fov_annotations(annotations: Path = DEFAULT_ANNOTATIONS,
     turns any grouping into a batch test.
     """
     # The committed copy is plain UTF-8; the upstream AtoMx file carries a BOM that would
-    # otherwise corrupt the first header. utf-8-sig reads both.
-    ann = pd.read_csv(annotations, encoding="utf-8-sig")
+    # otherwise corrupt the first header. utf-8-sig reads both. Case and Block are
+    # identifiers, read as text: the nerve FOVs carry Case "Nerve", and a column that is a
+    # number on some rows and text on others breaks anything that writes it to .h5ad.
+    ann = pd.read_csv(annotations, encoding="utf-8-sig", dtype={"Case": str, "Block": str})
     missing = ANNOTATION_COLUMNS - set(ann.columns)
     if missing:
         sys.exit(f"ERROR: {annotations} is missing {sorted(missing)}.")
@@ -59,7 +61,8 @@ def load_fov_annotations(annotations: Path = DEFAULT_ANNOTATIONS,
     unmapped = ann[CROSSWALK_FOLDER].isna()
     if unmapped.any():
         names = sorted(ann.loc[unmapped, "Slide"].unique())
-        print(f"WARNING: {len(names)} annotated slide(s) absent from the crosswalk, dropped: "
+        print(f"WARNING: {len(names)} annotated slide(s) have no {CROSSWALK_FOLDER} in the "
+              f"crosswalk (absent, or not exported from AtoMx yet), dropped: "
               f"{', '.join(names[:5])}{' ...' if len(names) > 5 else ''}")
         ann = ann[~unmapped]
 
