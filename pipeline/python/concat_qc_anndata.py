@@ -59,6 +59,8 @@ import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 
+from pca_batch import PCA_BATCH_COL, identifiers_as_text, pca_batch_labels
+
 
 # An R dgCMatrix stores its @i / @p index slots as 32-bit signed integers.
 DGC_NNZ_LIMIT = 2**31 - 1
@@ -84,6 +86,10 @@ def parse_args() -> argparse.Namespace:
                    help="Comma-separated obs['Region'] values to drop before QC stats, "
                         "HVG selection and the PCA — e.g. tissue with no counterpart in "
                         "the reference atlas. See pipeline/reference/FOV_ANNOTATIONS.md.")
+    p.add_argument("--split-batch-regions", default="",
+                   help="Comma-separated obs['Region'] values whose cells get a PCA batch of "
+                        "their own, '<batch-col>_<Region>' (e.g. 7488_Surgical), instead of "
+                        "sharing the patient's batch. Written to obs['pca_batch'].")
     p.add_argument("--cohort", type=Path, default=None,
                    help="Cohort CSV with Donor + Block columns (e.g. "
                         "pipeline/cohort_wenyu.csv). If given, keep only cells whose "
@@ -115,6 +121,7 @@ def load_slides(anndata_dir: Path) -> ad.AnnData:
     slides = []
     for path in paths:
         a = ad.read_h5ad(path)
+        a.obs = identifiers_as_text(a.obs)
         print(f"  {path.name}: {a.shape[0]} cells x {a.shape[1]} probes")
         slides.append(a)
     adata = ad.concat(slides, join="outer", merge="same", index_unique=None)
@@ -323,9 +330,11 @@ def main() -> None:
     hvg_counts = gene_X[:, hvg_mask]
     hvg_genes = gene_adata.var_names[hvg_mask].to_numpy()
 
-    batch = adata.obs[args.batch_col].astype(str).to_numpy()
+    split_regions = [r.strip() for r in args.split_batch_regions.split(",") if r.strip()]
+    adata.obs[PCA_BATCH_COL] = pca_batch_labels(adata.obs, args.batch_col, split_regions)
+    batch = adata.obs[PCA_BATCH_COL].to_numpy()
     genefreq, batch_labels = per_batch_gene_frequency(hvg_counts, tc, batch)
-    print(f"Gene frequency over {len(batch_labels)} '{args.batch_col}' batches")
+    print(f"Gene frequency over {len(batch_labels)} '{PCA_BATCH_COL}' batches")
 
     hvg_counts = hvg_counts.tocsr()
     hvg_counts.sort_indices()
@@ -356,7 +365,7 @@ def main() -> None:
     )
 
     print(f"Done. {adata.shape[0]:,} cells across {len(batch_labels)} "
-          f"'{args.batch_col}' batches.")
+          f"'{PCA_BATCH_COL}' batches.")
 
 
 if __name__ == "__main__":

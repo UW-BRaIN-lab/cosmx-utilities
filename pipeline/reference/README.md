@@ -70,7 +70,7 @@ exist in the same source directory; swap the `--reference-csv` to retype at a co
 ## GBM — per-FOV donor / block / region annotations
 
 `gbm_fov_annotations.csv` — one row per (Slide, FOV) with `Case`, `Block` and `Region`
-across 57 slides and 38 cases (11,425 rows). `gbm_slide_name_crosswalk.csv` maps the
+across 64 slides and 38 cases (12,746 rows). `gbm_slide_name_crosswalk.csv` maps the
 annotation file's `Canonical_slide_name` to `AtoMx_flatfile_folder`, which is the slide
 token in our stage-1 cell ids (`<slide>_F<fov>_C<cell>`), so the join key is
 `f"{folder}:F{fov}"`.
@@ -82,7 +82,27 @@ per-donor analysis must join it; `python/fov_annotations.py` (`load_fov_annotati
 `annotate_cells`) does, and defaults to these two files;
 `python/program_gap_by_group.py --group-by case` uses it the same way.
 
-Regions are exactly three: `Tumor bulk`, `Infiltrating edge`, `Contralateral uninvolved`.
+Postmortem regions are `Tumor bulk`, `Infiltrating edge` and `Contralateral uninvolved`.
+Two more were added on 2026-11-23 with seven slides (lines 11427+ of the source sheet):
+
+- `Surgical`: six slides of resected specimens, two cases per slide. Every one of those
+  12 cases is also a postmortem case, and surgical tissue carries its own batch effect, so
+  stage 3a gives these cells a PCA batch of their own (`<Case>_Surgical`, controlled by
+  `SPLIT_BATCH_REGIONS`, on by default) instead of the patient's. Case + Block can repeat
+  between surgical and postmortem tissue by coincidence (7488 A3, 7560 A2), so tell them
+  apart by Region, never by Case + Block alone.
+- `Nerve`: FOVs 55–120 of `7706-A7 plus nerves` (FOVs 1–54 are 7706 A7, contralateral
+  uninvolved). They are not GBM study tissue, and `Case`, `Block` and `Region` all read
+  `Nerve`. Drop them at stage 3a with `EXCLUDE_REGIONS=Nerve`.
+
+Because of `Nerve`, `Case` and `Block` are read as text everywhere: a column that is a
+number on some slides and text on others cannot be written to `.h5ad`.
+
+The seven new slides were exported from AtoMx on 2026-11-23 as `Remaining-cohort part4
+(11.22.26)`. AtoMx stripped spaces, hyphens and dots from the folder names
+(`NP17-01317 A2 NP19-00472 A3` → `NP1701317A2NP1900472A3`), and the flat-file metadata carries
+`Case`/`Block`/`Region`, including `Nerve` on 7706-A7 FOVs 55–120. One export name has a double
+space (`NP21.11263.E3  NP21.11311.A3`), recorded as `Name_matches_canonical = no`.
 
 Source of truth is `~/keene-lab/GBM/AtoMx annotations/` (`CosMx-GBM-annotations.csv`,
 `CosMx-GBM-slide-name-crosswalk.csv`), whose `ANNOTATIONS-CHANGELOG.md` carries the full

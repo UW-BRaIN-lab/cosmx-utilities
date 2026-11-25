@@ -92,6 +92,10 @@ else
     echo "Cohort filter DISABLED (COHORT empty): keeping all co-mounted donors."
 fi
 
+# PCA batch split. Surgical specimens are the same patients as some postmortem tissue
+# but carry their own batch effect, so their cells get '<Case>_Surgical' rather than
+# sharing the patient's batch. On by default; a study with no such Region is unaffected.
+# Set SPLIT_BATCH_REGIONS= empty to turn it off.
 apptainer exec \
     --bind "${PIPELINE_DIR}:${PIPELINE_DIR}" \
     --bind "${WORK}:${WORK}" \
@@ -105,7 +109,8 @@ apptainer exec \
         --min-gene-counts "${MIN_GENE_COUNTS:-50}" \
         --max-area "${MAX_AREA:-30000}" \
         --max-negprobe-prop "${MAX_NEGPROBE_PROP:-0.1}" \
-        --exclude-regions "${EXCLUDE_REGIONS-}"
+        --exclude-regions "${EXCLUDE_REGIONS-}" \
+        --split-batch-regions "${SPLIT_BATCH_REGIONS-Surgical}"
 
 echo "Uploading combined_qc artifacts to Kopah..."
 # .h5ad: full all-probe record for stage 3c + downstream.
