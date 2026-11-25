@@ -904,8 +904,18 @@ The type list goes **64 -> 55** on her answers alone, before any retina decision
 | 79's MIXED classes, one copy each: microglia, fibroblast, smooth muscle | -3 | 52 |
 
 Astrocytes keep all three copies (79: each owns its tissue). Pericyte, endothelium and
-pigmented epithelium are undecided and small. **Every retina merge is parked** — she referred
-retinal granularity to Kathryn Pepple rather than ruling on it.
+pigmented epithelium are undecided and small.
+
+**The retinal collapse is APPROVED (2026-11-25) and the type list is 64 -> 36.** 27 retinal
+types become 10; the groups are in `reference/README.md`. Pairs at cosine >= 0.99 fall from 29
+to **5**. Three groups remain above the bar -- the ganglion trio (0.9944-0.9965), midget vs
+cone bipolar (0.9946), and CGE vs MGE (0.9909). The first two are her approved splits; the
+third was never put to anyone. **Run `77_reference_calibration.sh` on the refit before
+raising any of them again**: a measured 927-vs-0 split is a better argument than a cosine.
+
+She approved it only after asking whether the collapse destroys the per-cell expression data.
+It does not -- it changes the label a cell carries, not what was measured in it -- and that
+is the answer the approval rests on, so it belongs in the methods.
 
 ⚠ **The retina is almost all CENTRAL (near macula); `uwa7761eyes` is the exception.** That
 kills the plan to collapse the fovea-enriched HRCA subtypes as peripheral-only — the opposite

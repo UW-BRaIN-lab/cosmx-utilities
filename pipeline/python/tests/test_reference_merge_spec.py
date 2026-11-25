@@ -28,7 +28,7 @@ _spec = importlib.util.spec_from_file_location("merge_reference_types", SCRIPT)
 mrt = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mrt)
 
-EXPECTED_AFTER_REFIT = 53
+EXPECTED_AFTER_REFIT = 36
 RULED_OUT = ("Mona_T cell", "Mona_B cell", "Mona_natural killer cell",
              "Allen_Hippocampal CA1-3", "Allen_Medium spiny neuron",
              "Allen_Eccentric medium spiny neuron")
@@ -62,16 +62,41 @@ def test_the_spec_covers_the_reference_exactly():
           f"{int((spec['status'] == 'decided').sum())} decided")
 
 
-def test_no_retinal_type_moves_before_pepple_rules():
+# The retinal collapse exactly as the retina specialist approved it, 2026-11-25.
+RETINA_COLLAPSE = {
+    "Cone photoreceptor": 2, "Midget bipolar cell": 2, "Cone bipolar cell": 10,
+    "Amacrine cell": 4, "Horizontal cell": 2, "Midget ganglion cell": 2,
+    "Parasol ganglion cell": 2,
+}
+RETINA_KEPT = {"HRCA_retinal rod cell", "HRCA_rod bipolar cell", "HRCA_retinal ganglion cell"}
+
+
+def test_the_retinal_collapse_is_what_she_approved():
+    """Her answer cannot be re-derived from data, and the collapse is irreversible."""
     spec = pd.read_csv(SPEC).fillna("")
-    retina = spec[spec["source_type"].str.startswith("HRCA_")]
-    moved = set(retina.loc[retina["action"] != "keep", "source_type"])
-    # The one exception is the microglia duplicate, which 79 decided on tissue, not granularity.
-    assert moved <= {"HRCA_microglial cell"}, moved
-    pending_on_her = spec[spec["decided_by"] == "Kathryn Pepple"]
-    assert len(pending_on_her) == 27, len(pending_on_her)
-    assert (pending_on_her["action"] == "keep").all()
-    print(f"  {len(pending_on_her)} retinal types held unchanged pending her answer")
+    # By WHO decided, not by prefix: HRCA_astrocyte, HRCA_Mueller cell and the RPE are
+    # HRCA types too, but 79 settled those on tissue rather than on granularity.
+    hers = spec[spec["decided_by"].str.startswith("Kathryn Pepple")]
+    assert len(hers) == 27, len(hers)
+    assert hers["source_type"].str.startswith("HRCA_").all(), "she ruled on retina only"
+
+    merged = hers[hers["action"] == "merge"]
+    sizes = merged.groupby("merged_name").size().to_dict()
+    assert sizes == RETINA_COLLAPSE, sizes
+    kept = set(hers.loc[hers["action"] == "keep", "source_type"])
+    assert kept == RETINA_KEPT, kept
+    assert (hers["status"] == "decided").all(), "every retinal row is decided now"
+    assert spec[spec["decided_by"].str.startswith("Kathryn Pepple")
+                & (spec["status"] == "pending")].empty, "nothing still waits on her"
+    print(f"  27 retinal types -> {len(RETINA_COLLAPSE) + len(RETINA_KEPT)}, as approved")
+
+
+def test_what_remains_pending_is_ours_alone():
+    spec = pd.read_csv(SPEC).fillna("")
+    pending = spec[spec["status"] == "pending"]
+    assert set(pending["decided_by"]) == {"us"}, set(pending["decided_by"])
+    assert (pending["action"] == "keep").all(), "a pending row must not move a type"
+    print(f"  {len(pending)} rows pending, all ours to decide")
 
 
 def test_applying_it_gives_the_type_list_we_claim():
@@ -142,7 +167,8 @@ def test_keep_is_inert_and_completeness_is_enforced():
 
 if __name__ == "__main__":
     for test in (test_the_spec_covers_the_reference_exactly,
-                 test_no_retinal_type_moves_before_pepple_rules,
+                 test_the_retinal_collapse_is_what_she_approved,
+                 test_what_remains_pending_is_ours_alone,
                  test_applying_it_gives_the_type_list_we_claim,
                  test_keep_is_inert_and_completeness_is_enforced):
         print(test.__name__)

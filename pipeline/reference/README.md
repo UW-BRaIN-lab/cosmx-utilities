@@ -243,10 +243,38 @@ cannot be forgotten, and `keep` rows record the decision to leave one alone. The
 | hippocampus + both spiny-neuron types dropped | 3 | SME — blocks are cortex and subcortical white matter only |
 | 4 cortical excitatory → `Excitatory neuron` | 4→1 | SME — "excitatory neuron is sufficient, without the deep vs superficial labelling" |
 | `HRCA_microglial cell`, `Mona_fibroblast` dropped | 2 | `79_atlas_duplicates.sh` |
+| 27 retinal types -> 10 | 17 | retina specialist 2026-11-25 |
 
-**40 rows are still `pending`**: 27 retinal types referred to Kathryn Pepple, plus the
-cortical inhibitory trio, the two smooth-muscle copies, pericyte, endothelium, the Schwann
-pair and the Mona pigment pair. They carry `keep`, so the spec is applicable as it stands.
+The retinal collapse, as she approved it: `Cone photoreceptor` (2), `Midget bipolar cell`
+(2), `Cone bipolar cell` (10), `Amacrine cell` (4), `Horizontal cell` (2), `Midget ganglion
+cell` (2), `Parasol ganglion cell` (2); `HRCA_retinal rod cell`, `HRCA_rod bipolar cell` and
+`HRCA_retinal ganglion cell` keep their own columns. The last is HRCA's catch-all for
+ganglion cells that are neither midget nor parasol, so folding it into either would assert a
+subtype it does not claim.
+
+She asked first whether collapsing loses the per-cell expression data. It does not — the
+collapse changes which label a cell is assigned, not what was measured in it — and that
+answer is what the approval rests on.
+
+**64 -> 36 types.** Measured on the collapsed reference, pairs at cosine >= 0.99 fall from
+**29 to 5**, and the >= 0.98 band from 131 to 18.
+
+⚠ **Three groups stay above 0.99, and they are not all ours to fix:**
+
+| group | cosine | whose call |
+|---|---|---|
+| `HRCA_retinal ganglion cell` / `Midget ganglion cell` / `Parasol ganglion cell` | 0.9944-0.9965 | hers: midget and parasol stay apart. Dropping the catch-all would not dissolve it either, since midget-parasol is 0.9944 on its own |
+| `Midget bipolar cell` / `Cone bipolar cell` | 0.9946 | hers: her table keeps midget bipolars separate from the diffuse/other group |
+| `Allen_CGE interneuron` / `Allen_MGE interneuron` | 0.9909 | **ours, and never asked** — the neuropathologist settled excitatory granularity and was not asked about the inhibitory trio |
+
+So the one-arm-captures-the-pinning failure can still recur inside those three. The way to
+settle it is `77_reference_calibration.sh` on the refit: if midget and parasol ganglion split
+927-vs-0 the way OFF and ON midget did, that measurement is a far better basis for going back
+to her than asking again now.
+
+**13 rows are still `pending`**, all ours: the cortical inhibitory trio, the two smooth-muscle
+copies, pericyte, endothelium, the Schwann pair and the Mona pigment pair. They carry `keep`,
+so the spec is applicable as it stands.
 
 ⚠ **The unweighted mean is right for cross-atlas duplicates and biased for this merge.**
 Averaging columns is well defined when the copies are one cell type rescaled per source, which
